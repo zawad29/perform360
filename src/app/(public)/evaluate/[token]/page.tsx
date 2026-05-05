@@ -4,12 +4,13 @@ import { use, useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Shield, Loader2, AlertCircle } from "lucide-react";
+import { DIRECTION_LABELS, type Direction } from "@/lib/directions";
 
 interface TokenData {
   subjectName: string;
   reviewerEmailMasked: string;
   cycleName: string;
-  relationship: string;
+  direction: Direction;
   isImpersonator: boolean;
 }
 
@@ -218,7 +219,7 @@ export default function EvaluateOTPPage({ params: paramsPromise }: { params: Pro
         {tokenData && (
           <div className="text-center text-[13px] text-gray-500">
             <p>Evaluation for <span className="font-medium text-gray-900">{tokenData.subjectName}</span></p>
-            <p>{tokenData.cycleName} &middot; {tokenData.relationship}</p>
+            <p>{tokenData.cycleName} &middot; {DIRECTION_LABELS[tokenData.direction] ?? tokenData.direction}</p>
           </div>
         )}
 
@@ -239,7 +240,12 @@ export default function EvaluateOTPPage({ params: paramsPromise }: { params: Pro
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
+              <div
+                className="flex justify-center gap-2 sm:gap-3"
+                onPaste={handlePaste}
+                role="group"
+                aria-label="Verification code"
+              >
                 {otp.map((digit, index) => (
                   <input
                     key={index}
@@ -251,6 +257,7 @@ export default function EvaluateOTPPage({ params: paramsPromise }: { params: Pro
                     onChange={(e) => handleChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
                     disabled={isLoading || cooldown > 0}
+                    aria-label={`Verification code digit ${index + 1}`}
                     className="w-10 h-12 sm:w-12 sm:h-14 text-center text-[18px] sm:text-[20px] font-semibold border border-gray-900 bg-white focus:outline focus:outline-2 focus:outline-[#E63946] focus:outline-offset-2 disabled:opacity-50"
                     autoFocus={index === 0}
                   />
@@ -258,11 +265,11 @@ export default function EvaluateOTPPage({ params: paramsPromise }: { params: Pro
               </div>
 
               {error && (
-                <p className="text-[13px] text-gray-900 text-center">{error}</p>
+                <p role="alert" className="text-[13px] text-gray-900 text-center">{error}</p>
               )}
 
               {cooldown > 0 && (
-                <p className="text-[13px] text-gray-900 text-center">
+                <p role="alert" className="text-[13px] text-gray-900 text-center">
                   Too many attempts. Try again in {cooldown}s
                 </p>
               )}

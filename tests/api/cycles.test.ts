@@ -4,10 +4,22 @@ import { mockAuth, mockNoAuth, fixtures, createMockRequest, parseResponse } from
 
 const { GET, POST } = await import("@/app/api/cycles/route");
 
-// Mock createAssignmentsForCycle
 vi.mock("@/lib/assignments", () => ({
   generateAssignmentsFromTeams: vi.fn(),
   createAssignmentsForCycle: vi.fn().mockResolvedValue({ count: 5, reviewerEmails: [] }),
+  applyTeamTemplates: vi.fn().mockResolvedValue(undefined),
+  computeDirectionCoverageWarnings: vi.fn().mockReturnValue([]),
+  validateTeamTemplateCoverage: vi.fn(async (_companyId, teamTemplates) => ({
+    ok: true,
+    data: {
+      pairs: teamTemplates.map((tt: { teamId: string; templateIds: string[] }) => ({
+        teamId: tt.teamId,
+        templates: tt.templateIds.map((id) => ({ id, levelIds: [], sections: [] })),
+      })),
+      templateMap: new Map(),
+      gaps: [],
+    },
+  })),
 }));
 
 describe("API /api/cycles", () => {
@@ -98,7 +110,7 @@ describe("API /api/cycles", () => {
           name: "Q1 Review",
           startDate: "2026-01-01",
           endDate: "2026-03-31",
-          teamTemplates: [{ teamId: "t1", templateId: "tpl1" }],
+          teamTemplates: [{ teamId: "t1", templateIds: ["tpl1"] }],
         },
       });
       const res = await POST(req as any);
@@ -114,7 +126,7 @@ describe("API /api/cycles", () => {
           name: "Q1 Review",
           startDate: "2026-06-01",
           endDate: "2026-01-01",
-          teamTemplates: [{ teamId: "t1", templateId: "tpl1" }],
+          teamTemplates: [{ teamId: "t1", templateIds: ["tpl1"] }],
         },
       });
       const res = await POST(req as any);
@@ -132,8 +144,8 @@ describe("API /api/cycles", () => {
           startDate: "2026-01-01",
           endDate: "2026-03-31",
           teamTemplates: [
-            { teamId: "t1", templateId: "tpl1" },
-            { teamId: "t1", templateId: "tpl2" },
+            { teamId: "t1", templateIds: ["tpl1"] },
+            { teamId: "t1", templateIds: ["tpl2"] },
           ],
         },
       });
@@ -145,7 +157,12 @@ describe("API /api/cycles", () => {
 
     it("returns 404 when teams not found", async () => {
       mockAuth(fixtures.admin);
-      vi.mocked(prisma.team.findMany).mockResolvedValue([]);
+      const { validateTeamTemplateCoverage } = await import("@/lib/assignments");
+      vi.mocked(validateTeamTemplateCoverage).mockResolvedValueOnce({
+        ok: false,
+        error: "One or more teams not found",
+        code: "NOT_FOUND",
+      });
 
       const req = createMockRequest("http://localhost:3000/api/cycles", {
         method: "POST",
@@ -153,7 +170,7 @@ describe("API /api/cycles", () => {
           name: "Q1 Review",
           startDate: "2026-01-01",
           endDate: "2026-03-31",
-          teamTemplates: [{ teamId: "t1", templateId: "tpl1" }],
+          teamTemplates: [{ teamId: "t1", templateIds: ["tpl1"] }],
         },
       });
       const res = await POST(req as any);
@@ -164,8 +181,12 @@ describe("API /api/cycles", () => {
 
     it("creates cycle with valid data", async () => {
       mockAuth(fixtures.admin);
-      vi.mocked(prisma.team.findMany).mockResolvedValue([{ id: "t1" }] as any);
-      vi.mocked(prisma.evaluationTemplate.findMany).mockResolvedValue([{ id: "tpl1" }] as any);
+      vi.mocked(prisma.team.findMany).mockResolvedValue([
+        { id: "t1", name: "Eng", members: [] },
+      ] as any);
+      vi.mocked(prisma.evaluationTemplate.findMany).mockResolvedValue([
+        { id: "tpl1", levelIds: [], sections: [] },
+      ] as any);
 
       const mockCycle = { id: "cycle-new", name: "Q1 Review", status: "DRAFT" };
       vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => {
@@ -173,7 +194,7 @@ describe("API /api/cycles", () => {
           return cb({
             evaluationCycle: { create: vi.fn().mockResolvedValue(mockCycle) },
             cycleTeam: { create: vi.fn().mockResolvedValue({ id: "ct-1" }), createMany: vi.fn() },
-            cycleTeamLevelTemplate: { createMany: vi.fn() },
+            cycleTeamTemplate: { createMany: vi.fn() },
           });
         }
         return mockCycle;
@@ -191,7 +212,7 @@ describe("API /api/cycles", () => {
           name: "Q1 Review",
           startDate: "2026-01-01",
           endDate: "2026-03-31",
-          teamTemplates: [{ teamId: "t1", templateId: "tpl1" }],
+          teamTemplates: [{ teamId: "t1", templateIds: ["tpl1"] }],
         },
       });
       const res = await POST(req as any);

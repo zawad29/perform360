@@ -66,9 +66,9 @@ export async function handleDataExport(
           OR: [
             { companyId: company.id },
             {
-              cycleTeams: {
+              cycleTeamTemplates: {
                 some: {
-                  cycle: { companyId: company.id },
+                  cycleTeam: { cycle: { companyId: company.id } },
                 },
               },
             },
@@ -83,7 +83,7 @@ export async function handleDataExport(
             select: {
               id: true,
               teamId: true,
-              templateId: true,
+              templates: { select: { templateId: true } },
               createdAt: true,
             },
           },
@@ -116,7 +116,7 @@ export async function handleDataExport(
     templateId: assignment.templateId,
     subjectId: assignment.subjectId,
     reviewerId: assignment.reviewerId,
-    relationship: assignment.relationship,
+    direction: assignment.direction,
     status: assignment.status,
     token: assignment.token,
     createdAt: assignment.createdAt,

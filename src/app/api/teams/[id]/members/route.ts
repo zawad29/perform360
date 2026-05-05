@@ -5,19 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
 
-const VALID_IMPERSONATOR_RELATIONSHIPS = ["peer", "manager", "direct_report", "external"] as const;
+import { Direction } from "@prisma/client";
 
 const addMemberSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
   role: z.enum(["MANAGER", "MEMBER", "EXTERNAL", "IMPERSONATOR"]),
   levelId: z.string().optional().nullable(),
-  impersonatorRelationships: z
-    .array(z.enum(VALID_IMPERSONATOR_RELATIONSHIPS))
+  impersonatorDirections: z
+    .array(z.nativeEnum(Direction))
     .optional()
     .default([]),
 }).refine(
-  (data) => data.role !== "IMPERSONATOR" || (data.impersonatorRelationships && data.impersonatorRelationships.length > 0),
-  { message: "Impersonator must handle at least one relationship type", path: ["impersonatorRelationships"] }
+  (data) => data.role !== "IMPERSONATOR" || (data.impersonatorDirections && data.impersonatorDirections.length > 0),
+  { message: "Impersonator must handle at least one direction", path: ["impersonatorDirections"] }
 );
 
 export async function POST(
@@ -97,7 +97,7 @@ export async function POST(
         teamId: id,
         role: validated.role,
         levelId: validated.levelId ?? null,
-        impersonatorRelationships: validated.role === "IMPERSONATOR" ? validated.impersonatorRelationships : [],
+        impersonatorDirections: validated.role === "IMPERSONATOR" ? validated.impersonatorDirections : [],
       },
       include: {
         user: {

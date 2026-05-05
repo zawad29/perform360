@@ -3,13 +3,13 @@ import { requireAdminOrHR, isAuthError } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { buildIndividualReport } from "@/lib/reports";
 import { getDataKeyFromRequest } from "@/lib/encryption-session";
-import { RELATIONSHIP_LABELS } from "@/lib/constants";
+import { DIRECTION_LABELS } from "@/lib/directions";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
 import { writeAuditLog } from "@/lib/audit";
 import { enqueue } from "@/lib/queue";
 import { JOB_TYPES } from "@/types/job";
-import type { RelationshipScores } from "@/types/report";
+import type { DirectionScores, DirectionWeights } from "@/types/report";
 
 type ApiResponse<T> =
   | { success: true; data: T }
@@ -199,15 +199,15 @@ function renderScoreSection(
   data: {
     overallScore: number;
     weightedOverallScore?: number | null;
-    appliedWeights?: { manager: number; peer: number; directReport: number; self: number; external: number } | null;
+    appliedWeights?: DirectionWeights | null;
     categoryScores: { category: string; score: number; maxScore: number }[];
     weightedCategoryScores?: { category: string; score: number; maxScore: number }[] | null;
-    scoresByRelationship: RelationshipScores;
-    textFeedback: { relationship: string; questionText: string; responses: string[] }[];
+    scoresByDirection: DirectionScores;
+    textFeedback: { questionText: string; responses: string[] }[];
     calibratedScore?: number | null;
     calibrationJustification?: string | null;
   },
-  relLabels: Record<string, string>
+  dirLabels: Record<string, string>
 ): string {
   const displayScore = data.calibratedScore ?? data.weightedOverallScore ?? data.overallScore;
   const displayCategories = data.weightedCategoryScores ?? data.categoryScores;
@@ -225,28 +225,28 @@ function renderScoreSection(
     )
     .join("");
 
-  const relEntries: [string, number | null][] = [
-    ["manager", data.scoresByRelationship.manager],
-    ["peer", data.scoresByRelationship.peer],
-    ["directReport", data.scoresByRelationship.directReport],
-    ["self", data.scoresByRelationship.self],
-    ["external", data.scoresByRelationship.external],
+  const dirEntries: [string, number | null][] = [
+    ["DOWNWARD", data.scoresByDirection.downward],
+    ["UPWARD", data.scoresByDirection.upward],
+    ["LATERAL", data.scoresByDirection.lateral],
+    ["SELF", data.scoresByDirection.self],
+    ["EXTERNAL", data.scoresByDirection.external],
   ];
-  const relationshipRows = relEntries
+  const directionRows = dirEntries
     .filter(([, v]) => v !== null)
     .map(
       ([key, value]) =>
-        `<tr><td>${escapeHtml(relLabels[key] ?? key)}</td><td>${(value as number).toFixed(1)}</td></tr>`
+        `<tr><td>${escapeHtml(dirLabels[key] ?? key)}</td><td>${(value as number).toFixed(1)}</td></tr>`
     )
     .join("");
 
   const weightsRow = data.appliedWeights
     ? `<p class="weights-info" style="text-align:left;color:#888888;font-size:11px;margin-top:4px;text-transform:uppercase;letter-spacing:0.05em;">
-        Weights: Mgr ${Math.round(data.appliedWeights.manager * 100)}%
-        · Peer ${Math.round(data.appliedWeights.peer * 100)}%
-        · DR ${Math.round(data.appliedWeights.directReport * 100)}%
-        · Self ${Math.round(data.appliedWeights.self * 100)}%
-        · Ext ${Math.round(data.appliedWeights.external * 100)}%
+        Weights: Down ${Math.round(data.appliedWeights.downward)}%
+        · Up ${Math.round(data.appliedWeights.upward)}%
+        · Lat ${Math.round(data.appliedWeights.lateral)}%
+        · Self ${Math.round(data.appliedWeights.self)}%
+        · Ext ${Math.round(data.appliedWeights.external)}%
       </p>`
     : "";
 
@@ -272,9 +272,9 @@ function renderScoreSection(
   </div>
 
   <section>
-    <h2>Scores by Relationship</h2>
-    <table><thead><tr><th>Relationship</th><th>Avg Score</th></tr></thead>
-    <tbody>${relationshipRows}</tbody></table>
+    <h2>Scores by Direction</h2>
+    <table><thead><tr><th>Direction</th><th>Avg Score</th></tr></thead>
+    <tbody>${directionRows}</tbody></table>
   </section>
 
   <section>
@@ -288,7 +288,7 @@ function renderIndividualReportHtml(
   report: Awaited<ReturnType<typeof buildIndividualReport>>,
   cycleName: string
 ): string {
-  const relLabels: Record<string, string> = RELATIONSHIP_LABELS;
+  const dirLabels: Record<string, string> = DIRECTION_LABELS;
 
   const hasTeamBreakdowns = report.teamBreakdowns.length > 1;
 
@@ -296,7 +296,7 @@ function renderIndividualReportHtml(
     ? `<div class="team-divider"><h2 class="team-heading">All Teams (Merged)</h2></div>`
     : "";
 
-  const mergedSection = renderScoreSection(report, relLabels);
+  const mergedSection = renderScoreSection(report, dirLabels);
 
   const teamSections = hasTeamBreakdowns
     ? report.teamBreakdowns
@@ -305,7 +305,7 @@ function renderIndividualReportHtml(
           <div class="team-divider page-break">
             <h2 class="team-heading">${escapeHtml(tb.teamName)}</h2>
           </div>
-          ${renderScoreSection(tb, relLabels)}`
+          ${renderScoreSection(tb, dirLabels)}`
         )
         .join("")
     : "";

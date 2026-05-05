@@ -37,14 +37,6 @@ export const TEAM_ROLES = {
   EXTERNAL: "EXTERNAL",
 } as const;
 
-export const RELATIONSHIP_LABELS: Record<string, string> = {
-  manager: "Manager",
-  direct_report: "Direct Report",
-  peer: "Peer",
-  self: "Self",
-  external: "External",
-};
-
 export const ENCRYPTION_CONFIG = {
   recoveryCodeCount: 8,
   minPassphraseLength: 12,

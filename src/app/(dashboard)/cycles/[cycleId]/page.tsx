@@ -28,8 +28,9 @@ import { ScoreDistributionChart } from "@/components/reports/score-distribution-
 import { CompletionDonutChart } from "@/components/reports/completion-donut-chart";
 import { StatusBreakdownChart } from "@/components/reports/status-breakdown-chart";
 import { TeamScoreChart } from "@/components/reports/team-score-chart";
-import { RelationshipScoreChart } from "@/components/reports/relationship-score-chart";
+import { DirectionScoreChart } from "@/components/reports/direction-score-chart";
 import { SubmissionTrendChart } from "@/components/reports/submission-trend-chart";
+import { ScoreLineageChip } from "@/components/reports/score-lineage";
 import { UnlockGate, useEncryptionUnlock } from "@/components/encryption/unlock-gate";
 import {
   DropdownMenu,
@@ -64,33 +65,40 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import type { CycleReport } from "@/types/report";
-import { CalibrationPanel } from "@/components/cycles/calibration-panel";
+import { CalibrationPanel, type CalibrationData } from "@/components/cycles/calibration-panel";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Pagination } from "@/components/ui/pagination";
+import { DIRECTION_LABELS, DIRECTIONS, type Direction } from "@/lib/directions";
+import type { DirectionWeights } from "@/types/report";
+import { RoutingMatrix, type MatrixTemplate } from "@/components/cycles/routing-matrix";
+import type { TemplateOptionSection } from "@/app/(dashboard)/cycles/new/_components/types";
 
 // ─── Types ───
 
-interface LevelTemplateEntry {
-  levelId: string;
-  levelName: string;
-  relationship: string;
-  templateId: string;
-  templateName: string;
+interface CycleTeamTemplateEntry {
+  id: string;
+  name: string;
+  description: string | null;
+  levelIds: string[];
+  weightPreset: string | null;
+  weightsMember: DirectionWeights | null;
+  weightsManager: DirectionWeights | null;
+  sections: TemplateOptionSection[];
+}
+
+interface CycleTeamMember {
+  userId: string;
+  name: string;
+  role: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
+  levelId: string | null;
+  levelName: string | null;
 }
 
 interface TeamTemplate {
   teamId: string;
   teamName: string;
-  templateId: string | null;
-  templateName: string | null;
-  weights: {
-    manager: number;
-    peer: number;
-    directReport: number;
-    self: number;
-    external: number;
-  } | null;
-  levelTemplates: LevelTemplateEntry[];
+  members: CycleTeamMember[];
+  templates: CycleTeamTemplateEntry[];
 }
 
 interface CycleApiData {
@@ -115,7 +123,7 @@ interface AssignmentWithNames {
   reviewerId: string;
   subjectName: string;
   reviewerName: string;
-  relationship: string;
+  direction: Direction;
   status: "SUBMITTED" | "IN_PROGRESS" | "PENDING";
   teamId: string;
   teamName: string;
@@ -125,13 +133,7 @@ interface AssignmentWithNames {
 // ─── Constants ───
 
 type StatusFilterValue = "all" | "PENDING" | "IN_PROGRESS" | "SUBMITTED";
-type RelationshipFilterValue =
-  | "all"
-  | "manager"
-  | "direct_report"
-  | "peer"
-  | "self"
-  | "external";
+type DirectionFilterValue = "all" | Direction;
 
 const TEAMS_PER_PAGE = 50;
 const ASSIGNMENTS_PER_PAGE = 20;
@@ -155,14 +157,6 @@ const statusLabel: Record<string, string> = {
   PENDING: "Pending",
 };
 
-const relationshipLabel: Record<string, string> = {
-  manager: "Manager",
-  direct_report: "Direct Report",
-  peer: "Peer",
-  self: "Self",
-  external: "External",
-};
-
 const statusBadgeVariant: Record<
   string,
   "success" | "warning" | "default" | "outline"
@@ -173,11 +167,121 @@ const statusBadgeVariant: Record<
   ARCHIVED: "default",
 };
 
-function ScoreBadge({ score }: { score: number }) {
+interface PerformerPerson {
+  subjectId: string;
+  subjectName: string;
+  overallScore: number;
+  weightedOverallScore?: number | null;
+  calibratedScore?: number | null;
+}
+
+function IndividualReportRow({
+  person,
+  cycleId,
+  showTemplate,
+}: {
+  person: {
+    subjectId: string;
+    subjectName: string;
+    overallScore: number;
+    weightedOverallScore: number | null;
+    calibratedScore: number | null;
+    reviewCount: number;
+    completedCount: number;
+    primaryTemplateName: string | null;
+  };
+  cycleId: string;
+  showTemplate: boolean;
+}) {
   return (
-    <span className={`text-[13px] font-medium tabular-nums ${score >= 4.0 ? "text-accent" : "text-gray-900"}`}>
-      {score.toFixed(1)}
-    </span>
+    <Link href={`/cycles/${cycleId}/reports/${person.subjectId}`}>
+      <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer group gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <Avatar name={person.subjectName} size="md" />
+          <div className="min-w-0">
+            <p className="text-[14px] font-medium text-gray-900 truncate">
+              {person.subjectName}
+            </p>
+            <p className="text-[12px] text-gray-500 flex items-center gap-1.5 flex-wrap">
+              <span>
+                {person.completedCount}/{person.reviewCount} reviews completed
+              </span>
+              {showTemplate && person.primaryTemplateName && (
+                <>
+                  <span className="text-gray-300">·</span>
+                  <span className="text-gray-500">{person.primaryTemplateName}</span>
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {person.completedCount > 0 && (
+            <ScoreLineageChip
+              raw={person.overallScore}
+              weighted={person.weightedOverallScore}
+              calibrated={person.calibratedScore}
+            />
+          )}
+          <ChevronRight
+            size={16}
+            strokeWidth={1.5}
+            className="text-gray-300 group-hover:text-gray-500"
+          />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function PerformerList({
+  title,
+  icon,
+  people,
+  cycleId,
+  showRankTrophy,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  people: PerformerPerson[];
+  cycleId: string;
+  showRankTrophy?: boolean;
+}) {
+  return (
+    <Card padding="sm">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          {icon}
+          <CardTitle>{title}</CardTitle>
+        </div>
+      </CardHeader>
+      <div className="divide-y divide-gray-50">
+        {people.map((person, idx) => (
+          <Link key={person.subjectId} href={`/cycles/${cycleId}/reports/${person.subjectId}`}>
+            <div className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 group gap-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-[12px] font-semibold text-gray-400 w-5 text-center shrink-0">
+                  {showRankTrophy && idx === 0 ? (
+                    <Trophy size={14} strokeWidth={1.5} className="text-gray-900 inline" />
+                  ) : (
+                    idx + 1
+                  )}
+                </span>
+                <Avatar name={person.subjectName} size="sm" />
+                <span className="text-[14px] font-medium text-gray-900 truncate">
+                  {person.subjectName}
+                </span>
+              </div>
+              <ScoreLineageChip
+                raw={person.overallScore}
+                weighted={person.weightedOverallScore ?? null}
+                calibrated={person.calibratedScore ?? null}
+              />
+            </div>
+          </Link>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -191,16 +295,18 @@ export default function CycleDetailPage() {
   const [activeTab, setActiveTab] = useState<
     "overview" | "assignments" | "reports" | "calibration"
   >("overview");
-  const [calibrationData, setCalibrationData] = useState<any>(null);
+  const [calibrationData, setCalibrationData] = useState<CalibrationData | null>(null);
   const [calibrationLoading, setCalibrationLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("all");
-  const [relationshipFilter, setRelationshipFilter] =
-    useState<RelationshipFilterValue>("all");
+  const [directionFilter, setDirectionFilter] =
+    useState<DirectionFilterValue>("all");
   const [teamFilter, setTeamFilter] = useState("all");
   const [reportTeamFilter, setReportTeamFilter] = useState("all");
   const [reportSearch, setReportSearch] = useState("");
+  const [groupByTemplate, setGroupByTemplate] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [teamTemplatePage, setTeamTemplatePage] = useState(1);
+  const [routingTeamId, setRoutingTeamId] = useState<string | null>(null);
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [reportPage, setReportPage] = useState(1);
   const [assignmentsData, setAssignmentsData] = useState<AssignmentWithNames[] | null>(null);
@@ -317,7 +423,7 @@ export default function CycleDetailPage() {
     const query = searchQuery.toLowerCase().trim();
     return assignments.filter((a) => {
       if (statusFilter !== "all" && a.status !== statusFilter) return false;
-      if (relationshipFilter !== "all" && a.relationship !== relationshipFilter)
+      if (directionFilter !== "all" && a.direction !== directionFilter)
         return false;
       if (teamFilter !== "all" && a.teamId !== teamFilter) return false;
       if (
@@ -328,12 +434,12 @@ export default function CycleDetailPage() {
         return false;
       return true;
     });
-  }, [assignments, statusFilter, relationshipFilter, teamFilter, searchQuery]);
+  }, [assignments, statusFilter, directionFilter, teamFilter, searchQuery]);
 
   // Reset assignment page when filters change
   useEffect(() => {
     setAssignmentPage(1);
-  }, [statusFilter, relationshipFilter, teamFilter, searchQuery]);
+  }, [statusFilter, directionFilter, teamFilter, searchQuery]);
 
   const assignmentTotalPages = Math.ceil(filteredAssignments.length / ASSIGNMENTS_PER_PAGE);
   const paginatedAssignments = useMemo(() => {
@@ -358,7 +464,7 @@ export default function CycleDetailPage() {
 
   const activeFilterCount = [
     statusFilter !== "all",
-    relationshipFilter !== "all",
+    directionFilter !== "all",
     teamFilter !== "all",
     searchQuery.trim() !== "",
   ].filter(Boolean).length;
@@ -632,7 +738,7 @@ export default function CycleDetailPage() {
 
   function clearFilters() {
     setStatusFilter("all");
-    setRelationshipFilter("all");
+    setDirectionFilter("all");
     setTeamFilter("all");
     setSearchQuery("");
   }
@@ -785,46 +891,44 @@ export default function CycleDetailPage() {
                 <div className="divide-y divide-gray-50">
                   {paginatedTeams.map((tt) => (
                     <div key={tt.teamId} className="px-4 py-2.5">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="text-[14px] font-medium text-gray-900 truncate">
                           {tt.teamName}
                         </span>
-                        {tt.templateName ? (
-                          <Badge variant="outline" className="shrink-0">{tt.templateName}</Badge>
-                        ) : tt.levelTemplates.length > 0 ? (
-                          <Badge variant="info" className="shrink-0">Per-Level Templates</Badge>
-                        ) : null}
-                      </div>
-                      {tt.weights && (
-                        <div className="mt-1.5 flex items-center gap-3 text-[11px] text-gray-400 flex-wrap">
-                          <span>Weights:</span>
-                          <span>Mgr {tt.weights.manager}%</span>
-                          <span>Peer {tt.weights.peer}%</span>
-                          <span>DR {tt.weights.directReport}%</span>
-                          <span>Self {tt.weights.self}%</span>
-                          <span>Ext {tt.weights.external}%</span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {tt.templates.length === 0 ? (
+                            <Badge variant="outline" className="shrink-0">No templates</Badge>
+                          ) : (
+                            tt.templates.map((tpl) => (
+                              <Badge key={tpl.id} variant="outline" className="shrink-0">
+                                {tpl.name}
+                                {tpl.levelIds.length > 0 && (
+                                  <span className="ml-1 text-[10px] text-gray-400">
+                                    ({tpl.levelIds.length} {tpl.levelIds.length === 1 ? "level" : "levels"})
+                                  </span>
+                                )}
+                              </Badge>
+                            ))
+                          )}
                         </div>
-                      )}
-                      {tt.levelTemplates.length > 0 && (
-                        <div className="mt-2 border border-gray-100 overflow-hidden">
-                          <table className="w-full text-[12px]">
-                            <thead>
-                              <tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="text-left py-1.5 px-2.5 text-gray-500 font-medium uppercase tracking-caps">Level</th>
-                                <th className="text-left py-1.5 px-2.5 text-gray-500 font-medium uppercase tracking-caps">Relationship</th>
-                                <th className="text-left py-1.5 px-2.5 text-gray-500 font-medium uppercase tracking-caps">Template</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {tt.levelTemplates.map((lt) => (
-                                <tr key={`${lt.levelId}-${lt.relationship}`} className="border-b border-gray-50 last:border-0">
-                                  <td className="py-1 px-2.5 text-gray-900 font-medium">{lt.levelName}</td>
-                                  <td className="py-1 px-2.5 text-gray-600 capitalize">{lt.relationship.replace("_", " ")}</td>
-                                  <td className="py-1 px-2.5 text-gray-600">{lt.templateName}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                      </div>
+                      {tt.templates.some((t) => t.weightsMember || t.weightsManager) && (
+                        <div className="mt-2 space-y-1">
+                          {tt.templates
+                            .filter((t) => t.weightsMember || t.weightsManager)
+                            .map((tpl) => {
+                              const w = tpl.weightsMember ?? tpl.weightsManager!;
+                              return (
+                                <div key={tpl.id} className="flex items-center gap-3 text-[11px] text-gray-400 flex-wrap">
+                                  <span className="text-gray-500">{tpl.name} weights:</span>
+                                  <span>↓ {w.downward}%</span>
+                                  <span>↑ {w.upward}%</span>
+                                  <span>↔ {w.lateral}%</span>
+                                  <span>↻ {w.self}%</span>
+                                  <span>→ {w.external}%</span>
+                                </div>
+                              );
+                            })}
                         </div>
                       )}
                     </div>
@@ -839,6 +943,61 @@ export default function CycleDetailPage() {
                   onPageChange={setTeamTemplatePage}
                 />
               </Card>
+            );
+          })()}
+
+          {/* Routing preview — only meaningful while the cycle is DRAFT.
+              For ACTIVE/CLOSED cycles the assignments are real and live on the
+              Assignments tab; showing a "what would happen" view here would be
+              misleading. Single-team selector keeps the page from flooding. */}
+          {cycle.status === "DRAFT" && cycle.teamTemplates.length > 0 && (() => {
+            const activeTeamId = routingTeamId ?? cycle.teamTemplates[0].teamId;
+            const activeTeam =
+              cycle.teamTemplates.find((tt) => tt.teamId === activeTeamId) ?? cycle.teamTemplates[0];
+            const matrixTemplates: MatrixTemplate[] = activeTeam.templates.map((tpl) => ({
+              id: tpl.id,
+              name: tpl.name,
+              description: tpl.description ?? null,
+              levelIds: tpl.levelIds,
+              sections: tpl.sections,
+              weightsMember: tpl.weightsMember,
+              weightsManager: tpl.weightsManager,
+            }));
+            return (
+              <div className="space-y-3 mt-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <h3 className="text-[14px] font-medium uppercase tracking-caps text-gray-700">
+                    Routing preview
+                  </h3>
+                  <Select
+                    value={activeTeam.teamId}
+                    onValueChange={(v) => setRoutingTeamId(v)}
+                  >
+                    <SelectTrigger className="w-auto h-8 min-w-[180px] text-[13px]">
+                      <SelectValue placeholder="Select team" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cycle.teamTemplates.map((tt) => (
+                        <SelectItem key={tt.teamId} value={tt.teamId}>
+                          {tt.teamName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <RoutingMatrix
+                  key={activeTeam.teamId}
+                  teamName={activeTeam.teamName}
+                  members={activeTeam.members.map((m) => ({
+                    userId: m.userId,
+                    name: m.name,
+                    levelId: m.levelId,
+                    levelName: m.levelName,
+                    role: m.role,
+                  }))}
+                  templates={matrixTemplates}
+                />
+              </div>
             );
           })()}
         </TabsContent>
@@ -908,23 +1067,23 @@ export default function CycleDetailPage() {
               </SelectContent>
             </Select>
 
-            {/* Relationship dropdown */}
+            {/* Direction dropdown */}
             <Select
-              value={relationshipFilter}
+              value={directionFilter}
               onValueChange={(v) =>
-                setRelationshipFilter(v as RelationshipFilterValue)
+                setDirectionFilter(v as DirectionFilterValue)
               }
             >
               <SelectTrigger className="w-auto h-9 min-w-[150px] text-[13px]">
-                <SelectValue placeholder="Relationship" />
+                <SelectValue placeholder="Direction" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Relationships</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="direct_report">Direct Report</SelectItem>
-                <SelectItem value="peer">Peer</SelectItem>
-                <SelectItem value="self">Self</SelectItem>
-                <SelectItem value="external">External</SelectItem>
+                <SelectItem value="all">All Directions</SelectItem>
+                {DIRECTIONS.map((d) => (
+                  <SelectItem key={d.key} value={d.key}>
+                    {d.glyph} {d.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -1021,7 +1180,7 @@ export default function CycleDetailPage() {
                             Reviewer
                           </th>
                           <th className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2">
-                            Relationship
+                            Direction
                           </th>
                           <th className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2">
                             Status
@@ -1057,8 +1216,7 @@ export default function CycleDetailPage() {
                             </td>
                             <td className="px-4 py-2.5">
                               <Badge variant="outline">
-                                {relationshipLabel[a.relationship] ??
-                                  a.relationship}
+                                {DIRECTION_LABELS[a.direction] ?? a.direction}
                               </Badge>
                             </td>
                             <td className="px-4 py-2.5">
@@ -1133,6 +1291,29 @@ export default function CycleDetailPage() {
             <ReportSkeleton />
           ) : cycleReport ? (
             <>
+              {/* Template legend — shows what templates scored this cycle and how many subjects each one was primary for */}
+              {cycleReport.templatesUsed.length > 1 && (
+                <div className="border border-gray-200 bg-gray-50/60 px-4 py-3 mb-4">
+                  <div className="flex items-start gap-2 flex-wrap">
+                    <span className="text-[12px] font-medium uppercase tracking-caps text-gray-500 mt-0.5 shrink-0">
+                      Templates in this cycle
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {cycleReport.templatesUsed.map((t) => (
+                        <Badge key={t.templateId} variant="outline" className="text-[11px]">
+                          {t.templateName}
+                          <span className="ml-1.5 text-gray-400">{t.subjectCount}</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1.5">
+                    Subjects were scored against different forms — comparing scores side-by-side across templates is approximate.
+                    Use <span className="text-gray-700 font-medium">Group by template</span> below to compare like-with-like.
+                  </p>
+                </div>
+              )}
+
               {/* Summary Stats + Team Filter */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <h3 className="text-headline text-gray-900">Summary</h3>
@@ -1205,19 +1386,17 @@ export default function CycleDetailPage() {
                     distribution={cycleReport.scoreDistribution}
                   />
                 </Card>
-                {cycleReport.avgScoreByRelationship && (
+                {cycleReport.avgScoreByDirection && (
                   <Card>
                     <CardHeader>
-                      <CardTitle>Scores by Relationship</CardTitle>
+                      <CardTitle>Scores by Direction</CardTitle>
                     </CardHeader>
-                    <RelationshipScoreChart
-                      manager={cycleReport.avgScoreByRelationship.manager}
-                      peer={cycleReport.avgScoreByRelationship.peer}
-                      directReport={
-                        cycleReport.avgScoreByRelationship.directReport
-                      }
-                      self={cycleReport.avgScoreByRelationship.self}
-                      external={cycleReport.avgScoreByRelationship.external}
+                    <DirectionScoreChart
+                      downward={cycleReport.avgScoreByDirection.downward}
+                      upward={cycleReport.avgScoreByDirection.upward}
+                      lateral={cycleReport.avgScoreByDirection.lateral}
+                      self={cycleReport.avgScoreByDirection.self}
+                      external={cycleReport.avgScoreByDirection.external}
                     />
                   </Card>
                 )}
@@ -1236,6 +1415,39 @@ export default function CycleDetailPage() {
                     hasCalibration: t.calibratedAvgScore != null,
                   }))}
                 />
+                {/* Per-template breakouts for teams with multi-template routing */}
+                {cycleReport.avgScoreByTeam.some((t) => t.byTemplate.length > 0) && (
+                  <div className="border-t border-gray-100 mt-4 pt-3 px-4 pb-4 space-y-3">
+                    <p className="text-[11px] font-medium uppercase tracking-caps text-gray-500">
+                      By template (multi-template teams)
+                    </p>
+                    {cycleReport.avgScoreByTeam
+                      .filter((t) => t.byTemplate.length > 0)
+                      .map((t) => (
+                        <div key={t.teamId}>
+                          <p className="text-[12px] font-medium text-gray-700 mb-1">
+                            {t.teamName}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {t.byTemplate.map((bt) => (
+                              <span
+                                key={bt.templateId}
+                                className="inline-flex items-center gap-1 border border-gray-200 bg-white px-2 py-1 text-[11px]"
+                              >
+                                <span className="text-gray-700">{bt.templateName}</span>
+                                <span className="text-gray-400">·</span>
+                                <span className="text-gray-400">{bt.subjectCount}</span>
+                                <span className="text-gray-400">·</span>
+                                <span className="font-semibold text-gray-900 tabular-nums">
+                                  {bt.avgScore.toFixed(1)}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </Card>
 
               {/* Team Completion */}
@@ -1262,84 +1474,74 @@ export default function CycleDetailPage() {
                 </Card>
               )}
 
-              {/* Top & Bottom Performers */}
-              {topPerformers.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <Card padding="sm">
-                    <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <TrendingUp
-                          size={16}
-                          strokeWidth={1.5}
-                          className="text-gray-900"
-                        />
-                        <CardTitle>Top Performers</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <div className="divide-y divide-gray-50">
-                      {topPerformers.map((person, idx) => (
-                        <Link
-                          key={person.subjectId}
-                          href={`/cycles/${cycleId}/reports/${person.subjectId}`}
-                        >
-                          <div className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 group gap-2">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="text-[12px] font-semibold text-gray-400 w-5 text-center shrink-0">
-                                {idx === 0 ? (
-                                  <Trophy
-                                    size={14}
-                                    strokeWidth={1.5}
-                                    className="text-gray-900 inline"
-                                  />
-                                ) : (
-                                  idx + 1
-                                )}
-                              </span>
-                              <Avatar name={person.subjectName} size="sm" />
-                              <span className="text-[14px] font-medium text-gray-900 truncate">
-                                {person.subjectName}
-                              </span>
-                            </div>
-                            <ScoreBadge score={getDisplayScore(person)} />
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  </Card>
+              {/* Group-by-template toggle (only shown when more than one template was used) */}
+              {cycleReport.templatesUsed.length > 1 && (
+                <label className="inline-flex items-center gap-2 cursor-pointer mb-4">
+                  <input
+                    type="checkbox"
+                    checked={groupByTemplate}
+                    onChange={(e) => setGroupByTemplate(e.target.checked)}
+                    className="border-gray-300"
+                  />
+                  <span className="text-[13px] text-gray-700">
+                    Group performers and reports by template
+                  </span>
+                </label>
+              )}
 
-                  <Card padding="sm">
-                    <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <TrendingDown
-                          size={16}
-                          strokeWidth={1.5}
-                          className="text-gray-900"
-                        />
-                        <CardTitle>Needs Improvement</CardTitle>
+              {/* Top & Bottom Performers */}
+              {topPerformers.length > 0 && !groupByTemplate && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <PerformerList
+                    title="Top Performers"
+                    icon={<TrendingUp size={16} strokeWidth={1.5} className="text-gray-900" />}
+                    people={topPerformers}
+                    cycleId={cycleId}
+                    showRankTrophy
+                  />
+                  <PerformerList
+                    title="Needs Improvement"
+                    icon={<TrendingDown size={16} strokeWidth={1.5} className="text-gray-900" />}
+                    people={bottomPerformers}
+                    cycleId={cycleId}
+                  />
+                </div>
+              )}
+
+              {/* When grouped by template: per-template Top/Bottom mini-lists */}
+              {topPerformers.length > 0 && groupByTemplate && (
+                <div className="space-y-6 mb-6">
+                  {cycleReport.templatesUsed.map((tpl) => {
+                    const inTpl = filteredReportSummaries.filter(
+                      (s) => s.primaryTemplateId === tpl.templateId && s.completedCount > 0 && getDisplayScore(s) > 0
+                    );
+                    if (inTpl.length === 0) return null;
+                    const sortedDesc = [...inTpl].sort((a, b) => getDisplayScore(b) - getDisplayScore(a));
+                    const tplTop = sortedDesc.slice(0, 5);
+                    const tplBottom = [...sortedDesc].reverse().slice(0, 5);
+                    return (
+                      <div key={tpl.templateId}>
+                        <p className="text-[12px] font-medium uppercase tracking-caps text-gray-500 mb-2">
+                          {tpl.templateName} <span className="text-gray-400">· {tpl.subjectCount} subjects</span>
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <PerformerList
+                            title="Top"
+                            icon={<TrendingUp size={16} strokeWidth={1.5} className="text-gray-900" />}
+                            people={tplTop}
+                            cycleId={cycleId}
+                            showRankTrophy
+                          />
+                          <PerformerList
+                            title="Bottom"
+                            icon={<TrendingDown size={16} strokeWidth={1.5} className="text-gray-900" />}
+                            people={tplBottom}
+                            cycleId={cycleId}
+                          />
+                        </div>
                       </div>
-                    </CardHeader>
-                    <div className="divide-y divide-gray-50">
-                      {bottomPerformers.map((person, idx) => (
-                        <Link
-                          key={person.subjectId}
-                          href={`/cycles/${cycleId}/reports/${person.subjectId}`}
-                        >
-                          <div className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 group gap-2">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="text-[12px] font-semibold text-gray-400 w-5 text-center shrink-0">
-                                {idx + 1}
-                              </span>
-                              <Avatar name={person.subjectName} size="sm" />
-                              <span className="text-[14px] font-medium text-gray-900 truncate">
-                                {person.subjectName}
-                              </span>
-                            </div>
-                            <ScoreBadge score={getDisplayScore(person)} />
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  </Card>
+                    );
+                  })}
                 </div>
               )}
 
@@ -1364,63 +1566,64 @@ export default function CycleDetailPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <div className="divide-y divide-gray-50">
-                  {filteredReportSummaries.length === 0 ? (
-                    <p className="text-center py-8 text-[14px] text-gray-400">
-                      {reportSearch.trim()
-                        ? `No reports match "${reportSearch}"`
-                        : `No individual reports available${reportTeamFilter !== "all" ? " for this team" : ""}`}
-                    </p>
-                  ) : (
-                    paginatedReportSummaries.map((person) => (
-                      <Link
-                        key={person.subjectId}
-                        href={`/cycles/${cycleId}/reports/${person.subjectId}`}
-                      >
-                        <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer group gap-2">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <Avatar name={person.subjectName} size="md" />
-                            <div className="min-w-0">
-                              <p className="text-[14px] font-medium text-gray-900 truncate">
-                                {person.subjectName}
-                              </p>
-                              <p className="text-[12px] text-gray-500">
-                                {person.completedCount}/{person.reviewCount}{" "}
-                                reviews completed
-                              </p>
-                            </div>
+                {filteredReportSummaries.length === 0 ? (
+                  <p className="text-center py-8 text-[14px] text-gray-400">
+                    {reportSearch.trim()
+                      ? `No reports match "${reportSearch}"`
+                      : `No individual reports available${reportTeamFilter !== "all" ? " for this team" : ""}`}
+                  </p>
+                ) : groupByTemplate && cycleReport.templatesUsed.length > 1 ? (
+                  <div className="space-y-4 px-4 pb-4">
+                    {cycleReport.templatesUsed.map((tpl) => {
+                      const inTpl = filteredReportSummaries.filter(
+                        (s) => s.primaryTemplateId === tpl.templateId
+                      );
+                      if (inTpl.length === 0) return null;
+                      return (
+                        <div key={tpl.templateId} className="border border-gray-100">
+                          <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                            <p className="text-[12px] font-medium uppercase tracking-caps text-gray-700">
+                              {tpl.templateName}
+                            </p>
+                            <span className="text-[11px] text-gray-400">{inTpl.length}</span>
                           </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            {person.completedCount > 0 && (
-                              <>
-                                {person.calibratedScore != null && (
-                                  <span className="text-[11px] text-gray-400 line-through tabular-nums">
-                                    {(person.weightedOverallScore ?? person.overallScore).toFixed(1)}
-                                  </span>
-                                )}
-                                <ScoreBadge score={getDisplayScore(person)} />
-                              </>
-                            )}
-                            <ChevronRight
-                              size={16}
-                              strokeWidth={1.5}
-                              className="text-gray-300 group-hover:text-gray-500"
-                            />
+                          <div className="divide-y divide-gray-50">
+                            {inTpl.map((person) => (
+                              <IndividualReportRow
+                                key={person.subjectId}
+                                person={person}
+                                cycleId={cycleId}
+                                showTemplate={false}
+                              />
+                            ))}
                           </div>
                         </div>
-                      </Link>
-                    ))
-                  )}
-                </div>
-                <Pagination
-                  page={reportPage}
-                  totalPages={reportTotalPages}
-                  total={filteredReportSummaries.length}
-                  showing={paginatedReportSummaries.length}
-                  noun="reports"
-                  onPageChange={setReportPage}
-                  className="px-4 pb-4"
-                />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {paginatedReportSummaries.map((person) => (
+                      <IndividualReportRow
+                        key={person.subjectId}
+                        person={person}
+                        cycleId={cycleId}
+                        showTemplate={cycleReport.templatesUsed.length > 1}
+                      />
+                    ))}
+                  </div>
+                )}
+                {!groupByTemplate && filteredReportSummaries.length > 0 && (
+                  <Pagination
+                    page={reportPage}
+                    totalPages={reportTotalPages}
+                    total={filteredReportSummaries.length}
+                    showing={paginatedReportSummaries.length}
+                    noun="reports"
+                    onPageChange={setReportPage}
+                    className="px-4 pb-4"
+                  />
+                )}
               </Card>
             </>
           ) : (

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -10,46 +11,37 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { DIRECTIONS, DIRECTION_REPORT_COLORS, WEIGHT_FIELD_BY_DIRECTION } from "@/lib/directions";
 
-const RELATIONSHIP_CONFIG = [
-  { key: "manager", label: "Manager", color: "#111111" },
-  { key: "peer", label: "Peer", color: "#888888" },
-  { key: "directReport", label: "Direct Report", color: "#DDDDDD" },
-  { key: "self", label: "Self", color: "#888888" },
-  { key: "external", label: "External", color: "#111111" },
-] as const;
+const DIRECTION_CONFIG = DIRECTIONS.map((d) => ({
+  key: WEIGHT_FIELD_BY_DIRECTION[d.key],
+  label: d.label,
+  color: DIRECTION_REPORT_COLORS[d.key],
+}));
 
-interface RelationshipTrendDataPoint {
+interface DirectionTrendDataPoint {
   cycleName: string;
-  manager: number | null;
-  peer: number | null;
-  directReport: number | null;
+  downward: number | null;
+  upward: number | null;
+  lateral: number | null;
   self: number | null;
   external: number | null;
 }
 
-interface RelationshipTrendChartProps {
-  data: RelationshipTrendDataPoint[];
+interface DirectionTrendChartProps {
+  data: DirectionTrendDataPoint[];
 }
 
-export function RelationshipTrendChart({ data }: RelationshipTrendChartProps) {
-  if (data.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-[340px] text-[14px] text-gray-400 uppercase tracking-wider">
-        No relationship data available
-      </div>
-    );
-  }
-
-  // Only show lines for relationship types that have data in at least one cycle
-  const activeRelationships = RELATIONSHIP_CONFIG.filter((rel) =>
-    data.some((d) => d[rel.key] !== null)
+export function DirectionTrendChart({ data }: DirectionTrendChartProps) {
+  const activeDirections = useMemo(
+    () => DIRECTION_CONFIG.filter((rel) => data.some((d) => d[rel.key] !== null)),
+    [data]
   );
 
-  if (activeRelationships.length === 0) {
+  if (data.length === 0 || activeDirections.length === 0) {
     return (
       <div className="flex items-center justify-center h-[340px] text-[14px] text-gray-400 uppercase tracking-wider">
-        No relationship data available
+        No direction data available
       </div>
     );
   }
@@ -91,7 +83,7 @@ export function RelationshipTrendChart({ data }: RelationshipTrendChartProps) {
           iconType="circle"
           iconSize={8}
         />
-        {activeRelationships.map((rel) => (
+        {activeDirections.map((rel) => (
           <Line
             key={rel.key}
             type="monotone"

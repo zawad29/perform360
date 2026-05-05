@@ -183,6 +183,7 @@ export function Combobox({
             <input
               ref={inputRef}
               type="text"
+              aria-label="Search options"
               className="h-10 w-full pl-9 pr-3 text-[14px] placeholder:text-gray-400 focus:outline-none bg-transparent"
               placeholder="Search..."
               value={search}

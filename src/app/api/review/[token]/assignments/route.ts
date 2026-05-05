@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { RELATIONSHIP_LABELS } from "@/lib/constants";
+import { applyRateLimit } from "@/lib/rate-limit";
+import type { Direction } from "@/lib/directions";
 
 type ApiResponse<T> =
   | { success: true; data: T }
@@ -11,6 +12,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const rl = applyRateLimit(request);
+  if (rl) return rl;
+
   try {
     const { token } = await params;
 
@@ -67,7 +71,7 @@ export async function GET(
         id: true,
         token: true,
         subjectId: true,
-        relationship: true,
+        direction: true,
         status: true,
       },
     });
@@ -86,8 +90,7 @@ export async function GET(
       assignments: Array<{
         token: string;
         subjectName: string;
-        relationship: string;
-        relationshipLabel: string;
+        direction: Direction;
         status: string;
       }>;
     }>>({
@@ -98,8 +101,7 @@ export async function GET(
         assignments: assignments.map((a) => ({
           token: a.token,
           subjectName: subjectMap.get(a.subjectId) ?? "Unknown",
-          relationship: a.relationship,
-          relationshipLabel: RELATIONSHIP_LABELS[a.relationship] ?? a.relationship,
+          direction: a.direction,
           status: a.status,
         })),
       },

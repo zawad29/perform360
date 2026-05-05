@@ -46,11 +46,25 @@ describe("PATCH /api/templates/[id]", () => {
       id: validCuid,
       companyId: fixtures.admin.companyId,
       isGlobal: false,
+      version: 1,
     } as any);
-    vi.mocked(prisma.evaluationTemplate.update).mockResolvedValue({
+    const updateTpl = vi.fn().mockResolvedValue({
       id: validCuid,
       name: "Updated Template",
-    } as any);
+      version: 2,
+      weightsMember: null,
+      weightsManager: null,
+      sections: [],
+    });
+    const createVersion = vi.fn().mockResolvedValue({});
+    vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => {
+      if (typeof cb === "function") {
+        return cb({
+          evaluationTemplate: { update: updateTpl },
+          evaluationTemplateVersion: { create: createVersion },
+        });
+      }
+    });
 
     const req = createMockRequest(`http://localhost:3000/api/templates/${validCuid}`, {
       method: "PATCH",
@@ -60,6 +74,11 @@ describe("PATCH /api/templates/[id]", () => {
     const { status, body } = await parseResponse(res);
     expect(status).toBe(200);
     expect(body.data.name).toBe("Updated Template");
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ templateId: validCuid, version: 2 }),
+      })
+    );
   });
 
   it("returns 404 for global template (not editable)", async () => {

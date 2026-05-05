@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { validateEvaluationSession } from "@/lib/session-validation";
+import { applyRateLimit } from "@/lib/rate-limit";
+import type { Direction } from "@/lib/directions";
 
 type ApiResponse<T> =
   | { success: true; data: T }
@@ -19,8 +21,10 @@ interface TemplateQuestion {
 }
 
 interface TemplateSection {
+  id?: string;
   title: string;
   description?: string;
+  directions?: Direction[];
   questions: TemplateQuestion[];
 }
 
@@ -29,6 +33,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const rl = applyRateLimit(request);
+  if (rl) return rl;
+
   try {
     const { token } = await params;
 
@@ -94,10 +101,19 @@ export async function GET(
       }),
     ]);
 
+    // Filter sections to those matching this assignment's direction.
+    // Empty/missing `directions` on a section = applies to all directions.
+    const allSections = template.sections as unknown as TemplateSection[];
+    const direction = assignment.direction as Direction;
+    const sections = allSections.filter((s) => {
+      const dirs = s.directions ?? [];
+      return dirs.length === 0 || dirs.includes(direction);
+    });
+
     return NextResponse.json<ApiResponse<{
       subjectName: string;
       cycleName: string;
-      relationship: string;
+      direction: Direction;
       sections: TemplateSection[];
       isImpersonator: boolean;
     }>>({
@@ -105,8 +121,8 @@ export async function GET(
       data: {
         subjectName: subject?.name ?? "Unknown",
         cycleName: cycle?.name ?? "Unknown",
-        relationship: assignment.relationship,
-        sections: template.sections as unknown as TemplateSection[],
+        direction,
+        sections,
         isImpersonator: !!impersonatorMember,
       },
     });

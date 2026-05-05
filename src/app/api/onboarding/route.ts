@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_TEMPLATES } from "@/lib/default-templates";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const onboardingSchema = z.object({
   companyName: z.string().min(2, "Organization name must be at least 2 characters").max(100),
@@ -10,6 +12,9 @@ const onboardingSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const rl = applyRateLimit(request);
+  if (rl) return rl;
+
   try {
     // Only allow onboarding if no company exists yet
     const existingCompany = await prisma.company.findFirst({
@@ -54,7 +59,7 @@ export async function POST(request: NextRequest) {
           data: {
             name: tpl.name,
             description: tpl.description,
-            sections: tpl.sections as any,
+            sections: JSON.parse(JSON.stringify(tpl.sections)) as Prisma.InputJsonValue,
             isGlobal: false,
             companyId: company.id,
             createdBy: adminEmail,

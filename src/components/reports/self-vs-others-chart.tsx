@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   BarChart,
@@ -34,24 +35,69 @@ const INSIGHT_CONFIG = {
   },
 } as const;
 
+const LABEL_TRUNCATE_AT = 20;
+const LABEL_TRUNCATE_TO = 18;
+
+interface ChartRow {
+  category: string;
+  fullCategory: string;
+  Self: number | null;
+  Others: number | null;
+  gap: number | null;
+  insight: SelfVsOthersItem["insight"];
+}
+
+function truncateCategory(label: string): string {
+  return label.length > LABEL_TRUNCATE_AT
+    ? label.slice(0, LABEL_TRUNCATE_TO) + "…"
+    : label;
+}
+
 export function SelfVsOthersChart({ data }: SelfVsOthersChartProps) {
-  const hasAnyData = data.some((d) => d.selfScore !== null || d.othersScore !== null);
-  if (!hasAnyData) return null;
+  // Returns null when the chart shouldn't render (no usable data) — lets the
+  // caller short-circuit without destructuring guard flags.
+  const derived = useMemo(() => {
+    let hasAnyData = false;
+    let hasSelf = false;
+    const chartData: ChartRow[] = [];
+    const notAskedSections: SelfVsOthersItem[] = [];
+    const blindSpots: SelfVsOthersItem[] = [];
+    const hiddenStrengths: SelfVsOthersItem[] = [];
 
-  const hasSelf = data.some((d) => d.selfScore !== null);
-  if (!hasSelf) return null;
+    for (const d of data) {
+      if (d.selfScore !== null) hasSelf = true;
+      if (d.selfScore !== null || d.othersScore !== null) hasAnyData = true;
 
-  const chartData = data.map((d) => ({
-    category: d.category.length > 20 ? d.category.slice(0, 18) + "…" : d.category,
-    fullCategory: d.category,
-    Self: d.selfScore,
-    Others: d.othersScore,
-    gap: d.gap,
-    insight: d.insight,
-  }));
+      if (d.selfWasAsked) {
+        chartData.push({
+          category: truncateCategory(d.category),
+          fullCategory: d.category,
+          Self: d.selfScore,
+          Others: d.othersScore,
+          gap: d.gap,
+          insight: d.insight,
+        });
+      } else {
+        notAskedSections.push(d);
+      }
 
-  const blindSpots = data.filter((d) => d.insight === "blind_spot");
-  const hiddenStrengths = data.filter((d) => d.insight === "hidden_strength");
+      switch (d.insight) {
+        case "blind_spot":
+          blindSpots.push(d);
+          break;
+        case "hidden_strength":
+          hiddenStrengths.push(d);
+          break;
+      }
+    }
+
+    if (!hasAnyData || !hasSelf) return null;
+    return { chartData, notAskedSections, blindSpots, hiddenStrengths };
+  }, [data]);
+
+  if (!derived) return null;
+
+  const { chartData, notAskedSections, blindSpots, hiddenStrengths } = derived;
 
   return (
     <Card className="mb-6">
@@ -61,7 +107,7 @@ export function SelfVsOthersChart({ data }: SelfVsOthersChartProps) {
 
       {/* Chart */}
       <div className="px-1">
-        <ResponsiveContainer width="100%" height={Math.max(200, data.length * 52 + 40)}>
+        <ResponsiveContainer width="100%" height={Math.max(200, chartData.length * 52 + 40)}>
           <BarChart
             data={chartData}
             layout="vertical"
@@ -114,6 +160,29 @@ export function SelfVsOthersChart({ data }: SelfVsOthersChartProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Sections the subject never answered themselves */}
+      {notAskedSections.length > 0 && (
+        <div className="border-t border-gray-100 pt-3 mt-3 px-1">
+          <p className="text-[11px] font-medium uppercase tracking-caps text-gray-500 mb-1.5">
+            Not asked of self
+          </p>
+          <p className="text-[11px] text-gray-400 leading-snug mb-2">
+            These sections were direction-routed to skip self-review. The subject had no opportunity to answer them.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {notAskedSections.map((s) => (
+              <span
+                key={s.category}
+                className="inline-flex items-center gap-1 border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-600"
+              >
+                <EyeOff size={10} strokeWidth={2} className="text-gray-400" />
+                {s.category}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Insight Summary */}
       {(blindSpots.length > 0 || hiddenStrengths.length > 0) && (

@@ -32,14 +32,19 @@ export default function EditTemplatePage() {
       loadTemplate({
         name: json.data.name,
         description: json.data.description ?? "",
-        sections: json.data.sections.map((s: { title: string; description?: string; questions: Array<{ id?: string; text: string; type: string; required: boolean; options?: string[]; scaleMin?: number; scaleMax?: number; scaleLabels?: string[] }> }, i: number) => ({
-          id: `section-${i}`,
+        levelIds: json.data.levelIds ?? [],
+        weightPreset: json.data.weightPreset ?? null,
+        weightsMember: json.data.weightsMember ?? null,
+        weightsManager: json.data.weightsManager ?? null,
+        sections: json.data.sections.map((s: { id?: string; title: string; description?: string; directions?: string[]; questions: Array<{ id?: string; text: string; type: string; required: boolean; options?: string[]; scaleMin?: number; scaleMax?: number; scaleLabels?: string[] }> }, i: number) => ({
+          id: s.id ?? `section-${i}`,
           title: s.title,
           description: s.description,
+          directions: (s.directions ?? []) as never,
           questions: s.questions.map((q, j: number) => ({
             id: q.id || `q-${i}-${j}`,
             text: q.text,
-            type: q.type,
+            type: q.type as "rating_scale" | "text" | "multiple_choice",
             required: q.required,
             options: q.options,
             scaleMin: q.scaleMin,
@@ -85,6 +90,10 @@ export default function EditTemplatePage() {
         body: JSON.stringify({
           name: state.name,
           description: state.description,
+          levelIds: state.levelIds,
+          weightPreset: state.weightPreset,
+          weightsMember: state.weightsMember,
+          weightsManager: state.weightsManager,
           sections: state.sections,
         }),
       });

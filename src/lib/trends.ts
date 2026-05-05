@@ -5,6 +5,7 @@ import {
   type TemplateSection,
   type TemplateQuestion,
 } from "@/lib/reports";
+import { emptyDirectionScores, emptyDirectionGroups, roundedMean } from "@/lib/directions";
 import type {
   TrendsReport,
   CycleTrendPoint,
@@ -13,8 +14,6 @@ import type {
 } from "@/types/trends";
 import type { CycleStatus } from "@prisma/client";
 
-// ─── Types ───
-
 interface CycleRow {
   id: string;
   name: string;
@@ -22,28 +21,21 @@ interface CycleRow {
   startDate: Date;
 }
 
-// ─── Per-Cycle Aggregation ───
-
-/**
- * Build a single CycleTrendPoint for a scored (non-draft) cycle.
- * Decrypts all responses and computes aggregate-level metrics only.
- */
 async function buildScoredCyclePoint(
   cycle: CycleRow,
-  companyId: string,
+  _companyId: string,
   dataKey: Buffer
 ): Promise<CycleTrendPoint> {
-  // 1 & 2. Fetch assignments and cycle teams in parallel
   const [assignments, cycleTeams] = await Promise.all([
     prisma.evaluationAssignment.findMany({
       where: { cycleId: cycle.id },
-      select: { status: true, subjectId: true },
+      select: { status: true, subjectId: true, templateId: true },
     }),
     prisma.cycleTeam.findMany({
       where: { cycleId: cycle.id },
       select: {
         teamId: true,
-        templateId: true,
+        templates: { select: { templateId: true } },
         team: {
           select: {
             id: true,
@@ -64,10 +56,9 @@ async function buildScoredCyclePoint(
 
   const teamsEvaluated = cycleTeams.length;
   const templateIds = Array.from(
-    new Set(cycleTeams.map((ct) => ct.templateId).filter((id): id is string => id !== null))
+    new Set(assignments.map((a) => a.templateId).filter((id): id is string => Boolean(id)))
   );
 
-  // Default return for cycles with no templates or no completed assignments
   const emptyPoint: CycleTrendPoint = {
     cycleId: cycle.id,
     cycleName: cycle.name,
@@ -79,16 +70,14 @@ async function buildScoredCyclePoint(
     totalAssignments,
     completedAssignments,
     teamsEvaluated,
-    relationshipScores: { manager: null, peer: null, directReport: null, self: null, external: null },
+    directionScores: emptyDirectionScores(),
     teamScores: [],
     topPerformer: null,
+    templateIds,
   };
 
-  if (completedAssignments === 0 || templateIds.length === 0) {
-    return emptyPoint;
-  }
+  if (completedAssignments === 0 || templateIds.length === 0) return emptyPoint;
 
-  // 3 & 4. Fetch templates and responses in parallel
   const [templates, allResponses] = await Promise.all([
     prisma.evaluationTemplate.findMany({
       where: { id: { in: templateIds } },
@@ -101,7 +90,7 @@ async function buildScoredCyclePoint(
         answersEncrypted: true,
         answersIv: true,
         answersTag: true,
-        assignment: { select: { relationship: true } },
+        assignment: { select: { direction: true } },
       },
     }),
   ]);
@@ -112,32 +101,21 @@ async function buildScoredCyclePoint(
     .filter((q: TemplateQuestion) => q.type === "rating_scale");
   const ratingQuestionIds = new Set(ratingQuestions.map((q) => q.id));
 
-  if (ratingQuestionIds.size === 0) {
-    return emptyPoint;
-  }
+  if (ratingQuestionIds.size === 0) return emptyPoint;
 
-  // 5. Build subject-to-team mapping
   const subjectTeamMap = new Map<string, string[]>();
   for (const ct of cycleTeams) {
     for (const m of ct.team.members) {
-      const existing = subjectTeamMap.get(m.userId) ?? [];
-      existing.push(ct.team.id);
-      subjectTeamMap.set(m.userId, existing);
+      const arr = subjectTeamMap.get(m.userId) ?? [];
+      arr.push(ct.team.id);
+      subjectTeamMap.set(m.userId, arr);
     }
   }
 
-  // Team name lookup
   const teamNameMap = new Map(cycleTeams.map((ct) => [ct.team.id, ct.team.name]));
 
-  // 6. Aggregate scores
   const subjectScores = new Map<string, { total: number; count: number }>();
-  const relationshipGroups: Record<string, number[]> = {
-    manager: [],
-    peer: [],
-    direct_report: [],
-    self: [],
-    external: [],
-  };
+  const directionGroups = emptyDirectionGroups();
   const teamScoreAccum = new Map<string, { total: number; count: number }>();
 
   for (const resp of allResponses) {
@@ -148,25 +126,18 @@ async function buildScoredCyclePoint(
         resp.answersTag,
         dataKey
       );
-
       const scores = extractRatingScores(answers, ratingQuestions);
       if (scores.length === 0) continue;
-
       const respAvg = scores.reduce((sum, s) => sum + s.score, 0) / scores.length;
 
-      // Per-subject accumulation
       const accum = subjectScores.get(resp.subjectId) ?? { total: 0, count: 0 };
       accum.total += respAvg;
       accum.count++;
       subjectScores.set(resp.subjectId, accum);
 
-      // Per-relationship accumulation
-      const rel = resp.assignment.relationship;
-      if (relationshipGroups[rel]) {
-        relationshipGroups[rel].push(respAvg);
-      }
+      const dir = resp.assignment.direction;
+      directionGroups[dir].push(respAvg);
 
-      // Per-team accumulation (via subject's team membership)
       const subjectTeams = subjectTeamMap.get(resp.subjectId) ?? [];
       for (const teamId of subjectTeams) {
         const teamAccum = teamScoreAccum.get(teamId) ?? { total: 0, count: 0 };
@@ -175,17 +146,10 @@ async function buildScoredCyclePoint(
         teamScoreAccum.set(teamId, teamAccum);
       }
     } catch {
-      // Skip responses that fail to decrypt
+      // Skip responses that can't be decrypted (e.g. encrypted with a previous key)
     }
   }
 
-  // 7. Compute averages
-  const avg = (arr: number[]): number | null =>
-    arr.length > 0
-      ? parseFloat((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2))
-      : null;
-
-  // Overall avg score across all subjects
   let totalScore = 0;
   let totalCount = 0;
   for (const [, scores] of subjectScores) {
@@ -196,16 +160,14 @@ async function buildScoredCyclePoint(
   }
   const avgScore = totalCount > 0 ? parseFloat((totalScore / totalCount).toFixed(2)) : null;
 
-  // Relationship scores
-  const relationshipScores = {
-    manager: avg(relationshipGroups.manager),
-    peer: avg(relationshipGroups.peer),
-    directReport: avg(relationshipGroups.direct_report),
-    self: avg(relationshipGroups.self),
-    external: avg(relationshipGroups.external),
+  const directionScores = {
+    downward: roundedMean(directionGroups.DOWNWARD),
+    upward: roundedMean(directionGroups.UPWARD),
+    lateral: roundedMean(directionGroups.LATERAL),
+    self: roundedMean(directionGroups.SELF),
+    external: roundedMean(directionGroups.EXTERNAL),
   };
 
-  // Team scores
   const teamScores: CycleTrendPoint["teamScores"] = [];
   for (const [teamId, accum] of teamScoreAccum) {
     if (accum.count > 0) {
@@ -217,7 +179,6 @@ async function buildScoredCyclePoint(
     }
   }
 
-  // Top performer (highest avg score among subjects)
   let topPerformer: CycleTrendPoint["topPerformer"] = null;
   let topScore = -1;
   let topSubjectId = "";
@@ -230,7 +191,6 @@ async function buildScoredCyclePoint(
       }
     }
   }
-
   if (topSubjectId) {
     const topUser = await prisma.user.findUnique({
       where: { id: topSubjectId },
@@ -254,20 +214,26 @@ async function buildScoredCyclePoint(
     totalAssignments,
     completedAssignments,
     teamsEvaluated,
-    relationshipScores,
+    directionScores,
     teamScores,
     topPerformer,
+    templateIds,
   };
 }
 
-/**
- * Build a CycleTrendPoint for a draft cycle (no score data).
- */
 async function buildDraftCyclePoint(cycle: CycleRow): Promise<CycleTrendPoint> {
-  const [assignmentCount, teamCount] = await Promise.all([
+  const [assignmentCount, ctRows] = await Promise.all([
     prisma.evaluationAssignment.count({ where: { cycleId: cycle.id } }),
-    prisma.cycleTeam.count({ where: { cycleId: cycle.id } }),
+    prisma.cycleTeam.findMany({
+      where: { cycleId: cycle.id },
+      select: { templates: { select: { templateId: true } } },
+    }),
   ]);
+
+  const teamCount = ctRows.length;
+  const templateIds = Array.from(
+    new Set(ctRows.flatMap((ct) => ct.templates.map((t) => t.templateId)))
+  );
 
   return {
     cycleId: cycle.id,
@@ -280,36 +246,23 @@ async function buildDraftCyclePoint(cycle: CycleRow): Promise<CycleTrendPoint> {
     totalAssignments: assignmentCount,
     completedAssignments: 0,
     teamsEvaluated: teamCount,
-    relationshipScores: { manager: null, peer: null, directReport: null, self: null, external: null },
+    directionScores: emptyDirectionScores(),
     teamScores: [],
     topPerformer: null,
+    templateIds,
   };
 }
 
-// ─── KPI Summary ───
-
 function buildKpiMetric(values: (number | null)[]): KpiMetric {
   const nonNull = values.filter((v): v is number => v !== null);
-  if (nonNull.length === 0) {
-    return { current: null, rollingAvg: null, delta: null };
-  }
-
+  if (nonNull.length === 0) return { current: null, rollingAvg: null, delta: null };
   const current = nonNull[nonNull.length - 1];
-
-  if (nonNull.length < 2) {
-    return { current, rollingAvg: null, delta: null };
-  }
-
+  if (nonNull.length < 2) return { current, rollingAvg: null, delta: null };
   const previous = nonNull.slice(0, -1);
   const rollingAvg = parseFloat(
     (previous.reduce((a, b) => a + b, 0) / previous.length).toFixed(2)
   );
-
-  return {
-    current,
-    rollingAvg,
-    delta: parseFloat((current - rollingAvg).toFixed(2)),
-  };
+  return { current, rollingAvg, delta: parseFloat((current - rollingAvg).toFixed(2)) };
 }
 
 function buildKpiSummary(scoredCycles: CycleTrendPoint[]): KpiSummary {
@@ -318,17 +271,9 @@ function buildKpiSummary(scoredCycles: CycleTrendPoint[]): KpiSummary {
   const assignmentMetric = buildKpiMetric(scoredCycles.map((c) => c.totalAssignments));
   const teamsMetric = buildKpiMetric(scoredCycles.map((c) => c.teamsEvaluated));
 
-  // Relationship split from latest scored cycle
   const latest = scoredCycles[scoredCycles.length - 1];
-  const relationshipSplit = latest?.relationshipScores ?? {
-    manager: null,
-    peer: null,
-    directReport: null,
-    self: null,
-    external: null,
-  };
+  const directionSplit = latest?.directionScores ?? emptyDirectionScores();
 
-  // Top performer delta: latest vs previous cycle
   const topScores = scoredCycles.map((c) => c.topPerformer?.score ?? null);
   const nonNullTopScores = topScores.filter((v): v is number => v !== null);
   const currentTop = nonNullTopScores.length > 0 ? nonNullTopScores[nonNullTopScores.length - 1] : null;
@@ -339,7 +284,7 @@ function buildKpiSummary(scoredCycles: CycleTrendPoint[]): KpiSummary {
     completionRate: completionMetric,
     assignments: assignmentMetric,
     teamsEvaluated: teamsMetric,
-    relationshipSplit,
+    directionSplit,
     topPerformerDelta: {
       current: currentTop,
       previous: previousTop,
@@ -351,45 +296,33 @@ function buildKpiSummary(scoredCycles: CycleTrendPoint[]): KpiSummary {
   };
 }
 
-// ─── Main Export ───
-
-/**
- * Build a cross-cycle trends report for a company.
- * Requires the decryption data key to compute scores.
- */
 export async function buildTrendsReport(
   companyId: string,
   dataKey: Buffer
 ): Promise<TrendsReport> {
-  // 1. Fetch all cycles ordered chronologically
   const cycles = await prisma.evaluationCycle.findMany({
     where: { companyId },
     orderBy: { startDate: "asc" },
     select: { id: true, name: true, status: true, startDate: true },
   });
 
-  // 2. Partition into draft vs scored
   const draftCycles = cycles.filter((c) => c.status === "DRAFT");
   const scoredCycles = cycles.filter((c) => c.status !== "DRAFT");
 
-  // 3. Process all cycles in parallel
   const [draftPoints, scoredPoints] = await Promise.all([
     Promise.all(draftCycles.map(buildDraftCyclePoint)),
     Promise.all(scoredCycles.map((c) => buildScoredCyclePoint(c, companyId, dataKey))),
   ]);
 
-  // 4. Merge and sort by startDate
   const allPoints = [...draftPoints, ...scoredPoints].sort(
     (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
   );
 
-  // 5. Compute KPI summary from scored cycles only
   const sortedScoredPoints = scoredPoints.sort(
     (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
   );
   const kpiSummary = buildKpiSummary(sortedScoredPoints);
 
-  // 6. Collect all teams across all cycles
   const teamMap = new Map<string, string>();
   for (const point of allPoints) {
     for (const ts of point.teamScores) {

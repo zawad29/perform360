@@ -19,11 +19,11 @@ export interface CycleTrendPoint {
   completedAssignments: number;
   teamsEvaluated: number;
 
-  // Relationship breakdown scores
-  relationshipScores: {
-    manager: number | null;
-    peer: number | null;
-    directReport: number | null;
+  // Direction breakdown scores
+  directionScores: {
+    downward: number | null;
+    upward: number | null;
+    lateral: number | null;
     self: number | null;
     external: number | null;
   };
@@ -41,6 +41,10 @@ export interface CycleTrendPoint {
     subjectName: string;
     score: number;
   } | null;
+
+  // Distinct templateIds that scored at least one response in this cycle.
+  // Lets the trends UI flag cycles that compared different forms.
+  templateIds: string[];
 }
 
 /** Single KPI metric with current value, rolling average, and delta */
@@ -56,10 +60,10 @@ export interface KpiSummary {
   completionRate: KpiMetric;
   assignments: KpiMetric;
   teamsEvaluated: KpiMetric;
-  relationshipSplit: {
-    manager: number | null;
-    peer: number | null;
-    directReport: number | null;
+  directionSplit: {
+    downward: number | null;
+    upward: number | null;
+    lateral: number | null;
     self: number | null;
     external: number | null;
   };

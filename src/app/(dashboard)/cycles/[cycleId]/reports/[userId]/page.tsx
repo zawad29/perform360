@@ -9,7 +9,7 @@ import { CompetencyRadarChart } from "@/components/reports/radar-chart";
 import { ScoreBreakdown } from "@/components/reports/score-breakdown";
 import { ScoreGauge } from "@/components/reports/score-gauge";
 import { ScoreLabel } from "@/components/reports/score-label";
-import { RelationshipScoreChart } from "@/components/reports/relationship-score-chart";
+import { DirectionScoreChart } from "@/components/reports/direction-score-chart";
 import { KeyInsights } from "@/components/reports/key-insights";
 import { QuestionInsights } from "@/components/reports/question-insights";
 import { ProfileBanner } from "@/components/reports/profile-banner";
@@ -20,7 +20,7 @@ import { Download, ArrowLeft, Users, BarChart3, Radar, ListChecks, MessageSquare
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { RELATIONSHIP_LABELS } from "@/lib/constants";
+import { DIRECTION_LABELS, type Direction } from "@/lib/directions";
 import type { IndividualReport, TeamBreakdown } from "@/types/report";
 
 export default function IndividualReportPage() {
@@ -111,11 +111,11 @@ export default function IndividualReportPage() {
 
 type ReportDisplayData = Pick<
   IndividualReport | TeamBreakdown,
-  "overallScore" | "categoryScores" | "scoresByRelationship" | "questionDetails" | "textFeedback"
+  "overallScore" | "categoryScores" | "scoresByDirection" | "questionDetails" | "textFeedback"
 > & {
   weightedOverallScore?: number | null;
   weightedCategoryScores?: import("@/types/report").CategoryScore[] | null;
-  appliedWeights?: import("@/types/report").RelationshipWeights | null;
+  appliedWeights?: import("@/types/report").DirectionWeights | null;
   calibratedScore?: number | null;
   calibrationJustification?: string | null;
 };
@@ -243,7 +243,7 @@ function SummaryView({
 }) {
   const [activeTab, setActiveTab] = useState<ReportTab>("overview");
   const effectiveScore = report.calibratedScore ?? report.weightedOverallScore ?? report.overallScore;
-  const relScores = report.scoresByRelationship;
+  const dirScores = report.scoresByDirection;
   const teams = report.teamBreakdowns;
 
   const teamScores = useMemo(
@@ -275,10 +275,13 @@ function SummaryView({
   return (
     <>
       {/* ─── Tab Navigation ─── */}
-      <div className="flex items-center gap-1 border-b border-gray-100 mb-6">
+      <div role="tablist" className="flex items-center gap-1 border-b border-gray-100 mb-6">
         {TABS.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-label={tab.label}
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-[13px] font-medium uppercase tracking-caps ${
               activeTab === tab.id
@@ -334,14 +337,14 @@ function SummaryView({
             </Card>
             <Card padding="md">
               <CardHeader>
-                <CardTitle>Scores by Relationship</CardTitle>
+                <CardTitle>Scores by Direction</CardTitle>
               </CardHeader>
-              <RelationshipScoreChart
-                manager={relScores.manager}
-                peer={relScores.peer}
-                directReport={relScores.directReport}
-                self={relScores.self}
-                external={relScores.external}
+              <DirectionScoreChart
+                downward={dirScores.downward}
+                upward={dirScores.upward}
+                lateral={dirScores.lateral}
+                self={dirScores.self}
+                external={dirScores.external}
               />
             </Card>
           </div>
@@ -399,7 +402,8 @@ function SummaryView({
           </Card>
 
           <KeyInsights
-            scoresByRelationship={report.scoresByRelationship}
+            scoresByDirection={report.scoresByDirection}
+            directionQuestionCounts={report.directionQuestionCounts}
             questionDetails={report.questionDetails}
             categoryScores={report.categoryScores}
           />
@@ -446,12 +450,12 @@ function SummaryView({
 const QUESTIONS_PER_PAGE = 5;
 const RESPONSES_PER_PAGE = 3;
 
-const RELATIONSHIP_ORDER = ["manager", "peer", "direct_report", "self", "external"] as const;
+const DIRECTION_ORDER: Direction[] = ["DOWNWARD", "UPWARD", "LATERAL", "SELF", "EXTERNAL"];
 
 interface QuestionGroup {
   questionId: string;
   questionText: string;
-  responses: { text: string; relationship: string }[];
+  responses: { text: string; direction: Direction }[];
 }
 
 function SummaryFeedbackView({
@@ -483,7 +487,7 @@ function SummaryFeedbackView({
       const payload = textFeedback.flatMap((group) =>
         group.responses.map((text) => ({
           questionText: group.questionText,
-          relationship: group.relationship,
+          direction: group.direction,
           text,
         }))
       );
@@ -512,34 +516,34 @@ function SummaryFeedbackView({
     setResponsePages({});
   }, []);
 
-  // Count responses per relationship
-  const relationshipCounts = useMemo(() => {
+  // Count responses per direction
+  const directionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const group of textFeedback) {
-      counts[group.relationship] = (counts[group.relationship] ?? 0) + group.responses.length;
+      counts[group.direction] = (counts[group.direction] ?? 0) + group.responses.length;
     }
     return counts;
   }, [textFeedback]);
 
-  const availableRelationships = useMemo(
-    () => RELATIONSHIP_ORDER.filter((r) => (relationshipCounts[r] ?? 0) > 0),
-    [relationshipCounts]
+  const availableDirections = useMemo(
+    () => DIRECTION_ORDER.filter((r) => (directionCounts[r] ?? 0) > 0),
+    [directionCounts]
   );
 
   const totalCount = textFeedback.reduce((acc, g) => acc + g.responses.length, 0);
 
-  // Group by question, merge responses across relationships
+  // Group by question, merge responses across directions
   const questionGroups = useMemo(() => {
     const map = new Map<string, QuestionGroup>();
     for (const group of textFeedback) {
-      if (activeFilter !== "all" && group.relationship !== activeFilter) continue;
+      if (activeFilter !== "all" && group.direction !== activeFilter) continue;
       let entry = map.get(group.questionId);
       if (!entry) {
         entry = { questionId: group.questionId, questionText: group.questionText, responses: [] };
         map.set(group.questionId, entry);
       }
       for (const text of group.responses) {
-        entry.responses.push({ text, relationship: group.relationship });
+        entry.responses.push({ text, direction: group.direction });
       }
     }
     return Array.from(map.values());
@@ -584,7 +588,7 @@ function SummaryFeedbackView({
           >
             All ({totalCount})
           </button>
-          {availableRelationships.map((rel) => (
+          {availableDirections.map((rel) => (
             <button
               key={rel}
               onClick={() => handleFilterChange(rel)}
@@ -594,7 +598,7 @@ function SummaryFeedbackView({
                   : "border border-gray-900 text-gray-900 hover:bg-gray-50"
               }`}
             >
-              {RELATIONSHIP_LABELS[rel] ?? rel} ({relationshipCounts[rel]})
+              {DIRECTION_LABELS[rel] ?? rel} ({directionCounts[rel]})
             </button>
           ))}
         </div>
@@ -726,7 +730,7 @@ function SummaryFeedbackView({
                   {visibleResponses.map((item, j) => (
                     <div key={`${rPage}-${j}`} className="border-l-[3px] border-gray-900 pl-4 py-2 space-y-1.5">
                       <Badge variant="outline" className="text-[10px]">
-                        {RELATIONSHIP_LABELS[item.relationship] ?? item.relationship}
+                        {DIRECTION_LABELS[item.direction] ?? item.direction}
                       </Badge>
                       <p className="text-[14px] text-gray-700 leading-relaxed">
                         {item.text}
@@ -803,7 +807,7 @@ function TeamDetailView({
   selectedTeam: string;
 }) {
   const [activeTab, setActiveTab] = useState<ReportTab>("overview");
-  const relScores = displayData.scoresByRelationship;
+  const dirScores = displayData.scoresByDirection;
 
   const scoredQuestions = useMemo(
     () => displayData.questionDetails.filter((q) => q.averageScore !== null),
@@ -824,10 +828,13 @@ function TeamDetailView({
   return (
     <>
       {/* ─── Tab Navigation ─── */}
-      <div className="flex items-center gap-1 border-b border-gray-100 mb-6">
+      <div role="tablist" className="flex items-center gap-1 border-b border-gray-100 mb-6">
         {TABS.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-label={tab.label}
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-[13px] font-medium uppercase tracking-caps ${
               activeTab === tab.id
@@ -882,11 +889,11 @@ function TeamDetailView({
               )}
               {displayData.appliedWeights && (
                 <div className="flex items-center justify-center gap-2 mt-2 text-[10px] text-gray-400">
-                  <span>Mgr {Math.round(displayData.appliedWeights.manager * 100)}%</span>
-                  <span>Peer {Math.round(displayData.appliedWeights.peer * 100)}%</span>
-                  <span>DR {Math.round(displayData.appliedWeights.directReport * 100)}%</span>
-                  <span>Self {Math.round(displayData.appliedWeights.self * 100)}%</span>
-                  <span>Ext {Math.round(displayData.appliedWeights.external * 100)}%</span>
+                  <span>Down {Math.round(displayData.appliedWeights.downward)}%</span>
+                  <span>Up {Math.round(displayData.appliedWeights.upward)}%</span>
+                  <span>Lat {Math.round(displayData.appliedWeights.lateral)}%</span>
+                  <span>Self {Math.round(displayData.appliedWeights.self)}%</span>
+                  <span>Ext {Math.round(displayData.appliedWeights.external)}%</span>
                 </div>
               )}
               {displayData.calibrationJustification && (
@@ -897,20 +904,23 @@ function TeamDetailView({
             </Card>
             <Card padding="md">
               <CardHeader>
-                <CardTitle>Scores by Relationship</CardTitle>
+                <CardTitle>Scores by Direction</CardTitle>
               </CardHeader>
-              <RelationshipScoreChart
-                manager={relScores.manager}
-                peer={relScores.peer}
-                directReport={relScores.directReport}
-                self={relScores.self}
-                external={relScores.external}
+              <DirectionScoreChart
+                downward={dirScores.downward}
+                upward={dirScores.upward}
+                lateral={dirScores.lateral}
+                self={dirScores.self}
+                external={dirScores.external}
               />
             </Card>
           </div>
 
           <KeyInsights
-            scoresByRelationship={displayData.scoresByRelationship}
+            scoresByDirection={displayData.scoresByDirection}
+            directionQuestionCounts={
+              (displayData as IndividualReport).directionQuestionCounts
+            }
             questionDetails={displayData.questionDetails}
             categoryScores={displayData.weightedCategoryScores ?? displayData.categoryScores}
           />

@@ -35,13 +35,25 @@ export default function NewTemplatePage() {
     setError(null);
     setIsLoading(true);
     try {
-      const { name: templateName, description, sections: templateSections } = useTemplateBuilder.getState();
+      const {
+        name: templateName,
+        description,
+        levelIds,
+        weightPreset,
+        weightsMember,
+        weightsManager,
+        sections: templateSections,
+      } = useTemplateBuilder.getState();
       const res = await fetch("/api/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: templateName,
           description,
+          levelIds,
+          weightPreset,
+          weightsMember,
+          weightsManager,
           sections: templateSections,
         }),
       });

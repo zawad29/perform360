@@ -6,12 +6,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, CheckCircle2, ChevronRight, ClipboardList, Shield } from "lucide-react";
+import { DIRECTION_LABELS, type Direction } from "@/lib/directions";
 
 interface Assignment {
   token: string;
   subjectName: string;
-  relationship: string;
-  relationshipLabel: string;
+  direction: Direction;
   status: string;
 }
 
@@ -182,7 +182,7 @@ export default function ReviewAssignmentsPage({ params: paramsPromise }: { param
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="text-[11px]">
-                            {assignment.relationshipLabel}
+                            {DIRECTION_LABELS[assignment.direction]}
                           </Badge>
                           {isSubmitted && (
                             <Badge variant="outline" className="text-[11px]">

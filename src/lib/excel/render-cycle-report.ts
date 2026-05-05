@@ -77,12 +77,14 @@ export async function renderCycleReportToExcel(
   // ─── Sheet 2: Individual Scores ───
   const hasWeighted = individuals.some((r) => r.weightedOverallScore != null);
   const hasCalibrated = individuals.some((r) => r.calibratedScore != null);
+  const hasMultipleTemplates = cycleReport.templatesUsed.length > 1;
 
   const scoresCols: Partial<ExcelJS.Column>[] = [
     { header: "Name", key: "name" },
     { header: "Team(s)", key: "teams" },
-    { header: "Raw Score", key: "rawScore" },
   ];
+  if (hasMultipleTemplates) scoresCols.push({ header: "Template", key: "template" });
+  scoresCols.push({ header: "Raw Score", key: "rawScore" });
   if (hasWeighted) scoresCols.push({ header: "Weighted Score", key: "weightedScore" });
   if (hasCalibrated) scoresCols.push({ header: "Calibrated Score", key: "calibratedScore" });
   scoresCols.push(
@@ -118,6 +120,7 @@ export async function renderCycleReportToExcel(
       done: summ?.completedCount ?? 0,
       total: summ?.reviewCount ?? 0,
     };
+    if (hasMultipleTemplates) row.template = summ?.primaryTemplateName ?? "";
     if (hasWeighted) row.weightedScore = r.weightedOverallScore ?? "";
     if (hasCalibrated) row.calibratedScore = r.calibratedScore ?? "";
     const dataRow = scores.addRow(row);
@@ -195,34 +198,59 @@ export async function renderCycleReportToExcel(
     dataRow.getCell("rawAvg").numFmt = NUM_FMT;
     if (hasTeamWeighted && t.weightedAvgScore != null) dataRow.getCell("weightedAvg").numFmt = NUM_FMT;
     if (hasTeamCalibrated && t.calibratedAvgScore != null) dataRow.getCell("calibratedAvg").numFmt = NUM_FMT;
+
+    // Per-template breakout for multi-template teams. Indented as `  ↳ Template`
+    // rows so the relationship to the parent team row is visible at a glance.
+    for (const bt of t.byTemplate) {
+      const subRow = teamAvg.addRow({
+        team: `  ↳ ${bt.templateName} (${bt.subjectCount})`,
+        rawAvg: bt.avgScore,
+      });
+      subRow.getCell("rawAvg").numFmt = NUM_FMT;
+      subRow.getCell("team").font = { italic: true, color: { argb: "FF666666" } };
+    }
   }
 
   styleHeader(teamAvg);
   autoWidth(teamAvg);
 
-  // ─── Sheet 5: Relationship Scores ───
-  const relSheet = wb.addWorksheet("Relationship Scores");
+  // ─── Sheet (optional): Templates Used ───
+  if (cycleReport.templatesUsed.length > 0) {
+    const templates = wb.addWorksheet("Templates Used");
+    templates.columns = [
+      { header: "Template", key: "name" },
+      { header: "Subjects", key: "count" },
+    ];
+    for (const t of cycleReport.templatesUsed) {
+      templates.addRow({ name: t.templateName, count: t.subjectCount });
+    }
+    styleHeader(templates);
+    autoWidth(templates);
+  }
+
+  // ─── Sheet 5: Direction Scores ───
+  const relSheet = wb.addWorksheet("Direction Scores");
   relSheet.columns = [
     { header: "Name", key: "name" },
-    { header: "Manager", key: "manager" },
-    { header: "Peer", key: "peer" },
-    { header: "Direct Report", key: "directReport" },
+    { header: "Downward", key: "downward" },
+    { header: "Upward", key: "upward" },
+    { header: "Lateral", key: "lateral" },
     { header: "Self", key: "self" },
     { header: "External", key: "external" },
   ];
 
   for (const r of sorted) {
-    const rel = r.scoresByRelationship;
+    const dir = r.scoresByDirection;
     const dataRow = relSheet.addRow({
       name: r.subjectName,
-      manager: rel.manager ?? "",
-      peer: rel.peer ?? "",
-      directReport: rel.directReport ?? "",
-      self: rel.self ?? "",
-      external: rel.external ?? "",
+      downward: dir.downward ?? "",
+      upward: dir.upward ?? "",
+      lateral: dir.lateral ?? "",
+      self: dir.self ?? "",
+      external: dir.external ?? "",
     });
-    for (const key of ["manager", "peer", "directReport", "self", "external"] as const) {
-      if (rel[key] != null) dataRow.getCell(key).numFmt = NUM_FMT;
+    for (const key of ["downward", "upward", "lateral", "self", "external"] as const) {
+      if (dir[key] != null) dataRow.getCell(key).numFmt = NUM_FMT;
     }
   }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 type ApiResponse<T> =
   | { success: true; data: T }
@@ -7,9 +8,12 @@ type ApiResponse<T> =
 
 // ─── GET: Validate summary token ───
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const rl = applyRateLimit(request);
+  if (rl) return rl;
+
   try {
     const { token } = await params;
 

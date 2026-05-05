@@ -9,11 +9,12 @@ import { CheckCircle2, ChevronLeft, ChevronRight, Send, Loader2, AlertCircle, Ch
 import { QuestionRenderer } from "@/components/evaluation/question-renderer";
 
 import type { TemplateSection } from "@/types/evaluation";
+import { DIRECTION_LABELS, type Direction } from "@/lib/directions";
 
 interface FormData {
   subjectName: string;
   cycleName: string;
-  relationship: string;
+  direction: Direction;
   sections: TemplateSection[];
   isImpersonator: boolean;
 }
@@ -32,7 +33,7 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
   const [sectionErrors, setSectionErrors] = useState<Set<string>>(new Set());
   const [showValidation, setShowValidation] = useState(false);
   const [remainingEvals, setRemainingEvals] = useState<
-    Array<{ token: string; subjectName: string; cycleName: string; relationship: string }>
+    Array<{ token: string; subjectName: string; cycleName: string; direction: Direction }>
   >([]);
 
   useEffect(() => {
@@ -102,7 +103,8 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
 
   if (!formData) return null;
 
-  const { sections, subjectName, cycleName, relationship, isImpersonator } = formData;
+  const { sections, subjectName, cycleName, direction, isImpersonator } = formData;
+  const directionLabel = DIRECTION_LABELS[direction] ?? direction;
   const section = sections[currentSection];
   const totalQuestions = sections.reduce((acc, s) => acc + s.questions.length, 0);
   const answeredQuestions = Object.keys(answers).length;
@@ -258,7 +260,7 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
                   >
                     <div className="min-w-0">
                       <p className="text-[14px] font-medium text-gray-900 truncate">{ev.subjectName}</p>
-                      <p className="text-[12px] text-gray-500 truncate">{ev.cycleName} &middot; {ev.relationship}</p>
+                      <p className="text-[12px] text-gray-500 truncate">{ev.cycleName} &middot; {DIRECTION_LABELS[ev.direction] ?? ev.direction}</p>
                     </div>
                     <ArrowRight size={16} strokeWidth={1.5} className="text-gray-400 group-hover:text-gray-900 flex-shrink-0" />
                   </a>
@@ -286,7 +288,7 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
                 Evaluating {subjectName}
               </p>
               <p className="text-caption-style truncate">
-                {cycleName} &middot; {relationship}
+                {cycleName} &middot; {directionLabel}
               </p>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0 ml-4">
@@ -344,6 +346,8 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
                   {/* Step dot */}
                   <button
                     onClick={() => { setSectionErrors(new Set()); setShowValidation(false); setCurrentSection(i); }}
+                    aria-label={`Section ${i + 1}: ${s.title}, ${answered} of ${total} answered${complete ? " (complete)" : ""}`}
+                    aria-current={active ? "step" : undefined}
                     className={`
                       relative flex items-center justify-center
                       ${active

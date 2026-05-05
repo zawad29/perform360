@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { DIRECTION_LABELS } from "@/lib/directions";
 
 interface ActivityItem {
   id: string;
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
           subject: { select: { name: true } },
           assignment: {
             select: {
-              relationship: true,
+              direction: true,
               cycle: { select: { name: true } },
             },
           },
@@ -82,21 +83,14 @@ export async function GET(request: NextRequest) {
   const activities: ActivityItem[] = [];
 
   for (const sub of recentSubmissions) {
-    const relationLabel =
-      sub.assignment.relationship === "manager"
-        ? "Manager"
-        : sub.assignment.relationship === "direct_report"
-          ? "Direct Report"
-          : sub.assignment.relationship === "self"
-            ? "Self"
-            : "Peer";
+    const relationLabel = DIRECTION_LABELS[sub.assignment.direction];
     activities.push({
       id: `sub-${sub.id}`,
       type: "submission",
       title: "Evaluation submitted",
       description: `${sub.reviewer.name} submitted a ${relationLabel.toLowerCase()} review for ${sub.subject.name}`,
       timestamp: sub.submittedAt!.toISOString(),
-      metadata: { cycle: sub.assignment.cycle.name, relationship: relationLabel },
+      metadata: { cycle: sub.assignment.cycle.name, direction: relationLabel },
     });
   }
 

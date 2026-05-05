@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Direction, DirectionWeights, WeightPreset } from "@/lib/directions";
 
 interface TemplateQuestion {
   id: string;
@@ -16,20 +17,32 @@ interface TemplateSection {
   id: string;
   title: string;
   description?: string;
+  directions: Direction[];
   questions: TemplateQuestion[];
 }
 
 interface TemplateBuilderState {
   name: string;
   description: string;
+  levelIds: string[];
+  weightPreset: WeightPreset | null;
+  weightsMember: DirectionWeights | null;
+  weightsManager: DirectionWeights | null;
   sections: TemplateSection[];
+  useDirectionRouting: boolean;
   activeSection: string | null;
   activeQuestion: string | null;
   isDirty: boolean;
 
-  // Actions
   setName: (name: string) => void;
   setDescription: (description: string) => void;
+  setLevelIds: (ids: string[]) => void;
+  setWeights: (next: {
+    preset: WeightPreset | null;
+    member: DirectionWeights | null;
+    manager: DirectionWeights | null;
+  }) => void;
+  setUseDirectionRouting: (value: boolean) => void;
   addSection: () => void;
   updateSection: (sectionId: string, data: Partial<TemplateSection>) => void;
   removeSection: (sectionId: string) => void;
@@ -38,11 +51,24 @@ interface TemplateBuilderState {
   updateQuestion: (sectionId: string, questionId: string, data: Partial<TemplateQuestion>) => void;
   removeQuestion: (sectionId: string, questionId: string) => void;
   moveQuestion: (sectionId: string, fromIndex: number, toIndex: number) => void;
-  moveQuestionBetweenSections: (fromSectionId: string, toSectionId: string, fromIndex: number, toIndex: number) => void;
+  moveQuestionBetweenSections: (
+    fromSectionId: string,
+    toSectionId: string,
+    fromIndex: number,
+    toIndex: number
+  ) => void;
   setActiveSection: (sectionId: string | null) => void;
   setActiveQuestion: (questionId: string | null) => void;
   reset: () => void;
-  loadTemplate: (data: { name: string; description: string; sections: TemplateSection[] }) => void;
+  loadTemplate: (data: {
+    name: string;
+    description: string;
+    levelIds: string[];
+    weightPreset: WeightPreset | null;
+    weightsMember: DirectionWeights | null;
+    weightsManager: DirectionWeights | null;
+    sections: TemplateSection[];
+  }) => void;
 }
 
 function generateId(): string {
@@ -52,28 +78,51 @@ function generateId(): string {
 export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
   name: "",
   description: "",
+  levelIds: [],
+  weightPreset: null,
+  weightsMember: null,
+  weightsManager: null,
   sections: [],
+  useDirectionRouting: false,
   activeSection: null,
   activeQuestion: null,
   isDirty: false,
 
   setName: (name) => set({ name, isDirty: true }),
   setDescription: (description) => set({ description, isDirty: true }),
+  setLevelIds: (levelIds) => set({ levelIds, isDirty: true }),
+  setWeights: ({ preset, member, manager }) =>
+    set({
+      weightPreset: preset,
+      weightsMember: member,
+      weightsManager: manager,
+      isDirty: true,
+    }),
+  setUseDirectionRouting: (value) =>
+    set((state) => {
+      if (state.useDirectionRouting === value) return state;
+      const needsClear = !value && state.sections.some((s) => s.directions.length > 0);
+      return {
+        useDirectionRouting: value,
+        sections: needsClear
+          ? state.sections.map((s) => (s.directions.length === 0 ? s : { ...s, directions: [] }))
+          : state.sections,
+        isDirty: true,
+      };
+    }),
 
   addSection: () =>
     set((state) => ({
       sections: [
         ...state.sections,
-        { id: generateId(), title: "New Section", questions: [] },
+        { id: generateId(), title: "New Section", directions: [], questions: [] },
       ],
       isDirty: true,
     })),
 
   updateSection: (sectionId, data) =>
     set((state) => ({
-      sections: state.sections.map((s) =>
-        s.id === sectionId ? { ...s, ...data } : s
-      ),
+      sections: state.sections.map((s) => (s.id === sectionId ? { ...s, ...data } : s)),
       isDirty: true,
     })),
 
@@ -169,7 +218,12 @@ export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
     set({
       name: "",
       description: "",
+      levelIds: [],
+      weightPreset: null,
+      weightsMember: null,
+      weightsManager: null,
       sections: [],
+      useDirectionRouting: false,
       activeSection: null,
       activeQuestion: null,
       isDirty: false,
@@ -179,7 +233,12 @@ export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
     set({
       name: data.name,
       description: data.description,
+      levelIds: data.levelIds,
+      weightPreset: data.weightPreset,
+      weightsMember: data.weightsMember,
+      weightsManager: data.weightsManager,
       sections: data.sections,
+      useDirectionRouting: data.sections.some((s) => s.directions.length > 0),
       isDirty: false,
     }),
 }));

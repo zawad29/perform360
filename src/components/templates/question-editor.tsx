@@ -72,6 +72,7 @@ export function QuestionEditor({ question, sectionId, onUpdate, onRemove }: Ques
           type="text"
           value={question.text}
           onChange={(e) => onUpdate({ text: e.target.value })}
+          aria-label="Question text"
           className="w-full text-[14px] text-gray-900 bg-white border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-all duration-200"
           placeholder="Enter question text..."
         />
@@ -140,6 +141,7 @@ export function QuestionEditor({ question, sectionId, onUpdate, onRemove }: Ques
       <button
         type="button"
         onClick={onRemove}
+        aria-label="Remove question"
         className="p-1.5 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
       >
         <Trash2 size={14} strokeWidth={1.5} className="text-gray-300 hover:text-red-500" />

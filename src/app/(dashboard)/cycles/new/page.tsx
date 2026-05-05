@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,25 +10,31 @@ import { cn } from "@/lib/utils";
 import { useDebouncedSearch } from "./_components/use-debounced-search";
 import { StepBasics } from "./_components/step-basics";
 import { StepTeams } from "./_components/step-teams";
-import { StepCustomize } from "./_components/step-customize";
-import type {
-  TeamOption,
-  TemplateOption,
-  AssignmentGroup,
-  GroupAdvancedConfig,
-} from "./_components/types";
-import { getWeightSum } from "./_components/types";
+import type { TeamOption, TemplateOption, AssignmentGroup } from "./_components/types";
 
 const STEPS = [
   { label: "Basics", description: "Name & dates" },
   { label: "Teams", description: "Assign templates" },
-  { label: "Customize", description: "Weights & overrides" },
 ] as const;
+
+interface CoverageGapMember {
+  userId: string;
+  name: string;
+  levelName: string | null;
+}
+
+interface CoverageGap {
+  teamId: string;
+  teamName: string;
+  members: CoverageGapMember[];
+}
 
 export default function NewCyclePage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [coverageGaps, setCoverageGaps] = useState<CoverageGap[]>([]);
 
   // Step 1 state
   const [name, setName] = useState("");
@@ -37,25 +43,8 @@ export default function NewCyclePage() {
 
   // Step 2 state
   const [groups, setGroups] = useState<AssignmentGroup[]>([
-    { teamIds: [], templateId: "" },
+    { teamIds: [], templateIds: [] },
   ]);
-
-  // Step 3 state
-  const [configs, setConfigs] = useState<GroupAdvancedConfig[]>([
-    { weightPreset: null, weights: null, managerWeights: null, overrides: {} },
-  ]);
-
-  // Keep configs array in sync with groups array length
-  useEffect(() => {
-    setConfigs((prev) => {
-      if (prev.length === groups.length) return prev;
-      const next = [...prev];
-      while (next.length < groups.length) {
-        next.push({ weightPreset: null, weights: null, managerWeights: null, overrides: {} });
-      }
-      return next.slice(0, groups.length);
-    });
-  }, [groups.length]);
 
   // Data loading
   const [initialTeams, setInitialTeams] = useState<TeamOption[]>([]);
@@ -92,78 +81,71 @@ export default function NewCyclePage() {
     handleSearch: handleTemplateSearch,
   } = useDebouncedSearch<TemplateOption>("/api/templates", initialTemplates);
 
-  // Validation per step
   const isStep1Valid = !!(name.trim() && startDate && endDate);
+
+  const hasClientCoverageGap = useMemo(() => {
+    if (teams.length === 0 || templates.length === 0) return false;
+    for (const g of groups) {
+      if (g.teamIds.length === 0 || g.templateIds.length === 0) continue;
+      const groupTemplates = templates.filter((t) => g.templateIds.includes(t.id));
+      const hasWildcard = groupTemplates.some((t) => t.levelIds.length === 0);
+      if (hasWildcard) continue;
+      const coveredLevelIds = new Set(groupTemplates.flatMap((t) => t.levelIds));
+      for (const teamId of g.teamIds) {
+        const team = teams.find((t) => t.id === teamId);
+        if (!team) continue;
+        const hasGap = team.members.some(
+          (m) =>
+            (m.role === "MANAGER" || m.role === "MEMBER" || m.role === "EXTERNAL") &&
+            (m.levelId === null || !coveredLevelIds.has(m.levelId))
+        );
+        if (hasGap) return true;
+      }
+    }
+    return false;
+  }, [groups, teams, templates]);
 
   const isStep2Valid = useMemo(
     () =>
       groups.length > 0 &&
-      groups.every((g) => g.teamIds.length > 0 && g.templateId),
-    [groups]
+      groups.every((g) => g.teamIds.length > 0 && g.templateIds.length > 0) &&
+      !hasClientCoverageGap,
+    [groups, hasClientCoverageGap]
   );
 
-  const isStep3Valid = useMemo(
-    () =>
-      configs.every((c) => {
-        if (c.weights && Math.abs(getWeightSum(c.weights) - 100) >= 0.01) return false;
-        if (c.managerWeights && Math.abs(getWeightSum(c.managerWeights) - 100) >= 0.01) return false;
-        return true;
-      }),
-    [configs]
-  );
-
-  // A group without a default template is still valid if it has relationship-type overrides
-  const isStep2OrStep3Valid = useMemo(
-    () =>
-      groups.every((g, gIdx) => {
-        if (g.teamIds.length === 0) return false;
-        if (g.templateId) return true;
-        const overrides = configs[gIdx]?.overrides ?? {};
-        return Object.values(overrides).some(
-          (arr) => arr.some((o) => o.relationship !== null)
-        );
-      }),
-    [groups, configs]
-  );
-
-  const canProceed = [isStep1Valid, isStep2Valid, isStep3Valid][step];
+  const canProceed = [isStep1Valid, isStep2Valid][step];
 
   async function handleSubmit() {
-    if (!isStep1Valid || !isStep2OrStep3Valid || !isStep3Valid) return;
+    if (!isStep1Valid || !isStep2Valid) return;
     setIsLoading(true);
+    setSubmitError(null);
+    setCoverageGaps([]);
     try {
-      // Flatten unified overrides into per-team API entries
-      const teamTemplates = groups.flatMap((group, gIdx) => {
-        const config = configs[gIdx];
-        return group.teamIds.map((teamId) => {
-          const all = config.overrides[teamId] ?? [];
-          const levelTemplates = all
-            .filter((o) => o.levelId !== null)
-            .map((o) => ({ levelId: o.levelId!, relationship: o.relationship, templateId: o.templateId }));
-          const relationshipTemplates = all
-            .filter((o) => o.levelId === null && o.relationship !== null)
-            .map((o) => ({ relationship: o.relationship!, templateId: o.templateId }));
-          return {
-            teamId,
-            templateId: group.templateId || undefined,
-            ...(config.weightPreset ? { weightPreset: config.weightPreset } : {}),
-            ...(config.weights ? { weights: config.weights } : {}),
-            ...(config.managerWeights ? { managerWeights: config.managerWeights } : {}),
-            ...(levelTemplates.length > 0 ? { levelTemplates } : {}),
-            ...(relationshipTemplates.length > 0 ? { relationshipTemplates } : {}),
-          };
-        });
-      });
+      const teamTemplates = groups.flatMap((group) =>
+        group.teamIds.map((teamId) => ({
+          teamId,
+          templateIds: group.templateIds,
+        }))
+      );
 
       const res = await fetch("/api/cycles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, startDate, endDate, teamTemplates }),
       });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json();
+      if (res.ok && data.success) {
         router.push(`/cycles/${data.data.id}`);
+      } else if (data.code === "COVERAGE_GAP") {
+        setCoverageGaps(data.gaps ?? []);
+        setSubmitError(
+          "Some members are not covered by any assigned template."
+        );
+      } else {
+        setSubmitError(data.error ?? "Failed to create cycle");
       }
+    } catch {
+      setSubmitError("Network error — please try again");
     } finally {
       setIsLoading(false);
     }
@@ -178,37 +160,37 @@ export default function NewCyclePage() {
 
       <Card className="max-w-3xl">
         {/* Stepper */}
-        <nav className="flex items-center gap-1 sm:gap-2 mb-8">
+        <nav className="flex items-center mb-8">
           {STEPS.map((s, i) => {
             const isCompleted = i < step;
             const isActive = i === step;
             return (
-              <div key={s.label} className="flex items-center gap-2 flex-1">
+              <Fragment key={s.label}>
+                {i > 0 && (
+                  <div
+                    className={cn(
+                      "flex-1 h-px mx-3",
+                      i <= step ? "bg-gray-900" : "bg-gray-200"
+                    )}
+                  />
+                )}
                 <button
                   type="button"
                   onClick={() => {
                     if (i < step) setStep(i);
                   }}
                   disabled={i > step}
-                  className="flex items-center gap-2.5 group"
+                  className="flex items-center gap-2.5 shrink-0"
                 >
                   <span
                     className={cn(
                       "flex items-center justify-center w-8 h-8 text-[13px] font-semibold shrink-0",
-                      isCompleted &&
-                        "bg-gray-900 text-white",
-                      isActive &&
-                        "bg-gray-900 text-white ring-4 ring-gray-200",
-                      !isCompleted &&
-                        !isActive &&
-                        "bg-gray-100 text-gray-400"
+                      isCompleted && "bg-gray-900 text-white",
+                      isActive && "bg-gray-900 text-white ring-4 ring-gray-200",
+                      !isCompleted && !isActive && "bg-gray-100 text-gray-400"
                     )}
                   >
-                    {isCompleted ? (
-                      <Check size={14} strokeWidth={3} />
-                    ) : (
-                      i + 1
-                    )}
+                    {isCompleted ? <Check size={14} strokeWidth={3} /> : i + 1}
                   </span>
                   <div className="hidden sm:block text-left">
                     <p
@@ -226,15 +208,7 @@ export default function NewCyclePage() {
                     </p>
                   </div>
                 </button>
-                {i < STEPS.length - 1 && (
-                  <div
-                    className={cn(
-                      "flex-1 h-px mx-2",
-                      i < step ? "bg-gray-900" : "bg-gray-200"
-                    )}
-                  />
-                )}
-              </div>
+              </Fragment>
             );
           })}
         </nav>
@@ -265,19 +239,48 @@ export default function NewCyclePage() {
               fetchError={fetchError}
             />
           )}
-
-          {step === 2 && (
-            <StepCustomize
-              groups={groups}
-              configs={configs}
-              onConfigsChange={setConfigs}
-              teams={teams}
-              templates={templates}
-              isSearchingTemplates={isSearchingTemplates}
-              onTemplateSearch={handleTemplateSearch}
-            />
-          )}
         </div>
+
+        {/* Coverage gap error */}
+        {coverageGaps.length > 0 && (
+          <div className="mt-4 border border-gray-900 bg-white p-4">
+            <p className="text-[13px] font-semibold text-gray-900 mb-2">
+              Coverage gap — these members have no matching template
+            </p>
+            <p className="text-[12px] text-gray-500 mb-3">
+              Add a template that covers their level, or use a template with no
+              level filter.
+            </p>
+            <div className="space-y-3">
+              {coverageGaps.map((gap) => (
+                <div key={gap.teamId}>
+                  <p className="text-[12px] font-medium text-gray-700">
+                    {gap.teamName}
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {gap.members.map((m) => (
+                      <li
+                        key={m.userId}
+                        className="text-[12px] text-gray-600"
+                      >
+                        • {m.name}{" "}
+                        <span className="text-gray-400">
+                          ({m.levelName ?? "no level"})
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {submitError && coverageGaps.length === 0 && (
+          <div className="mt-4 border border-gray-900 bg-white p-3 text-[13px] text-gray-900">
+            {submitError}
+          </div>
+        )}
 
         {/* Navigation */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-6 mt-6 border-t border-gray-100">

@@ -26,8 +26,7 @@ export async function GET(
         select: {
           teamId: true,
           team: { select: { id: true, name: true } },
-          template: { select: { id: true } },
-          levelTemplates: {
+          templates: {
             select: { template: { select: { id: true } } },
           },
         },
@@ -50,7 +49,7 @@ export async function GET(
       templateId: true,
       subjectId: true,
       reviewerId: true,
-      relationship: true,
+      direction: true,
       status: true,
     },
   });
@@ -80,17 +79,12 @@ export async function GET(
   // Build templateId -> team mapping
   const templateToTeams = new Map<string, { teamId: string; teamName: string }[]>();
   for (const ct of cycle.cycleTeams) {
-    if (ct.template) {
-      const arr = templateToTeams.get(ct.template.id) ?? [];
-      arr.push({ teamId: ct.team.id, teamName: ct.team.name });
-      templateToTeams.set(ct.template.id, arr);
-    }
-    for (const lt of ct.levelTemplates) {
-      const arr = templateToTeams.get(lt.template.id) ?? [];
+    for (const ctt of ct.templates) {
+      const arr = templateToTeams.get(ctt.template.id) ?? [];
       if (!arr.some((t) => t.teamId === ct.team.id)) {
         arr.push({ teamId: ct.team.id, teamName: ct.team.name });
       }
-      templateToTeams.set(lt.template.id, arr);
+      templateToTeams.set(ctt.template.id, arr);
     }
   }
 

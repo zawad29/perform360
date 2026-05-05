@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { enqueueBatch } from "@/lib/queue";
 import { getSummaryInviteEmail, getSummaryReminderEmail } from "@/lib/email";
 import { writeAuditLog } from "@/lib/audit";
-import { RELATIONSHIP_LABELS } from "@/lib/constants";
+import { DIRECTION_LABELS } from "@/lib/directions";
 import { JOB_TYPES } from "@/types/job";
 import type {
   CycleActivatePayload,
@@ -46,7 +46,7 @@ export async function handleCycleActivate(
       token: true,
       subjectId: true,
       reviewerId: true,
-      relationship: true,
+      direction: true,
     },
   });
 
@@ -97,7 +97,7 @@ export async function handleCycleActivate(
 
     const subjectList = reviewerAssignments.map((a) => ({
       subjectName: userMap.get(a.subjectId)?.name ?? "Unknown",
-      relationship: RELATIONSHIP_LABELS[a.relationship] ?? a.relationship,
+      direction: DIRECTION_LABELS[a.direction] ?? a.direction,
     }));
 
     const { html, text } = getSummaryInviteEmail(
@@ -171,7 +171,7 @@ export async function handleCycleRemind(
       token: true,
       reviewerId: true,
       subjectId: true,
-      relationship: true,
+      direction: true,
     },
   });
 
@@ -220,7 +220,7 @@ export async function handleCycleRemind(
 
     const subjectList = reviewerAssignments.map((a) => ({
       subjectName: userMap.get(a.subjectId)?.name ?? "Unknown",
-      relationship: RELATIONSHIP_LABELS[a.relationship] ?? a.relationship,
+      direction: DIRECTION_LABELS[a.direction] ?? a.direction,
     }));
 
     const count = subjectList.length;

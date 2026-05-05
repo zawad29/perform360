@@ -158,13 +158,13 @@ export function getEvaluationReminderEmail(
 export function getSummaryInviteEmail(
   recipientName: string,
   cycleName: string,
-  assignments: Array<{ subjectName: string; relationship: string }>,
+  assignments: Array<{ subjectName: string; direction: string }>,
   summaryUrl: string
 ): { html: string; text: string } {
   const assignmentListHtml = assignments
     .map(
       (a) =>
-        `<li style="margin: 4px 0; font-size: 14px; color: #555555; font-family: 'Helvetica Neue', 'Arial Narrow', Arial, sans-serif;"><strong>${escapeHtml(a.subjectName)}</strong> <span style="color: #888888;">&middot; ${escapeHtml(a.relationship)}</span></li>`
+        `<li style="margin: 4px 0; font-size: 14px; color: #555555; font-family: 'Helvetica Neue', 'Arial Narrow', Arial, sans-serif;"><strong>${escapeHtml(a.subjectName)}</strong> <span style="color: #888888;">&middot; ${escapeHtml(a.direction)}</span></li>`
     )
     .join("");
 
@@ -181,7 +181,7 @@ export function getSummaryInviteEmail(
   );
 
   const assignmentListText = assignments
-    .map((a) => `  - ${a.subjectName} (${a.relationship})`)
+    .map((a) => `  - ${a.subjectName} (${a.direction})`)
     .join("\n");
 
   const text = `Hi ${recipientName},\n\nYou have ${count} evaluation${count === 1 ? "" : "s"} to complete for the ${cycleName} cycle:\n\n${assignmentListText}\n\nView all evaluations: ${summaryUrl}\n\nYou'll verify your identity once, then have 4 hours to complete all evaluations.`;
@@ -195,13 +195,13 @@ export function getSummaryReminderEmail(
   recipientName: string,
   cycleName: string,
   deadline: string,
-  assignments: Array<{ subjectName: string; relationship: string }>,
+  assignments: Array<{ subjectName: string; direction: string }>,
   summaryUrl: string
 ): { html: string; text: string } {
   const assignmentListHtml = assignments
     .map(
       (a) =>
-        `<li style="margin: 4px 0; font-size: 14px; color: #555555; font-family: 'Helvetica Neue', 'Arial Narrow', Arial, sans-serif;"><strong>${escapeHtml(a.subjectName)}</strong> <span style="color: #888888;">&middot; ${escapeHtml(a.relationship)}</span></li>`
+        `<li style="margin: 4px 0; font-size: 14px; color: #555555; font-family: 'Helvetica Neue', 'Arial Narrow', Arial, sans-serif;"><strong>${escapeHtml(a.subjectName)}</strong> <span style="color: #888888;">&middot; ${escapeHtml(a.direction)}</span></li>`
     )
     .join("");
 
@@ -219,7 +219,7 @@ export function getSummaryReminderEmail(
   );
 
   const assignmentListText = assignments
-    .map((a) => `  - ${a.subjectName} (${a.relationship})`)
+    .map((a) => `  - ${a.subjectName} (${a.direction})`)
     .join("\n");
 
   const text = `Hi ${recipientName},\n\nYou still have ${count} pending evaluation${count === 1 ? "" : "s"} for the ${cycleName} cycle:\n\n${assignmentListText}\n\nThe deadline is ${deadline}. Please complete them before then.\n\nView all evaluations: ${summaryUrl}\n\nYou'll verify your identity once, then have 4 hours to complete all evaluations.`;

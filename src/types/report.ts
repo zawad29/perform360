@@ -1,20 +1,16 @@
-export interface RelationshipWeights {
-  manager: number;
-  peer: number;
-  directReport: number;
-  self: number;
-  external: number;
-}
+import type { Direction, DirectionWeights, DirectionScores } from "@/lib/directions";
+
+export type { DirectionWeights, DirectionScores };
 
 export interface TeamBreakdown {
   teamId: string;
   teamName: string;
   overallScore: number;
   weightedOverallScore: number | null;
-  appliedWeights: RelationshipWeights | null;
+  appliedWeights: DirectionWeights | null;
   categoryScores: CategoryScore[];
   weightedCategoryScores: CategoryScore[] | null;
-  scoresByRelationship: RelationshipScores;
+  scoresByDirection: DirectionScores;
   questionDetails: QuestionDetail[];
   textFeedback: TextFeedbackGroup[];
   calibrationOffset: number | null;
@@ -35,7 +31,7 @@ export interface ResponseRate {
 }
 
 export interface ReviewerBreakdownItem {
-  relationship: string;
+  direction: Direction;
   total: number;
   completed: number;
 }
@@ -46,7 +42,16 @@ export interface SelfVsOthersItem {
   othersScore: number | null;
   gap: number | null;
   insight: "blind_spot" | "hidden_strength" | "aligned" | null;
+  // True when the section was shown to SELF reviewers. False when the section
+  // was direction-routed to skip self (so a null selfScore is "not asked",
+  // not "no response").
+  selfWasAsked: boolean;
 }
+
+// How many rating questions were shown for each direction (after section direction
+// filtering). Lets the UI disclose asymmetric coverage (e.g. lateral averaged
+// over 12 questions while self saw only 4).
+export type DirectionQuestionCounts = Record<Direction, number>;
 
 export interface IndividualReport {
   subjectId: string;
@@ -56,7 +61,8 @@ export interface IndividualReport {
   overallScore: number;
   weightedOverallScore: number | null;
   categoryScores: CategoryScore[];
-  scoresByRelationship: RelationshipScores;
+  scoresByDirection: DirectionScores;
+  directionQuestionCounts: DirectionQuestionCounts;
   questionDetails: QuestionDetail[];
   textFeedback: TextFeedbackGroup[];
   teamBreakdowns: TeamBreakdown[];
@@ -75,14 +81,6 @@ export interface CategoryScore {
   maxScore: number;
 }
 
-export interface RelationshipScores {
-  manager: number | null;
-  peer: number | null;
-  directReport: number | null;
-  self: number | null;
-  external: number | null;
-}
-
 export interface QuestionDetail {
   questionId: string;
   questionText: string;
@@ -95,7 +93,7 @@ export interface QuestionDetail {
 export interface TextFeedbackGroup {
   questionId: string;
   questionText: string;
-  relationship: string;
+  direction: Direction;
   responses: string[];
 }
 
@@ -107,6 +105,17 @@ export interface IndividualSummary {
   reviewCount: number;
   completedCount: number;
   calibratedScore: number | null;
+  // The template that scored the majority of this subject's responses in the
+  // cycle. Used to group / label like-with-like in cycle reports.
+  primaryTemplateId: string | null;
+  primaryTemplateName: string | null;
+}
+
+export interface TeamTemplateBreakdown {
+  templateId: string;
+  templateName: string;
+  avgScore: number;
+  subjectCount: number;
 }
 
 export interface TeamScore {
@@ -115,6 +124,15 @@ export interface TeamScore {
   avgScore: number;
   weightedAvgScore: number | null;
   calibratedAvgScore: number | null;
+  // Per-template breakdown when the team uses more than one template.
+  // Empty array when the team uses a single template.
+  byTemplate: TeamTemplateBreakdown[];
+}
+
+export interface CycleTemplateUsage {
+  templateId: string;
+  templateName: string;
+  subjectCount: number;
 }
 
 export interface SubmissionTrendPoint {
@@ -132,9 +150,12 @@ export interface CycleReport {
   participationStats: ParticipationStats;
   individualSummaries: IndividualSummary[];
   avgScoreByTeam: TeamScore[];
-  avgScoreByRelationship: RelationshipScores;
+  avgScoreByDirection: DirectionScores;
   submissionTrend: SubmissionTrendPoint[];
   isCalibrated: boolean;
+  // Templates that scored at least one subject in this cycle, with the count
+  // of subjects each one was the primary template for. Drives the legend banner.
+  templatesUsed: CycleTemplateUsage[];
 }
 
 export interface TeamCompletionRate {
@@ -164,9 +185,12 @@ export interface PersonCycleSummary {
   weightedOverallScore: number | null;
   calibratedScore: number | null;
   categoryScores: CategoryScore[];
-  scoresByRelationship: RelationshipScores;
+  scoresByDirection: DirectionScores;
   responseRate: ResponseRate;
   reviewerBreakdown: ReviewerBreakdownItem[];
+  // Distinct level names this person held across teams during this cycle.
+  // Empty when they had no level assigned. Surfaces re-leveling over time.
+  levels: string[];
 }
 
 export interface PersonPerformanceProfile {
@@ -187,5 +211,5 @@ export interface PersonPerformanceProfile {
 
   cycles: PersonCycleSummary[];
   avgCategoryScores: CategoryScore[];
-  avgRelationshipScores: RelationshipScores;
+  avgDirectionScores: DirectionScores;
 }

@@ -3,17 +3,10 @@ import PDFDocument from "pdfkit";
 import type {
   IndividualReport,
   CategoryScore,
-  RelationshipScores,
+  DirectionScores,
   TeamBreakdown,
 } from "@/types/report";
-
-const RELATIONSHIP_DISPLAY: Record<string, string> = {
-  manager: "Manager",
-  peer: "Peer",
-  directReport: "Direct Report",
-  self: "Self",
-  external: "External",
-};
+import { DIRECTIONS, WEIGHT_FIELD_BY_DIRECTION } from "@/lib/directions";
 
 // Swiss International Typographic Style
 const COLORS = {
@@ -46,8 +39,9 @@ export async function renderReportToPdf(
     doc.on("error", reject);
 
     renderHeader(doc, report.subjectName, cycleName);
+    renderSubjectContext(doc, report);
     renderOverallScore(doc, report);
-    renderRelationshipScores(doc, report.scoresByRelationship);
+    renderDirectionScores(doc, report.scoresByDirection);
     renderCategoryScores(doc, report.categoryScores);
     if (report.teamBreakdowns.length > 1) {
       for (const tb of report.teamBreakdowns) {
@@ -92,6 +86,22 @@ function _drawSubtleRule(doc: PDFKit.PDFDocument): void {
     .strokeColor(COLORS.border)
     .lineWidth(0.5)
     .stroke();
+}
+
+function renderSubjectContext(doc: PDFKit.PDFDocument, report: IndividualReport): void {
+  const ctx = report.subjectContext;
+  const teamNames = ctx.teams.map((t) => t.name).join(", ");
+  const parts: string[] = [];
+  if (ctx.role) parts.push(ctx.role);
+  if (ctx.level) parts.push(`Level ${ctx.level}`);
+  if (teamNames) parts.push(teamNames);
+  if (parts.length === 0) return;
+  doc
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor(COLORS.secondary)
+    .text(parts.join("  ·  "), { align: "left" });
+  doc.moveDown(0.8);
 }
 
 function renderHeader(
@@ -180,18 +190,13 @@ function renderOverallScore(
   doc.moveDown(1);
 }
 
-function renderRelationshipScores(
+function renderDirectionScores(
   doc: PDFKit.PDFDocument,
-  scores: RelationshipScores
+  scores: DirectionScores
 ): void {
-  const entries: [string, number | null][] = [
-    ["manager", scores.manager],
-    ["peer", scores.peer],
-    ["directReport", scores.directReport],
-    ["self", scores.self],
-    ["external", scores.external],
-  ];
-  const filtered = entries.filter(([, v]) => v !== null) as [string, number][];
+  const filtered = DIRECTIONS
+    .map((d) => [d.label, scores[WEIGHT_FIELD_BY_DIRECTION[d.key]]] as const)
+    .filter(([, v]) => v !== null) as [string, number][];
 
   if (filtered.length === 0) return;
 
@@ -201,16 +206,13 @@ function renderRelationshipScores(
     .font("Helvetica-Bold")
     .fontSize(10)
     .fillColor(COLORS.heading)
-    .text("SCORES BY RELATIONSHIP", { characterSpacing: 1.5 });
+    .text("SCORES BY DIRECTION", { characterSpacing: 1.5 });
   doc.moveDown(0.5);
 
   drawTable(
     doc,
-    ["RELATIONSHIP", "AVG SCORE"],
-    filtered.map(([key, value]) => [
-      (RELATIONSHIP_DISPLAY[key] ?? key).toUpperCase(),
-      value.toFixed(1),
-    ]),
+    ["DIRECTION", "AVG SCORE"],
+    filtered.map(([label, value]) => [label.toUpperCase(), value.toFixed(1)]),
     [CONTENT_WIDTH * 0.65, CONTENT_WIDTH * 0.35]
   );
   resetCursor(doc);
@@ -261,7 +263,7 @@ function renderTeamBreakdown(
   doc.moveDown(0.5);
 
   renderOverallScore(doc, tb);
-  renderRelationshipScores(doc, tb.scoresByRelationship);
+  renderDirectionScores(doc, tb.scoresByDirection);
   renderCategoryScores(doc, tb.weightedCategoryScores ?? tb.categoryScores);
 }
 

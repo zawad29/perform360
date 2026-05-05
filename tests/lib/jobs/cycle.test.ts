@@ -20,7 +20,7 @@ describe("handleCycleActivate", () => {
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { id: "a1", token: "tok-1", subjectId: "u-sub", reviewerId: "u-rev", relationship: "peer" },
+      { id: "a1", token: "tok-1", subjectId: "u-sub", reviewerId: "u-rev", direction: "LATERAL" },
     ] as any);
 
     vi.mocked(prisma.user.findMany).mockResolvedValue([
@@ -65,7 +65,7 @@ describe("handleCycleActivate", () => {
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { id: "a1", token: "t", subjectId: "s", reviewerId: "r", relationship: "peer" },
+      { id: "a1", token: "t", subjectId: "s", reviewerId: "r", direction: "LATERAL" },
     ] as any);
     vi.mocked(prisma.user.findMany).mockResolvedValue([
       { id: "r", email: "r@t.com", name: "R" },
@@ -115,7 +115,7 @@ describe("handleCycleRemind", () => {
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { token: "t1", reviewerId: "r1", subjectId: "s1", relationship: "peer" },
+      { token: "t1", reviewerId: "r1", subjectId: "s1", direction: "LATERAL" },
     ] as any);
     vi.mocked(prisma.user.findMany).mockResolvedValue([
       { id: "r1", email: "r@t.com", name: "Reviewer" },

@@ -1,56 +1,45 @@
 # Performs360
 
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](LICENSE)
+[![Build & publish images](https://github.com/tamzid958/perform360/actions/workflows/build.yml/badge.svg)](https://github.com/tamzid958/perform360/actions/workflows/build.yml)
 
 Self-hosted 360-degree performance review platform. Run reviews, collect multi-source feedback, and generate calibrated reports — all on your own infrastructure.
 
-## Quick Deploy
+Pre-built Docker images are published to GitHub Container Registry on every release. Watchtower keeps your install up-to-date automatically.
 
-**One command — installs everything:**
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/tamzid958/perform360/master/deploy.sh)
-```
-
-Or download first:
+## Quick install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tamzid958/perform360/master/deploy.sh -o deploy.sh
-bash deploy.sh
+# 1. Pick a directory
+mkdir performs360 && cd performs360
+
+# 2. Grab the compose file
+curl -fsSL https://raw.githubusercontent.com/tamzid958/perform360/master/docker-compose.yml -o docker-compose.yml
+
+# 3. Create your .env (see "Environment Variables" below)
+curl -fsSL https://raw.githubusercontent.com/tamzid958/perform360/master/.env.production.example -o .env
+$EDITOR .env
+
+# 4. Pull and start
+docker compose pull
+docker compose up -d
 ```
 
-The interactive script will:
+That's it. The app comes up on port `3000`. Auto-updates run within 24 hours of each new release; the running services are restarted in place by Watchtower.
 
-1. Check prerequisites (git, docker, docker compose)
-2. Clone the repository
-3. Walk you through configuration (app URL, database, email)
-4. Build and start all containers
-5. Run database migrations automatically
+After first boot, visit `/setup-encryption` to initialize encryption keys.
 
 ### Prerequisites
 
-- **Docker** with Docker Compose (plugin or standalone)
-- **Git**
-- **PostgreSQL** database (external — bring your own)
+- **Docker** with Docker Compose
+- **PostgreSQL** (external — bring your own; set `DATABASE_URL`)
 
-## Manual Setup
-
-If you prefer to set things up manually:
-
-```bash
-git clone https://github.com/tamzid958/perform360.git
-cd perform360
-cp .env.production.example .env
-# Edit .env with your values
-docker compose up -d --build
-```
-
-### Environment Variables
+## Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `NEXTAUTH_SECRET` | Yes | Random secret for session encryption (`openssl rand -base64 32`) |
+| `NEXTAUTH_SECRET` | Yes | Random secret (`openssl rand -base64 32`) |
 | `NEXTAUTH_URL` | Yes | Your app's public URL |
 | `NEXT_PUBLIC_APP_URL` | Yes | Same as `NEXTAUTH_URL` |
 | `EMAIL_PROVIDER` | Yes | `resend`, `brevo`, or `smtp` |
@@ -61,6 +50,8 @@ docker compose up -d --build
 | `SMTP_PORT` | If smtp | SMTP server port |
 | `SMTP_USER` | If smtp | SMTP username |
 | `SMTP_PASS` | If smtp | SMTP password |
+| `APP_PORT` | No | Host port (default `3000`) |
+| `WATCHTOWER_POLL_INTERVAL` | No | Seconds between update checks (default `86400` = 24h) |
 
 ## Architecture
 
@@ -70,43 +61,51 @@ config:
   theme: dark
 ---
 graph TD
-    PG[(PostgreSQL<br/>external)] --- App
+    GHCR[(GHCR<br/>ghcr.io/tamzid958/perform360-*)]
+    PG[(PostgreSQL<br/>external)]
+    GHCR -.pulled by.-> WT
+    WT[Watchtower<br/>polls 24h] -.restarts.-> App
+    WT -.restarts.-> Worker
+    PG --- App
     PG --- Worker
-    subgraph Docker Host
+    subgraph Docker host
         App[App<br/>Next.js · Port 3000]
-        Worker[Worker<br/>Background jobs · cycles, email]
+        Worker[Worker<br/>Background jobs]
+        WT
     end
 ```
 
 **Services:**
 
-- **App** — Next.js standalone server (port 3000)
-- **Worker** — Background job processor (cycle auto-close, OTP cleanup)
-- **Migrate** — Runs Prisma migrations on startup, then exits
+- **app** — Next.js standalone server. Runs `prisma db push` on startup so schema migrations ride along with image updates.
+- **worker** — Background job processor (cycle auto-close, OTP cleanup, email sends, audit-log retention).
+- **watchtower** — Monitors GHCR every 24 hours and restarts containers when a newer image is published.
+
+## Versioning & releases
+
+Releases are cut by tagging a version and pushing it:
+
+```bash
+# Maintainer flow
+npm version 1.2.0 --no-git-tag-version
+git commit -am "chore: bump to v1.2.0"
+git tag v1.2.0
+git push origin master --tags
+```
+
+The [`build.yml`](.github/workflows/build.yml) workflow fires on each `v*` tag, builds amd64 + arm64 images for both `app` and `worker` services, publishes them to GHCR (`:latest`, `:1.2.0`, `:sha-xxxxxxx`), and creates a GitHub Release with auto-generated release notes.
+
+Self-hosted instances see the new version surface in **Settings → Update available** banner within an hour. Watchtower swaps the running containers within 24 hours of publish.
 
 ## Management
 
 ```bash
-# View logs
-docker compose logs -f
-
-# View app logs only
-docker compose logs -f app
-
-# Stop all services
-docker compose down
-
-# Restart
-docker compose restart
-
-# Update to latest version
-git pull origin master
-docker compose up -d --build
+docker compose logs -f          # All services
+docker compose logs -f app      # App only
+docker compose down             # Stop
+docker compose restart          # Restart
+docker compose pull && docker compose up -d  # Force update now (skip Watchtower wait)
 ```
-
-## Post-Install
-
-After deployment, visit `/setup-encryption` to initialize the encryption keys.
 
 ## Tech Stack
 
@@ -116,6 +115,8 @@ After deployment, visit `/setup-encryption` to initialize the encryption keys.
 - **UI:** Tailwind CSS, Radix UI, Recharts
 - **Email:** Resend / Brevo / SMTP (Nodemailer)
 - **Language:** TypeScript (strict mode)
+- **Container registry:** GitHub Container Registry (GHCR)
+- **Auto-update:** Watchtower
 
 ## Contributing
 

@@ -15,6 +15,7 @@ export function DragHandle({ className, listeners, attributes }: DragHandleProps
   return (
     <button
       type="button"
+      aria-label="Reorder"
       className={cn(
         "flex items-center justify-center w-6 h-6 cursor-grab active:cursor-grabbing hover:bg-gray-100 transition-colors touch-none",
         className

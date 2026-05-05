@@ -44,6 +44,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { DIRECTION_LABELS, type Direction } from "@/lib/directions";
 
 interface TeamMembership {
   id: string;
@@ -56,7 +57,7 @@ interface EvaluationEntry {
   cycleId: string;
   cycleName: string;
   cycleStatus: string;
-  relationship: string;
+  direction: Direction;
   status: string;
   reviewerName?: string;
   subjectName?: string;
@@ -94,14 +95,6 @@ const teamRoleBadge: Record<string, { variant: "info" | "success" | "warning"; l
   MANAGER: { variant: "info", label: "Manager" },
   MEMBER: { variant: "success", label: "Member" },
   EXTERNAL: { variant: "warning", label: "External" },
-};
-
-const relationshipLabels: Record<string, string> = {
-  manager: "Manager",
-  direct_report: "Direct Report",
-  peer: "Peer",
-  self: "Self",
-  external: "External",
 };
 
 const statusBadge: Record<string, { variant: "outline" | "warning" | "success"; label: string }> = {
@@ -256,7 +249,7 @@ export default function PersonDetailPage() {
         <Badge variant={badge.variant}>{badge.label}</Badge>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="p-2 hover:bg-gray-100 ">
+            <button className="p-2 hover:bg-gray-100 " aria-label="User actions">
               <MoreHorizontal size={18} strokeWidth={1.5} className="text-gray-500" />
             </button>
           </DropdownMenuTrigger>
@@ -394,7 +387,7 @@ export default function PersonDetailPage() {
                             <div key={ev.id} className="flex items-center justify-between px-3 py-2.5 gap-2">
                               <div className="flex items-center gap-2 min-w-0 flex-wrap">
                                 <span className="text-[14px] text-gray-900 truncate">{ev.reviewerName}</span>
-                                <Badge variant="outline">{relationshipLabels[ev.relationship] ?? ev.relationship}</Badge>
+                                <Badge variant="outline">{DIRECTION_LABELS[ev.direction] ?? ev.direction}</Badge>
                               </div>
                               <Badge variant={sb.variant} className="shrink-0">{sb.label}</Badge>
                             </div>
@@ -429,7 +422,7 @@ export default function PersonDetailPage() {
                             <div key={ev.id} className="flex items-center justify-between px-3 py-2.5 gap-2">
                               <div className="flex items-center gap-2 min-w-0 flex-wrap">
                                 <span className="text-[14px] text-gray-900 truncate">{ev.subjectName}</span>
-                                <Badge variant="outline">{relationshipLabels[ev.relationship] ?? ev.relationship}</Badge>
+                                <Badge variant="outline">{DIRECTION_LABELS[ev.direction] ?? ev.direction}</Badge>
                               </div>
                               <Badge variant={sb.variant} className="shrink-0">{sb.label}</Badge>
                             </div>

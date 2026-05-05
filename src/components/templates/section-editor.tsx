@@ -7,10 +7,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, ChevronUp, Trash2, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, Plus, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DragHandle } from "./drag-handle";
 import { QuestionEditor } from "./question-editor";
+import { DIRECTIONS, type Direction } from "@/lib/directions";
 
 interface QuestionData {
   id: string;
@@ -27,11 +28,13 @@ interface SectionData {
   id: string;
   title: string;
   description?: string;
+  directions: Direction[];
   questions: QuestionData[];
 }
 
 interface SectionEditorProps {
   section: SectionData;
+  showDirections: boolean;
   onUpdateSection: (data: Partial<SectionData>) => void;
   onRemoveSection: () => void;
   onAddQuestion: () => void;
@@ -41,6 +44,7 @@ interface SectionEditorProps {
 
 export function SectionEditor({
   section,
+  showDirections,
   onUpdateSection,
   onRemoveSection,
   onAddQuestion,
@@ -87,6 +91,7 @@ export function SectionEditor({
           type="text"
           value={section.title}
           onChange={(e) => onUpdateSection({ title: e.target.value })}
+          aria-label="Section title"
           className="flex-1 text-headline text-gray-900 bg-transparent border-none focus:outline-none focus:ring-0 p-0 min-w-0"
           placeholder="Section title"
         />
@@ -98,6 +103,8 @@ export function SectionEditor({
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
+          aria-label={expanded ? "Collapse section" : "Expand section"}
+          aria-expanded={expanded}
           className="p-1.5 hover:bg-gray-100 shrink-0"
         >
           {expanded ? (
@@ -110,6 +117,7 @@ export function SectionEditor({
         <button
           type="button"
           onClick={onRemoveSection}
+          aria-label="Remove section"
           className="p-1.5 hover:bg-gray-100 shrink-0"
         >
           <Trash2 size={16} strokeWidth={1.5} className="text-gray-400 hover:text-gray-900" />
@@ -123,9 +131,51 @@ export function SectionEditor({
             type="text"
             value={section.description ?? ""}
             onChange={(e) => onUpdateSection({ description: e.target.value || undefined })}
+            aria-label="Section description"
             className="w-full text-[13px] text-gray-500 bg-transparent border-none focus:outline-none focus:ring-0 p-0 placeholder:text-gray-300"
             placeholder="Section description (optional)"
           />
+        </div>
+      )}
+
+      {/* Direction tags */}
+      {expanded && showDirections && (
+        <div className="mt-3 ml-8">
+          <div className="flex items-center gap-2 mb-1.5">
+            <p className="text-[11px] font-medium uppercase tracking-caps text-gray-500">
+              Shown for
+            </p>
+            {section.directions.length === 0 && (
+              <span className="text-[10px] text-gray-400">All directions</span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {DIRECTIONS.map((d) => {
+              const isSelected = section.directions.includes(d.key);
+              return (
+                <button
+                  key={d.key}
+                  type="button"
+                  onClick={() => {
+                    const next = isSelected
+                      ? section.directions.filter((x) => x !== d.key)
+                      : [...section.directions, d.key];
+                    onUpdateSection({ directions: next });
+                  }}
+                  title={d.description}
+                  className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] ${
+                    isSelected
+                      ? "border-gray-900 bg-gray-900 text-white"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+                  }`}
+                >
+                  {isSelected && <Check size={10} strokeWidth={2.5} />}
+                  <span className="font-medium">{d.glyph}</span>
+                  <span>{d.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

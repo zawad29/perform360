@@ -10,8 +10,9 @@ import type {
   PersonPerformanceProfile,
   PersonCycleSummary,
   CategoryScore,
-  RelationshipScores,
+  DirectionScores,
 } from "@/types/report";
+import { emptyDirectionScores } from "@/lib/directions";
 
 type ApiResponse<T> =
   | { success: true; data: T }
@@ -101,6 +102,18 @@ export async function GET(
     const results = await Promise.allSettled(
       cycles.map(async (cycle) => {
         const report = await buildIndividualReport(cycle.id, userId, companyId, dataKey);
+        // Distinct levels held during this cycle, gathered from the teams the
+        // subject was on at report-build time (subjectContext.teams). The level
+        // captured here is "current" per team — close enough to surface
+        // re-leveling across cycles when the same person appears with different
+        // levels in different cycles' reports.
+        const levels = Array.from(
+          new Set(
+            report.subjectContext.teams
+              .map((t) => t.level)
+              .filter((l): l is string => !!l)
+          )
+        );
         return {
           cycleId: cycle.id,
           cycleName: cycle.name,
@@ -111,9 +124,10 @@ export async function GET(
           weightedOverallScore: report.weightedOverallScore,
           calibratedScore: report.calibratedScore,
           categoryScores: report.categoryScores,
-          scoresByRelationship: report.scoresByRelationship,
+          scoresByDirection: report.scoresByDirection,
           responseRate: report.responseRate,
           reviewerBreakdown: report.reviewerBreakdown,
+          levels,
         } satisfies PersonCycleSummary;
       })
     );
@@ -161,15 +175,13 @@ export async function GET(
       })
     );
 
-    // Cross-cycle relationship averages
-    const relKeys = ["manager", "peer", "directReport", "self", "external"] as const;
-    const avgRelationshipScores: RelationshipScores = { manager: null, peer: null, directReport: null, self: null, external: null };
-    for (const key of relKeys) {
+    const avgDirectionScores: DirectionScores = emptyDirectionScores();
+    for (const key of Object.keys(avgDirectionScores) as (keyof DirectionScores)[]) {
       const vals = cycleSummaries
-        .map((c) => c.scoresByRelationship[key])
+        .map((c) => c.scoresByDirection[key])
         .filter((v): v is number => v !== null);
       if (vals.length > 0) {
-        avgRelationshipScores[key] = Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100;
+        avgDirectionScores[key] = Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100;
       }
     }
 
@@ -193,7 +205,7 @@ export async function GET(
       avgResponseRate,
       cycles: cycleSummaries,
       avgCategoryScores,
-      avgRelationshipScores,
+      avgDirectionScores,
     };
 
     await writeAuditLog({

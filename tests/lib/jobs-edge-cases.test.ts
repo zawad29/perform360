@@ -17,7 +17,7 @@ describe("Job: handleCycleActivate — edge cases", () => {
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { id: "a1", token: "tok1", subjectId: "s1", reviewerId: "r-missing", relationship: "peer" },
+      { id: "a1", token: "tok1", subjectId: "s1", reviewerId: "r-missing", direction: "LATERAL" },
     ] as any);
 
     // User lookup returns empty — reviewer not found
@@ -49,7 +49,7 @@ describe("Job: handleCycleActivate — edge cases", () => {
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { id: "a1", token: "tok1", subjectId: "s-missing", reviewerId: "r1", relationship: "peer" },
+      { id: "a1", token: "tok1", subjectId: "s-missing", reviewerId: "r1", direction: "LATERAL" },
     ] as any);
 
     // Only reviewer found, subject missing
@@ -93,7 +93,7 @@ describe("Job: handleCycleRemind — edge cases", () => {
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { token: "tok1", reviewerId: "r1", subjectId: "s1", relationship: "peer" },
+      { token: "tok1", reviewerId: "r1", subjectId: "s1", direction: "LATERAL" },
     ] as any);
 
     vi.mocked(prisma.user.findMany).mockResolvedValue([
@@ -188,6 +188,7 @@ describe("Job: handleCleanupOtpSessions — edge cases", () => {
     vi.mocked(prisma.otpSession.deleteMany)
       .mockResolvedValueOnce({ count: 0 } as any)
       .mockResolvedValueOnce({ count: 0 } as any);
+    vi.mocked(prisma.auditLog.deleteMany).mockResolvedValue({ count: 0 } as any);
 
     await handleCleanupOtpSessions({});
 

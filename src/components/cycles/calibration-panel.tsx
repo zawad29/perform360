@@ -27,7 +27,7 @@ interface TeamCalibrationSummary {
   memberCount: number;
 }
 
-interface CalibrationData {
+export interface CalibrationData {
   cycleId: string;
   cycleName: string;
   subjects: CalibrationSubject[];
@@ -54,9 +54,13 @@ interface CalibrationPanelProps {
 // Compact inline input — bypasses the ui/Input wrapper to avoid h-11 + label chrome
 function CellInput(props: React.InputHTMLAttributes<HTMLInputElement> & { hasError?: boolean }) {
   const { className = "", hasError, ...rest } = props;
+  // hasError thickens the border *and* sets aria-invalid so screen readers and
+  // keyboard users get the same signal as sighted users (the visible difference
+  // is greyscale-only and easy to miss).
   return (
     <input
-      className={`h-7 px-2 border bg-white text-[13px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:outline-2 focus:outline-accent focus:outline-offset-2 ${hasError ? "border-gray-900" : "border-gray-200"} ${className}`}
+      aria-invalid={hasError || undefined}
+      className={`h-7 px-2 border bg-white text-[13px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:outline-2 focus:outline-accent focus:outline-offset-2 ${hasError ? "border-2 border-accent" : "border-gray-200"} ${className}`}
       {...rest}
     />
   );
@@ -273,6 +277,7 @@ export function CalibrationPanel({ cycleId, data, readOnly = false, onSaved }: C
                         min={-5}
                         max={5}
                         placeholder="0.0"
+                        aria-label={`${ts.teamName} team offset`}
                         className="w-16 text-center tabular-nums"
                         value={offset?.offset ?? ""}
                         onChange={(e) => updateTeamOffset(ts.teamId, "offset", parseFloat(e.target.value) || 0)}
@@ -280,6 +285,7 @@ export function CalibrationPanel({ cycleId, data, readOnly = false, onSaved }: C
                     </div>
                     <CellInput
                       placeholder="Justification required"
+                      aria-label={`${ts.teamName} offset justification`}
                       className="flex-1 min-w-0"
                       value={offset?.justification ?? ""}
                       onChange={(e) => updateTeamOffset(ts.teamId, "justification", e.target.value)}
@@ -329,6 +335,7 @@ export function CalibrationPanel({ cycleId, data, readOnly = false, onSaved }: C
                                 step="0.1"
                                 min={0}
                                 max={5}
+                                aria-label={`${member.subjectName} calibrated score`}
                                 className="w-16 text-center mx-auto tabular-nums"
                                 placeholder={effectiveScore?.toFixed(2) ?? "—"}
                                 value={edit?.calibratedScore ?? ""}
@@ -350,6 +357,7 @@ export function CalibrationPanel({ cycleId, data, readOnly = false, onSaved }: C
                             ) : (
                               <CellInput
                                 placeholder="Required"
+                                aria-label={`${member.subjectName} calibration justification`}
                                 className="w-full text-[12px]"
                                 value={edit?.justification ?? ""}
                                 onChange={(e) => updateMemberEdit(key, "justification", e.target.value)}
@@ -364,6 +372,7 @@ export function CalibrationPanel({ cycleId, data, readOnly = false, onSaved }: C
                                   onClick={() => removeMemberEdit(key)}
                                   className="text-gray-300 hover:text-gray-900 p-0.5"
                                   title="Remove override"
+                                  aria-label="Remove override"
                                 >
                                   <RotateCcw size={12} />
                                 </button>
@@ -441,6 +450,7 @@ function ScrollRow({ children }: { children: React.ReactNode }) {
       {canScrollLeft && (
         <button
           onClick={() => scroll(-1)}
+          aria-label="Scroll left"
           className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white border border-gray-900 flex items-center justify-center text-gray-500 hover:text-gray-900 -ml-1"
         >
           <ChevronLeft size={14} />
@@ -450,6 +460,7 @@ function ScrollRow({ children }: { children: React.ReactNode }) {
       {canScrollRight && (
         <button
           onClick={() => scroll(1)}
+          aria-label="Scroll right"
           className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-white border border-gray-900 flex items-center justify-center text-gray-500 hover:text-gray-900 -mr-1"
         >
           <ChevronRight size={14} />

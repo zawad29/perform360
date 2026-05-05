@@ -5,19 +5,21 @@
  *  - Company with encryption set up
  *  - Users across all roles (ADMIN, HR, EMPLOYEE, EXTERNAL)
  *  - Seniority levels (SE L-1, SE L-2, SA L-2, SA L-3, D-1, D-2, PM L-1, PM L-2)
- *  - 6 teams covering: single manager, co-managed, manager-only, member-only,
- *    external evaluators, cross-team members, levels assigned
- *  - Company-specific evaluation template (in addition to global ones)
+ *  - Teams covering: single manager, co-managed, manager-only, member-only,
+ *    external evaluators, cross-team members, leveled members
+ *  - Company-specific evaluation templates demonstrating template-owned
+ *    levelIds, weightsMember/weightsManager, and per-section directions
  *  - 3 evaluation cycles:
  *    1. CLOSED cycle with full assignments, submitted responses (encrypted), and calibrations
- *    2. ACTIVE cycle with per-level templates (advanced mode), mixed assignment statuses
- *    3. DRAFT cycle with team-template config only
+ *    2. ACTIVE cycle with multiple level-filtered templates per team (level-resolved routing)
+ *    3. DRAFT cycle with multiple templates per team
  *  - Audit log entries
  *
  * Run:  npx tsx prisma/test-seed.ts
  */
 
-import { PrismaClient, UserRole, TeamMemberRole, CycleStatus, AssignmentStatus } from "@prisma/client";
+import { Prisma, PrismaClient, UserRole, TeamMemberRole, CycleStatus, AssignmentStatus } from "@prisma/client";
+import { WEIGHT_PRESETS } from "../src/lib/directions";
 import { randomBytes, scryptSync, createCipheriv } from "crypto";
 
 const prisma = new PrismaClient();
@@ -88,7 +90,7 @@ async function main() {
       await prisma.evaluationResponse.deleteMany({ where: { assignment: { cycleId: { in: cycleIds } } } });
       await prisma.evaluationAssignment.deleteMany({ where: { cycleId: { in: cycleIds } } });
       await prisma.cycleReviewerLink.deleteMany({ where: { cycleId: { in: cycleIds } } });
-      await prisma.cycleTeamLevelTemplate.deleteMany({ where: { cycleTeam: { cycleId: { in: cycleIds } } } });
+      await prisma.cycleTeamTemplate.deleteMany({ where: { cycleTeam: { cycleId: { in: cycleIds } } } });
       await prisma.cycleTeam.deleteMany({ where: { cycleId: { in: cycleIds } } });
       await prisma.evaluationCycle.deleteMany({ where: { companyId } });
     }
@@ -310,19 +312,29 @@ async function main() {
   }
   console.log();
 
-  // ── 5. Create Company-Specific Template ──
-  console.log("5. Creating company-specific template...");
+  // ── 5. Create Company-Specific Templates ──
+  // Two TechCorp engineering templates demonstrating template-owned features:
+  //   - levelIds (level filter)
+  //   - weightPreset / weightsMember / weightsManager (direction weights)
+  //   - per-section directions tag
+  console.log("5. Creating company-specific templates...");
   const companyTemplate = await prisma.evaluationTemplate.create({
     data: {
-      name: "TechCorp Engineering Review",
-      description: "Custom template for TechCorp engineering teams with emphasis on code quality and system design.",
+      name: "TechCorp Engineering Review (Senior Track)",
+      description: "TechCorp template for SE L-2, SA L-2, and SA L-3 engineers — code/system focus with supervisor-weighted scoring.",
       isGlobal: false,
       companyId: company.id,
       createdBy: "james.carter@techcorp.com",
+      levelIds: [levels["SE L-2"], levels["SA L-2"], levels["SA L-3"]],
+      weightPreset: "supervisor_focus",
+      weightsMember: WEIGHT_PRESETS.supervisor_focus.member as unknown as Prisma.InputJsonValue,
+      weightsManager: WEIGHT_PRESETS.supervisor_focus.manager as unknown as Prisma.InputJsonValue,
       sections: [
         {
+          id: "tc-sec-1",
           title: "System Design & Architecture",
           description: "Ability to design scalable, maintainable systems",
+          directions: [],
           questions: [
             { id: "tc-q1", text: "System design and architecture skills", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Beginner", "Learning", "Competent", "Advanced", "Expert"] },
             { id: "tc-q2", text: "Code review quality and thoroughness", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Rarely reviews", "Basic feedback", "Good reviews", "Thorough", "Exceptional"] },
@@ -330,8 +342,10 @@ async function main() {
           ],
         },
         {
+          id: "tc-sec-2",
           title: "Delivery & Reliability",
           description: "Shipping quality work on schedule",
+          directions: [],
           questions: [
             { id: "tc-q4", text: "Consistently delivers on commitments", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"] },
             { id: "tc-q5", text: "How they handle production incidents", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Avoids", "Needs guidance", "Handles well", "Takes ownership", "Incident leader"] },
@@ -339,8 +353,12 @@ async function main() {
           ],
         },
         {
+          id: "tc-sec-3",
           title: "Collaboration & Growth",
-          description: "Team contribution and professional development",
+          description: "Team contribution and professional development — managers, peers, and reports only",
+          // Demonstrates per-section direction tagging: skip self-reflection and external,
+          // since growth feedback is most actionable from people who work alongside them.
+          directions: ["DOWNWARD", "UPWARD", "LATERAL"],
           questions: [
             { id: "tc-q7", text: "Mentorship and knowledge sharing", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["None", "When asked", "Proactive", "Active mentor", "Team multiplier"] },
             { id: "tc-q8", text: "What should they keep doing?", type: "text", required: true },
@@ -351,7 +369,261 @@ async function main() {
       ],
     },
   });
-  console.log(`  Template: ${companyTemplate.name} (${companyTemplate.id})\n`);
+  console.log(`  Template: ${companyTemplate.name} (${companyTemplate.id})`);
+
+  const juniorTemplate = await prisma.evaluationTemplate.create({
+    data: {
+      name: "TechCorp Junior Track Review",
+      description: "TechCorp template for SE L-1 engineers — fundamentals and growth focus, peer-weighted scoring.",
+      isGlobal: false,
+      companyId: company.id,
+      createdBy: "james.carter@techcorp.com",
+      levelIds: [levels["SE L-1"]],
+      weightPreset: "peer_focus",
+      weightsMember: WEIGHT_PRESETS.peer_focus.member as unknown as Prisma.InputJsonValue,
+      weightsManager: WEIGHT_PRESETS.peer_focus.manager as unknown as Prisma.InputJsonValue,
+      sections: [
+        {
+          id: "jr-sec-1",
+          title: "Fundamentals",
+          description: "Core engineering skills for early-career engineers",
+          directions: [],
+          questions: [
+            { id: "jr-q1", text: "Foundational coding skills", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Needs help", "Learning", "Competent", "Strong", "Exceptional"] },
+            { id: "jr-q2", text: "Receptiveness to feedback", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Defensive", "Reluctant", "Open", "Eager", "Seeks it out"] },
+            { id: "jr-q3", text: "Reliability on assigned work", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Often misses", "Sometimes misses", "Reliable", "Very reliable", "Always delivers"] },
+          ],
+        },
+        {
+          id: "jr-sec-2",
+          title: "Peer Collaboration",
+          description: "How they work with teammates day-to-day",
+          // Peer-only section: demonstrates direction filter
+          directions: ["LATERAL", "SELF"],
+          questions: [
+            { id: "jr-q4", text: "Asks good questions and shares context", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Rarely", "Sometimes", "Often", "Consistently", "Exemplary"] },
+            { id: "jr-q5", text: "What's going well?", type: "text", required: true },
+            { id: "jr-q6", text: "What should they grow on next?", type: "text", required: true },
+          ],
+        },
+      ],
+    },
+  });
+  console.log(`  Template: ${juniorTemplate.name} (${juniorTemplate.id})`);
+
+  // ── 5b. The "everything-everywhere" template ──
+  // Covers every axis the routing model exposes:
+  //   - levelIds = []               → wildcard, applies to all levels
+  //   - custom weights              → both Member and Manager profiles set,
+  //                                   diverged values (not the same column)
+  //   - section.directions          → five sections, one per direction key,
+  //                                   plus one untagged section that shows everywhere
+  //   - question.type variety       → rating_scale, text, multiple_choice
+  // Useful for verifying preview-as / routing matrix / report rendering all
+  // handle every combination.
+  const holisticTemplate = await prisma.evaluationTemplate.create({
+    data: {
+      name: "TechCorp Holistic 360 (All Perspectives)",
+      description:
+        "Demonstration template touching every routing axis — direction-tagged sections, member + manager weight profiles, and every supported question type. Useful as a baseline preview.",
+      isGlobal: false,
+      companyId: company.id,
+      createdBy: "james.carter@techcorp.com",
+      levelIds: [],
+      weightPreset: "custom",
+      weightsMember: {
+        downward: 35,
+        upward: 0,
+        lateral: 30,
+        self: 15,
+        external: 20,
+      } as unknown as Prisma.InputJsonValue,
+      weightsManager: {
+        downward: 0,
+        upward: 40,
+        lateral: 25,
+        self: 20,
+        external: 15,
+      } as unknown as Prisma.InputJsonValue,
+      sections: [
+        // Always shown — baseline for everyone.
+        {
+          id: "h-sec-baseline",
+          title: "Baseline",
+          description: "Shown to every reviewer regardless of direction",
+          directions: [],
+          questions: [
+            {
+              id: "h-q-baseline-1",
+              text: "Overall impression of this person's contribution",
+              type: "rating_scale",
+              required: true,
+              scaleMin: 1,
+              scaleMax: 5,
+              scaleLabels: ["Poor", "Below avg", "Solid", "Strong", "Outstanding"],
+            },
+            {
+              id: "h-q-baseline-2",
+              text: "How long have you worked with them?",
+              type: "multiple_choice",
+              required: true,
+              options: ["Less than 3 months", "3–12 months", "1–2 years", "More than 2 years"],
+            },
+          ],
+        },
+        // DOWNWARD only — what a manager observes when looking at a report.
+        {
+          id: "h-sec-downward",
+          title: "Performance & Delivery (manager view)",
+          description: "Only shown when the reviewer outranks the subject",
+          directions: ["DOWNWARD"],
+          questions: [
+            {
+              id: "h-q-down-1",
+              text: "Quality of work delivered against expectations",
+              type: "rating_scale",
+              required: true,
+              scaleMin: 1,
+              scaleMax: 5,
+              scaleLabels: ["Below", "Inconsistent", "Meets", "Exceeds", "Exemplary"],
+            },
+            {
+              id: "h-q-down-2",
+              text: "What has surprised you about their work this period?",
+              type: "text",
+              required: false,
+            },
+          ],
+        },
+        // UPWARD only — how a report rates their manager.
+        {
+          id: "h-sec-upward",
+          title: "Leadership & Trust (member view)",
+          description: "Only shown when the subject manages the reviewer",
+          directions: ["UPWARD"],
+          questions: [
+            {
+              id: "h-q-up-1",
+              text: "I trust this manager's intentions and judgment",
+              type: "rating_scale",
+              required: true,
+              scaleMin: 1,
+              scaleMax: 5,
+              scaleLabels: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"],
+            },
+            {
+              id: "h-q-up-2",
+              text: "Decision style you most associate with them",
+              type: "multiple_choice",
+              required: true,
+              options: [
+                "Consensus-driven",
+                "Decisive with input",
+                "Top-down",
+                "Hands-off",
+                "Inconsistent",
+              ],
+            },
+            {
+              id: "h-q-up-3",
+              text: "What would help you do your best work under them?",
+              type: "text",
+              required: true,
+            },
+          ],
+        },
+        // LATERAL only — peer collaboration.
+        {
+          id: "h-sec-lateral",
+          title: "Collaboration (peer view)",
+          description: "Only shown to peers and colleagues at the same level",
+          directions: ["LATERAL"],
+          questions: [
+            {
+              id: "h-q-lat-1",
+              text: "Easy to work with on shared problems",
+              type: "rating_scale",
+              required: true,
+              scaleMin: 1,
+              scaleMax: 5,
+              scaleLabels: ["Difficult", "Sometimes", "Usually", "Mostly", "Always"],
+            },
+            {
+              id: "h-q-lat-2",
+              text: "Picks up their share of the unglamorous work",
+              type: "rating_scale",
+              required: true,
+              scaleMin: 1,
+              scaleMax: 5,
+              scaleLabels: ["Avoids", "Rarely", "Sometimes", "Often", "Consistently"],
+            },
+          ],
+        },
+        // SELF only — introspection prompts.
+        {
+          id: "h-sec-self",
+          title: "Self-reflection",
+          description: "Only shown to the subject reviewing themselves",
+          directions: ["SELF"],
+          questions: [
+            {
+              id: "h-q-self-1",
+              text: "Confidence in your output this cycle",
+              type: "rating_scale",
+              required: true,
+              scaleMin: 1,
+              scaleMax: 5,
+              scaleLabels: ["Low", "Mixed", "Steady", "High", "Very high"],
+            },
+            {
+              id: "h-q-self-2",
+              text: "What would you do differently if you started this cycle over?",
+              type: "text",
+              required: true,
+            },
+            {
+              id: "h-q-self-3",
+              text: "Where do you most want to grow next?",
+              type: "multiple_choice",
+              required: true,
+              options: [
+                "Technical depth",
+                "Cross-team influence",
+                "Mentorship",
+                "Strategic thinking",
+                "Execution speed",
+              ],
+            },
+          ],
+        },
+        // EXTERNAL only — outside-stakeholder perspective.
+        {
+          id: "h-sec-external",
+          title: "External impact",
+          description: "Only shown to external reviewers (clients, advisors, vendors)",
+          directions: ["EXTERNAL"],
+          questions: [
+            {
+              id: "h-q-ext-1",
+              text: "Reliability when responding to external requests",
+              type: "rating_scale",
+              required: true,
+              scaleMin: 1,
+              scaleMax: 5,
+              scaleLabels: ["Slow", "Inconsistent", "Reliable", "Quick", "Exceptional"],
+            },
+            {
+              id: "h-q-ext-2",
+              text: "Anything specific you'd like to flag about this engagement?",
+              type: "text",
+              required: false,
+            },
+          ],
+        },
+      ],
+    },
+  });
+  console.log(`  Template: ${holisticTemplate.name} (${holisticTemplate.id})\n`);
 
   // Get global templates for cycle assignment
   const globalTemplates = await prisma.evaluationTemplate.findMany({
@@ -368,6 +640,7 @@ async function main() {
   const tplPro = globalTplMap["Professional Skills 360 Review"];
   const tplMgr = globalTplMap["Manager 360 Review"];
   const tplTC = companyTemplate.id;
+  const tplJunior = juniorTemplate.id;
 
   if (!tpl360 || !tplSWE || !tplPro || !tplMgr) {
     throw new Error("Global templates not found. Run `npx prisma db seed` first.");
@@ -387,15 +660,15 @@ async function main() {
     },
   });
 
-  // Teams in this cycle with templates + custom weights
-  const cycle1Teams: { teamName: string; templateId: string; weights?: number[] }[] = [
-    { teamName: "Platform Team", templateId: tplSWE, weights: [30, 25, 20, 15, 10] },
-    { teamName: "Frontend Team", templateId: tplSWE, weights: [30, 25, 20, 15, 10] },
+  // Teams in this cycle with templates
+  const cycle1Teams: { teamName: string; templateId: string }[] = [
+    { teamName: "Platform Team", templateId: tplSWE },
+    { teamName: "Frontend Team", templateId: tplSWE },
     { teamName: "DevOps Team", templateId: tplSWE },
     { teamName: "Engineering Management", templateId: tplMgr },
     { teamName: "Finance Team", templateId: tplPro },
     { teamName: "HR Team", templateId: tpl360 },
-    { teamName: "Leadership Team", templateId: tplPro, weights: [35, 20, 20, 10, 15] },
+    { teamName: "Leadership Team", templateId: tplPro },
   ];
 
   const cycle1TeamIds: Record<string, string> = {};
@@ -404,12 +677,7 @@ async function main() {
       data: {
         cycleId: cycle1.id,
         teamId: teams[ct.teamName],
-        templateId: ct.templateId,
-        weightManager: ct.weights ? ct.weights[0] / 100 : null,
-        weightPeer: ct.weights ? ct.weights[1] / 100 : null,
-        weightDirectReport: ct.weights ? ct.weights[2] / 100 : null,
-        weightSelf: ct.weights ? ct.weights[3] / 100 : null,
-        weightExternal: ct.weights ? ct.weights[4] / 100 : null,
+        templates: { create: [{ templateId: ct.templateId }] },
       },
     });
     cycle1TeamIds[ct.teamName] = cycleTeam.id;
@@ -421,132 +689,132 @@ async function main() {
   interface AssignmentDef {
     reviewer: string;
     subject: string;
-    relationship: string;
+    direction: "DOWNWARD" | "UPWARD" | "LATERAL" | "SELF" | "EXTERNAL";
     templateId: string;
     status: AssignmentStatus;
   }
 
   const c1Assignments: AssignmentDef[] = [
     // Platform Team — manager (Alex) → members
-    { reviewer: "alex.rivera@techcorp.com", subject: "jordan.lee@techcorp.com", relationship: "manager", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "alex.rivera@techcorp.com", subject: "maya.patel@techcorp.com", relationship: "manager", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "alex.rivera@techcorp.com", subject: "chris.wu@techcorp.com", relationship: "manager", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "alex.rivera@techcorp.com", subject: "jordan.lee@techcorp.com", direction: "DOWNWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "alex.rivera@techcorp.com", subject: "maya.patel@techcorp.com", direction: "DOWNWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "alex.rivera@techcorp.com", subject: "chris.wu@techcorp.com", direction: "DOWNWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
     // Platform Team — members → manager (upward)
-    { reviewer: "jordan.lee@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "direct_report", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "maya.patel@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "direct_report", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "chris.wu@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "direct_report", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "jordan.lee@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "UPWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maya.patel@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "UPWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "chris.wu@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "UPWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
     // Platform Team — peer
-    { reviewer: "jordan.lee@techcorp.com", subject: "maya.patel@techcorp.com", relationship: "peer", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "jordan.lee@techcorp.com", subject: "chris.wu@techcorp.com", relationship: "peer", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "maya.patel@techcorp.com", subject: "jordan.lee@techcorp.com", relationship: "peer", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "maya.patel@techcorp.com", subject: "chris.wu@techcorp.com", relationship: "peer", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "chris.wu@techcorp.com", subject: "jordan.lee@techcorp.com", relationship: "peer", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "chris.wu@techcorp.com", subject: "maya.patel@techcorp.com", relationship: "peer", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "jordan.lee@techcorp.com", subject: "maya.patel@techcorp.com", direction: "LATERAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "jordan.lee@techcorp.com", subject: "chris.wu@techcorp.com", direction: "LATERAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maya.patel@techcorp.com", subject: "jordan.lee@techcorp.com", direction: "LATERAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maya.patel@techcorp.com", subject: "chris.wu@techcorp.com", direction: "LATERAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "chris.wu@techcorp.com", subject: "jordan.lee@techcorp.com", direction: "LATERAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "chris.wu@techcorp.com", subject: "maya.patel@techcorp.com", direction: "LATERAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
     // Platform Team — self
-    { reviewer: "alex.rivera@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "jordan.lee@techcorp.com", subject: "jordan.lee@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "maya.patel@techcorp.com", subject: "maya.patel@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "chris.wu@techcorp.com", subject: "chris.wu@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "alex.rivera@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "jordan.lee@techcorp.com", subject: "jordan.lee@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maya.patel@techcorp.com", subject: "maya.patel@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "chris.wu@techcorp.com", subject: "chris.wu@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
     // Platform Team — external
-    { reviewer: "client.stakeholder@external.com", subject: "alex.rivera@techcorp.com", relationship: "external", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "client.stakeholder@external.com", subject: "jordan.lee@techcorp.com", relationship: "external", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "client.stakeholder@external.com", subject: "maya.patel@techcorp.com", relationship: "external", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "client.stakeholder@external.com", subject: "chris.wu@techcorp.com", relationship: "external", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "client.stakeholder@external.com", subject: "alex.rivera@techcorp.com", direction: "EXTERNAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "client.stakeholder@external.com", subject: "jordan.lee@techcorp.com", direction: "EXTERNAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "client.stakeholder@external.com", subject: "maya.patel@techcorp.com", direction: "EXTERNAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "client.stakeholder@external.com", subject: "chris.wu@techcorp.com", direction: "EXTERNAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
     // Engineering Management — Sarah → architects
-    { reviewer: "sarah.chen@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "manager", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "sarah.chen@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "manager", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "sarah.chen@techcorp.com", subject: "dan.kim@techcorp.com", relationship: "manager", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "sarah.chen@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "DOWNWARD", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "sarah.chen@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "DOWNWARD", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "sarah.chen@techcorp.com", subject: "dan.kim@techcorp.com", direction: "DOWNWARD", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
     // Engineering Management — architects → Sarah (upward)
-    { reviewer: "alex.rivera@techcorp.com", subject: "sarah.chen@techcorp.com", relationship: "direct_report", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "priya.sharma@techcorp.com", subject: "sarah.chen@techcorp.com", relationship: "direct_report", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "dan.kim@techcorp.com", subject: "sarah.chen@techcorp.com", relationship: "direct_report", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "alex.rivera@techcorp.com", subject: "sarah.chen@techcorp.com", direction: "UPWARD", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "priya.sharma@techcorp.com", subject: "sarah.chen@techcorp.com", direction: "UPWARD", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "dan.kim@techcorp.com", subject: "sarah.chen@techcorp.com", direction: "UPWARD", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
     // Engineering Management — peer between architects
-    { reviewer: "alex.rivera@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "peer", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "alex.rivera@techcorp.com", subject: "dan.kim@techcorp.com", relationship: "peer", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "priya.sharma@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "peer", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "priya.sharma@techcorp.com", subject: "dan.kim@techcorp.com", relationship: "peer", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "dan.kim@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "peer", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "dan.kim@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "peer", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "alex.rivera@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "LATERAL", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "alex.rivera@techcorp.com", subject: "dan.kim@techcorp.com", direction: "LATERAL", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "priya.sharma@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "LATERAL", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "priya.sharma@techcorp.com", subject: "dan.kim@techcorp.com", direction: "LATERAL", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "dan.kim@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "LATERAL", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "dan.kim@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "LATERAL", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
     // Engineering Management — self
-    { reviewer: "sarah.chen@techcorp.com", subject: "sarah.chen@techcorp.com", relationship: "self", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "alex.rivera@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "self", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "priya.sharma@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "self", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "dan.kim@techcorp.com", subject: "dan.kim@techcorp.com", relationship: "self", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "sarah.chen@techcorp.com", subject: "sarah.chen@techcorp.com", direction: "SELF", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "alex.rivera@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "SELF", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "priya.sharma@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "SELF", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "dan.kim@techcorp.com", subject: "dan.kim@techcorp.com", direction: "SELF", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
     // Finance Team (co-managed) — both managers → members
-    { reviewer: "robert.hayes@techcorp.com", subject: "lisa.park@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "robert.hayes@techcorp.com", subject: "mark.jensen@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "emily.tran@techcorp.com", subject: "lisa.park@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "emily.tran@techcorp.com", subject: "mark.jensen@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "robert.hayes@techcorp.com", subject: "lisa.park@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "robert.hayes@techcorp.com", subject: "mark.jensen@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "emily.tran@techcorp.com", subject: "lisa.park@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "emily.tran@techcorp.com", subject: "mark.jensen@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
     // Finance Team — members → both managers
-    { reviewer: "lisa.park@techcorp.com", subject: "robert.hayes@techcorp.com", relationship: "direct_report", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "lisa.park@techcorp.com", subject: "emily.tran@techcorp.com", relationship: "direct_report", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "mark.jensen@techcorp.com", subject: "robert.hayes@techcorp.com", relationship: "direct_report", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "mark.jensen@techcorp.com", subject: "emily.tran@techcorp.com", relationship: "direct_report", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "lisa.park@techcorp.com", subject: "robert.hayes@techcorp.com", direction: "UPWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "lisa.park@techcorp.com", subject: "emily.tran@techcorp.com", direction: "UPWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "mark.jensen@techcorp.com", subject: "robert.hayes@techcorp.com", direction: "UPWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "mark.jensen@techcorp.com", subject: "emily.tran@techcorp.com", direction: "UPWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
     // Finance Team — peer between members
-    { reviewer: "lisa.park@techcorp.com", subject: "mark.jensen@techcorp.com", relationship: "peer", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "mark.jensen@techcorp.com", subject: "lisa.park@techcorp.com", relationship: "peer", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "lisa.park@techcorp.com", subject: "mark.jensen@techcorp.com", direction: "LATERAL", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "mark.jensen@techcorp.com", subject: "lisa.park@techcorp.com", direction: "LATERAL", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
     // Finance Team — co-manager peer reviews (Robert ↔ Emily)
-    { reviewer: "robert.hayes@techcorp.com", subject: "emily.tran@techcorp.com", relationship: "peer", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "emily.tran@techcorp.com", subject: "robert.hayes@techcorp.com", relationship: "peer", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "robert.hayes@techcorp.com", subject: "emily.tran@techcorp.com", direction: "LATERAL", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "emily.tran@techcorp.com", subject: "robert.hayes@techcorp.com", direction: "LATERAL", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
     // Finance Team — self
-    { reviewer: "robert.hayes@techcorp.com", subject: "robert.hayes@techcorp.com", relationship: "self", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "emily.tran@techcorp.com", subject: "emily.tran@techcorp.com", relationship: "self", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "lisa.park@techcorp.com", subject: "lisa.park@techcorp.com", relationship: "self", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "mark.jensen@techcorp.com", subject: "mark.jensen@techcorp.com", relationship: "self", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "robert.hayes@techcorp.com", subject: "robert.hayes@techcorp.com", direction: "SELF", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "emily.tran@techcorp.com", subject: "emily.tran@techcorp.com", direction: "SELF", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "lisa.park@techcorp.com", subject: "lisa.park@techcorp.com", direction: "SELF", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "mark.jensen@techcorp.com", subject: "mark.jensen@techcorp.com", direction: "SELF", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
 
     // ── Frontend Team — Priya (manager) → Tom, Nina ──
-    { reviewer: "priya.sharma@techcorp.com", subject: "tom.zhang@techcorp.com", relationship: "manager", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "priya.sharma@techcorp.com", subject: "nina.costa@techcorp.com", relationship: "manager", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "priya.sharma@techcorp.com", subject: "tom.zhang@techcorp.com", direction: "DOWNWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "priya.sharma@techcorp.com", subject: "nina.costa@techcorp.com", direction: "DOWNWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
     // Frontend Team — members → Priya (upward)
-    { reviewer: "tom.zhang@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "direct_report", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "nina.costa@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "direct_report", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "tom.zhang@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "UPWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "nina.costa@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "UPWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
     // Frontend Team — peer
-    { reviewer: "tom.zhang@techcorp.com", subject: "nina.costa@techcorp.com", relationship: "peer", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "nina.costa@techcorp.com", subject: "tom.zhang@techcorp.com", relationship: "peer", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "tom.zhang@techcorp.com", subject: "nina.costa@techcorp.com", direction: "LATERAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "nina.costa@techcorp.com", subject: "tom.zhang@techcorp.com", direction: "LATERAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
     // Frontend Team — self
-    { reviewer: "priya.sharma@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "tom.zhang@techcorp.com", subject: "tom.zhang@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "nina.costa@techcorp.com", subject: "nina.costa@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "priya.sharma@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "tom.zhang@techcorp.com", subject: "tom.zhang@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "nina.costa@techcorp.com", subject: "nina.costa@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
 
     // ── DevOps Team — Dan (manager) → Sam ──
-    { reviewer: "dan.kim@techcorp.com", subject: "sam.ali@techcorp.com", relationship: "manager", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "dan.kim@techcorp.com", subject: "sam.ali@techcorp.com", direction: "DOWNWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
     // DevOps Team — Sam → Dan (upward)
-    { reviewer: "sam.ali@techcorp.com", subject: "dan.kim@techcorp.com", relationship: "direct_report", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "sam.ali@techcorp.com", subject: "dan.kim@techcorp.com", direction: "UPWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
     // DevOps Team — self
-    { reviewer: "dan.kim@techcorp.com", subject: "dan.kim@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "sam.ali@techcorp.com", subject: "sam.ali@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "dan.kim@techcorp.com", subject: "dan.kim@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "sam.ali@techcorp.com", subject: "sam.ali@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
 
     // ── HR Team — Maria (manager) → Kevin, Rachel ──
-    { reviewer: "maria.santos@techcorp.com", subject: "kevin.brown@techcorp.com", relationship: "manager", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "maria.santos@techcorp.com", subject: "rachel.adams@techcorp.com", relationship: "manager", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maria.santos@techcorp.com", subject: "kevin.brown@techcorp.com", direction: "DOWNWARD", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maria.santos@techcorp.com", subject: "rachel.adams@techcorp.com", direction: "DOWNWARD", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
     // HR Team — members → Maria (upward)
-    { reviewer: "kevin.brown@techcorp.com", subject: "maria.santos@techcorp.com", relationship: "direct_report", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "rachel.adams@techcorp.com", subject: "maria.santos@techcorp.com", relationship: "direct_report", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "kevin.brown@techcorp.com", subject: "maria.santos@techcorp.com", direction: "UPWARD", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "rachel.adams@techcorp.com", subject: "maria.santos@techcorp.com", direction: "UPWARD", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
     // HR Team — peer
-    { reviewer: "kevin.brown@techcorp.com", subject: "rachel.adams@techcorp.com", relationship: "peer", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "rachel.adams@techcorp.com", subject: "kevin.brown@techcorp.com", relationship: "peer", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "kevin.brown@techcorp.com", subject: "rachel.adams@techcorp.com", direction: "LATERAL", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "rachel.adams@techcorp.com", subject: "kevin.brown@techcorp.com", direction: "LATERAL", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
     // HR Team — self
-    { reviewer: "maria.santos@techcorp.com", subject: "maria.santos@techcorp.com", relationship: "self", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "kevin.brown@techcorp.com", subject: "kevin.brown@techcorp.com", relationship: "self", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "rachel.adams@techcorp.com", subject: "rachel.adams@techcorp.com", relationship: "self", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maria.santos@techcorp.com", subject: "maria.santos@techcorp.com", direction: "SELF", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "kevin.brown@techcorp.com", subject: "kevin.brown@techcorp.com", direction: "SELF", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "rachel.adams@techcorp.com", subject: "rachel.adams@techcorp.com", direction: "SELF", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
 
     // ── Leadership Team — James (manager) → members ──
-    { reviewer: "james.carter@techcorp.com", subject: "sarah.chen@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "james.carter@techcorp.com", subject: "robert.hayes@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "james.carter@techcorp.com", subject: "emily.tran@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "james.carter@techcorp.com", subject: "maria.santos@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "james.carter@techcorp.com", subject: "david.liu@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "james.carter@techcorp.com", subject: "sarah.chen@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "james.carter@techcorp.com", subject: "robert.hayes@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "james.carter@techcorp.com", subject: "emily.tran@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "james.carter@techcorp.com", subject: "maria.santos@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "james.carter@techcorp.com", subject: "david.liu@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
     // Leadership Team — members → James (upward)
-    { reviewer: "sarah.chen@techcorp.com", subject: "james.carter@techcorp.com", relationship: "direct_report", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "robert.hayes@techcorp.com", subject: "james.carter@techcorp.com", relationship: "direct_report", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "emily.tran@techcorp.com", subject: "james.carter@techcorp.com", relationship: "direct_report", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "maria.santos@techcorp.com", subject: "james.carter@techcorp.com", relationship: "direct_report", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "david.liu@techcorp.com", subject: "james.carter@techcorp.com", relationship: "direct_report", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "sarah.chen@techcorp.com", subject: "james.carter@techcorp.com", direction: "UPWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "robert.hayes@techcorp.com", subject: "james.carter@techcorp.com", direction: "UPWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "emily.tran@techcorp.com", subject: "james.carter@techcorp.com", direction: "UPWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maria.santos@techcorp.com", subject: "james.carter@techcorp.com", direction: "UPWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "david.liu@techcorp.com", subject: "james.carter@techcorp.com", direction: "UPWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
     // Leadership Team — external
-    { reviewer: "board.advisor@external.com", subject: "james.carter@techcorp.com", relationship: "external", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "board.advisor@external.com", subject: "sarah.chen@techcorp.com", relationship: "external", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "board.advisor@external.com", subject: "james.carter@techcorp.com", direction: "EXTERNAL", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "board.advisor@external.com", subject: "sarah.chen@techcorp.com", direction: "EXTERNAL", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
     // Leadership Team — self
-    { reviewer: "james.carter@techcorp.com", subject: "james.carter@techcorp.com", relationship: "self", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "james.carter@techcorp.com", subject: "james.carter@techcorp.com", direction: "SELF", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
   ];
 
   // Template question ID maps — rating IDs and text IDs per template
@@ -570,6 +838,10 @@ async function main() {
     [tplTC]: {
       ratingIds: ["tc-q1", "tc-q2", "tc-q4", "tc-q5", "tc-q6", "tc-q7"],
       textIds: ["tc-q3", "tc-q8", "tc-q9", "tc-q10"],
+    },
+    [tplJunior]: {
+      ratingIds: ["jr-q1", "jr-q2", "jr-q3", "jr-q4"],
+      textIds: ["jr-q5", "jr-q6"],
     },
   };
 
@@ -609,7 +881,7 @@ async function main() {
         templateId: a.templateId,
         subjectId: users[a.subject],
         reviewerId: users[a.reviewer],
-        relationship: a.relationship,
+        direction: a.direction,
         status: a.status,
         token: generateToken(),
       },
@@ -657,8 +929,8 @@ async function main() {
   }
   console.log(`  ${calibrations.length} calibration adjustments added\n`);
 
-  // ── 7. Cycle 2: ACTIVE — Q1 2026 Review (advanced mode with per-level templates) ──
-  console.log("7. Creating Cycle 2: Q1 2026 Review (ACTIVE, advanced mode)...");
+  // ── 7. Cycle 2: ACTIVE — Q1 2026 Review (level-resolved multi-template) ──
+  console.log("7. Creating Cycle 2: Q1 2026 Review (ACTIVE, level-resolved templates)...");
 
   const cycle2 = await prisma.evaluationCycle.create({
     data: {
@@ -671,163 +943,131 @@ async function main() {
     },
   });
 
-  // Platform Team with per-level templates (advanced mode)
-  const ct2Platform = await prisma.cycleTeam.create({
+  // Platform Team — three templates that partition members by level:
+  //   - tplTC      → SE L-2, SA L-2, SA L-3 (senior track)
+  //   - tplJunior  → SE L-1                 (junior track)
+  //   - tplMgr     → wildcard, used for upward / managerial reviews
+  //   - tpl360     → wildcard, used for external reviewers
+  await prisma.cycleTeam.create({
     data: {
       cycleId: cycle2.id,
       teamId: teams["Platform Team"],
-      templateId: tplSWE, // default fallback
-      weightManager: 0.30,
-      weightPeer: 0.25,
-      weightDirectReport: 0.20,
-      weightSelf: 0.15,
-      weightExternal: 0.10,
+      templates: {
+        create: [
+          { templateId: tplTC },
+          { templateId: tplJunior },
+          { templateId: tplMgr },
+          { templateId: tpl360 },
+        ],
+      },
     },
   });
 
-  // Per-level template overrides for Platform Team
-  const levelTemplateOverrides = [
-    // SE L-1 members get the simpler 360 Degree Feedback for manager/peer evals
-    { levelName: "SE L-1", relationship: "manager", templateId: tpl360 },
-    { levelName: "SE L-1", relationship: "peer", templateId: tpl360 },
-    { levelName: "SE L-1", relationship: "self", templateId: tpl360 },
-    // SE L-2 members get the TechCorp custom template
-    { levelName: "SE L-2", relationship: "manager", templateId: tplTC },
-    { levelName: "SE L-2", relationship: "peer", templateId: tplTC },
-    { levelName: "SE L-2", relationship: "self", templateId: tplTC },
-    // SA L-3 (manager Alex) gets Manager 360 for direct_report evaluations
-    { levelName: "SA L-3", relationship: "direct_report", templateId: tplMgr },
-    { levelName: "SA L-3", relationship: "self", templateId: tplMgr },
-  ];
-
-  for (const lt of levelTemplateOverrides) {
-    await prisma.cycleTeamLevelTemplate.create({
-      data: {
-        cycleTeamId: ct2Platform.id,
-        levelId: levels[lt.levelName],
-        relationship: lt.relationship,
-        templateId: lt.templateId,
-      },
-    });
-  }
-  console.log(`  Platform Team: ${levelTemplateOverrides.length} level-template overrides`);
-
-  // Frontend Team with per-level templates
-  const ct2Frontend = await prisma.cycleTeam.create({
+  // Frontend Team
+  await prisma.cycleTeam.create({
     data: {
       cycleId: cycle2.id,
       teamId: teams["Frontend Team"],
-      templateId: tplSWE,
+      templates: {
+        create: [{ templateId: tplSWE }, { templateId: tpl360 }],
+      },
     },
   });
 
-  await prisma.cycleTeamLevelTemplate.create({
-    data: {
-      cycleTeamId: ct2Frontend.id,
-      levelId: levels["SE L-1"],
-      relationship: "manager",
-      templateId: tpl360,
-    },
-  });
-
-  // Engineering Management — simple mode (no level overrides)
+  // Engineering Management
   await prisma.cycleTeam.create({
     data: {
       cycleId: cycle2.id,
       teamId: teams["Engineering Management"],
-      templateId: tplMgr,
+      templates: { create: [{ templateId: tplMgr }] },
     },
   });
 
-  // Finance Team — simple mode
+  // Finance Team
   await prisma.cycleTeam.create({
     data: {
       cycleId: cycle2.id,
       teamId: teams["Finance Team"],
-      templateId: tplPro,
-      weightManager: 0.35,
-      weightPeer: 0.20,
-      weightDirectReport: 0.20,
-      weightSelf: 0.10,
-      weightExternal: 0.15,
+      templates: { create: [{ templateId: tplPro }] },
     },
   });
 
-  // HR Team — simple mode
+  // HR Team
   await prisma.cycleTeam.create({
     data: {
       cycleId: cycle2.id,
       teamId: teams["HR Team"],
-      templateId: tpl360,
+      templates: { create: [{ templateId: tpl360 }] },
     },
   });
 
-  // Create mixed-status assignments for cycle 2 (some submitted, some in progress, some pending)
+  // Create mixed-status assignments for cycle 2 (some submitted, some in progress, some pending).
+  // Platform Team template routing (matches the cycleTeam template attachments above):
+  //   subject SE L-1   → tplJunior
+  //   subject SE L-2   → tplTC       (senior track)
+  //   subject SA L-3   → tplMgr      (manager template — most specific levelIds match)
+  //   external reviews → tpl360      (wildcard)
   const c2Assignments: AssignmentDef[] = [
-    // Platform Team — resolved with per-level templates
-    // Alex (SA L-3, manager) evaluates Jordan (SE L-2) — uses tplTC (level override)
-    { reviewer: "alex.rivera@techcorp.com", subject: "jordan.lee@techcorp.com", relationship: "manager", templateId: tplTC, status: AssignmentStatus.SUBMITTED },
-    // Alex evaluates Maya (SE L-1) — uses tpl360 (level override)
-    { reviewer: "alex.rivera@techcorp.com", subject: "maya.patel@techcorp.com", relationship: "manager", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
-    // Alex evaluates Chris (SE L-1) — uses tpl360 (level override)
-    { reviewer: "alex.rivera@techcorp.com", subject: "chris.wu@techcorp.com", relationship: "manager", templateId: tpl360, status: AssignmentStatus.IN_PROGRESS },
-    // Jordan → Alex (direct_report, Alex is SA L-3 so uses tplMgr)
-    { reviewer: "jordan.lee@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "direct_report", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    // Maya → Alex
-    { reviewer: "maya.patel@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "direct_report", templateId: tplMgr, status: AssignmentStatus.PENDING },
-    // Peer: Jordan ↔ Maya (Jordan is SE L-2 uses tplTC, Maya is SE L-1 uses tpl360)
-    { reviewer: "jordan.lee@techcorp.com", subject: "maya.patel@techcorp.com", relationship: "peer", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "maya.patel@techcorp.com", subject: "jordan.lee@techcorp.com", relationship: "peer", templateId: tplTC, status: AssignmentStatus.PENDING },
-    // Self evaluations
-    { reviewer: "alex.rivera@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "self", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "jordan.lee@techcorp.com", subject: "jordan.lee@techcorp.com", relationship: "self", templateId: tplTC, status: AssignmentStatus.IN_PROGRESS },
-    { reviewer: "maya.patel@techcorp.com", subject: "maya.patel@techcorp.com", relationship: "self", templateId: tpl360, status: AssignmentStatus.PENDING },
-    { reviewer: "chris.wu@techcorp.com", subject: "chris.wu@techcorp.com", relationship: "self", templateId: tpl360, status: AssignmentStatus.PENDING },
-    // External
-    { reviewer: "client.stakeholder@external.com", subject: "alex.rivera@techcorp.com", relationship: "external", templateId: tplSWE, status: AssignmentStatus.PENDING },
-    { reviewer: "client.stakeholder@external.com", subject: "jordan.lee@techcorp.com", relationship: "external", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    // Platform Team — Alex (SA L-3, manager) → members
+    { reviewer: "alex.rivera@techcorp.com", subject: "jordan.lee@techcorp.com", direction: "DOWNWARD", templateId: tplTC, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "alex.rivera@techcorp.com", subject: "maya.patel@techcorp.com", direction: "DOWNWARD", templateId: tplJunior, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "alex.rivera@techcorp.com", subject: "chris.wu@techcorp.com", direction: "DOWNWARD", templateId: tplJunior, status: AssignmentStatus.IN_PROGRESS },
+    // Members → Alex (upward) — subject Alex is SA L-3 manager → tplMgr
+    { reviewer: "jordan.lee@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "UPWARD", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maya.patel@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "UPWARD", templateId: tplMgr, status: AssignmentStatus.PENDING },
+    // Peer (lateral) — template chosen by subject's level
+    { reviewer: "jordan.lee@techcorp.com", subject: "maya.patel@techcorp.com", direction: "LATERAL", templateId: tplJunior, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maya.patel@techcorp.com", subject: "jordan.lee@techcorp.com", direction: "LATERAL", templateId: tplTC, status: AssignmentStatus.PENDING },
+    // Self — template chosen by self's level
+    { reviewer: "alex.rivera@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "SELF", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "jordan.lee@techcorp.com", subject: "jordan.lee@techcorp.com", direction: "SELF", templateId: tplTC, status: AssignmentStatus.IN_PROGRESS },
+    { reviewer: "maya.patel@techcorp.com", subject: "maya.patel@techcorp.com", direction: "SELF", templateId: tplJunior, status: AssignmentStatus.PENDING },
+    { reviewer: "chris.wu@techcorp.com", subject: "chris.wu@techcorp.com", direction: "SELF", templateId: tplJunior, status: AssignmentStatus.PENDING },
+    // External — wildcard tpl360 (external reviewers don't follow level routing)
+    { reviewer: "client.stakeholder@external.com", subject: "alex.rivera@techcorp.com", direction: "EXTERNAL", templateId: tpl360, status: AssignmentStatus.PENDING },
+    { reviewer: "client.stakeholder@external.com", subject: "jordan.lee@techcorp.com", direction: "EXTERNAL", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
     // ── Engineering Management — Sarah → architects (Cycle 2) ──
-    { reviewer: "sarah.chen@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "manager", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "sarah.chen@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "manager", templateId: tplMgr, status: AssignmentStatus.IN_PROGRESS },
-    { reviewer: "sarah.chen@techcorp.com", subject: "dan.kim@techcorp.com", relationship: "manager", templateId: tplMgr, status: AssignmentStatus.PENDING },
+    { reviewer: "sarah.chen@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "DOWNWARD", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "sarah.chen@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "DOWNWARD", templateId: tplMgr, status: AssignmentStatus.IN_PROGRESS },
+    { reviewer: "sarah.chen@techcorp.com", subject: "dan.kim@techcorp.com", direction: "DOWNWARD", templateId: tplMgr, status: AssignmentStatus.PENDING },
     // Engineering Management — architects → Sarah (upward)
-    { reviewer: "alex.rivera@techcorp.com", subject: "sarah.chen@techcorp.com", relationship: "direct_report", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "priya.sharma@techcorp.com", subject: "sarah.chen@techcorp.com", relationship: "direct_report", templateId: tplMgr, status: AssignmentStatus.PENDING },
-    { reviewer: "dan.kim@techcorp.com", subject: "sarah.chen@techcorp.com", relationship: "direct_report", templateId: tplMgr, status: AssignmentStatus.PENDING },
+    { reviewer: "alex.rivera@techcorp.com", subject: "sarah.chen@techcorp.com", direction: "UPWARD", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "priya.sharma@techcorp.com", subject: "sarah.chen@techcorp.com", direction: "UPWARD", templateId: tplMgr, status: AssignmentStatus.PENDING },
+    { reviewer: "dan.kim@techcorp.com", subject: "sarah.chen@techcorp.com", direction: "UPWARD", templateId: tplMgr, status: AssignmentStatus.PENDING },
     // Engineering Management — peer
-    { reviewer: "alex.rivera@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "peer", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "priya.sharma@techcorp.com", subject: "alex.rivera@techcorp.com", relationship: "peer", templateId: tplMgr, status: AssignmentStatus.PENDING },
-    { reviewer: "dan.kim@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "peer", templateId: tplMgr, status: AssignmentStatus.PENDING },
+    { reviewer: "alex.rivera@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "LATERAL", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "priya.sharma@techcorp.com", subject: "alex.rivera@techcorp.com", direction: "LATERAL", templateId: tplMgr, status: AssignmentStatus.PENDING },
+    { reviewer: "dan.kim@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "LATERAL", templateId: tplMgr, status: AssignmentStatus.PENDING },
     // Engineering Management — self
-    { reviewer: "sarah.chen@techcorp.com", subject: "sarah.chen@techcorp.com", relationship: "self", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "priya.sharma@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "self", templateId: tplMgr, status: AssignmentStatus.PENDING },
+    { reviewer: "sarah.chen@techcorp.com", subject: "sarah.chen@techcorp.com", direction: "SELF", templateId: tplMgr, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "priya.sharma@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "SELF", templateId: tplMgr, status: AssignmentStatus.PENDING },
 
     // ── Frontend Team — Priya → Tom, Nina (Cycle 2) ──
-    { reviewer: "priya.sharma@techcorp.com", subject: "tom.zhang@techcorp.com", relationship: "manager", templateId: tplSWE, status: AssignmentStatus.IN_PROGRESS },
-    { reviewer: "priya.sharma@techcorp.com", subject: "nina.costa@techcorp.com", relationship: "manager", templateId: tplSWE, status: AssignmentStatus.PENDING },
+    { reviewer: "priya.sharma@techcorp.com", subject: "tom.zhang@techcorp.com", direction: "DOWNWARD", templateId: tplSWE, status: AssignmentStatus.IN_PROGRESS },
+    { reviewer: "priya.sharma@techcorp.com", subject: "nina.costa@techcorp.com", direction: "DOWNWARD", templateId: tplSWE, status: AssignmentStatus.PENDING },
     // Frontend Team — members → Priya (upward)
-    { reviewer: "tom.zhang@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "direct_report", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "nina.costa@techcorp.com", subject: "priya.sharma@techcorp.com", relationship: "direct_report", templateId: tplSWE, status: AssignmentStatus.PENDING },
+    { reviewer: "tom.zhang@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "UPWARD", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "nina.costa@techcorp.com", subject: "priya.sharma@techcorp.com", direction: "UPWARD", templateId: tplSWE, status: AssignmentStatus.PENDING },
     // Frontend Team — peer
-    { reviewer: "tom.zhang@techcorp.com", subject: "nina.costa@techcorp.com", relationship: "peer", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "nina.costa@techcorp.com", subject: "tom.zhang@techcorp.com", relationship: "peer", templateId: tplSWE, status: AssignmentStatus.PENDING },
+    { reviewer: "tom.zhang@techcorp.com", subject: "nina.costa@techcorp.com", direction: "LATERAL", templateId: tplSWE, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "nina.costa@techcorp.com", subject: "tom.zhang@techcorp.com", direction: "LATERAL", templateId: tplSWE, status: AssignmentStatus.PENDING },
     // Frontend Team — self
-    { reviewer: "tom.zhang@techcorp.com", subject: "tom.zhang@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.IN_PROGRESS },
-    { reviewer: "nina.costa@techcorp.com", subject: "nina.costa@techcorp.com", relationship: "self", templateId: tplSWE, status: AssignmentStatus.PENDING },
+    { reviewer: "tom.zhang@techcorp.com", subject: "tom.zhang@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.IN_PROGRESS },
+    { reviewer: "nina.costa@techcorp.com", subject: "nina.costa@techcorp.com", direction: "SELF", templateId: tplSWE, status: AssignmentStatus.PENDING },
 
     // ── HR Team (Cycle 2) ──
-    { reviewer: "maria.santos@techcorp.com", subject: "kevin.brown@techcorp.com", relationship: "manager", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "maria.santos@techcorp.com", subject: "rachel.adams@techcorp.com", relationship: "manager", templateId: tpl360, status: AssignmentStatus.IN_PROGRESS },
-    { reviewer: "kevin.brown@techcorp.com", subject: "maria.santos@techcorp.com", relationship: "direct_report", templateId: tpl360, status: AssignmentStatus.PENDING },
-    { reviewer: "rachel.adams@techcorp.com", subject: "maria.santos@techcorp.com", relationship: "direct_report", templateId: tpl360, status: AssignmentStatus.PENDING },
-    { reviewer: "kevin.brown@techcorp.com", subject: "rachel.adams@techcorp.com", relationship: "peer", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "maria.santos@techcorp.com", subject: "maria.santos@techcorp.com", relationship: "self", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maria.santos@techcorp.com", subject: "kevin.brown@techcorp.com", direction: "DOWNWARD", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maria.santos@techcorp.com", subject: "rachel.adams@techcorp.com", direction: "DOWNWARD", templateId: tpl360, status: AssignmentStatus.IN_PROGRESS },
+    { reviewer: "kevin.brown@techcorp.com", subject: "maria.santos@techcorp.com", direction: "UPWARD", templateId: tpl360, status: AssignmentStatus.PENDING },
+    { reviewer: "rachel.adams@techcorp.com", subject: "maria.santos@techcorp.com", direction: "UPWARD", templateId: tpl360, status: AssignmentStatus.PENDING },
+    { reviewer: "kevin.brown@techcorp.com", subject: "rachel.adams@techcorp.com", direction: "LATERAL", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "maria.santos@techcorp.com", subject: "maria.santos@techcorp.com", direction: "SELF", templateId: tpl360, status: AssignmentStatus.SUBMITTED },
 
     // Finance Team (simple mode, all tplPro)
-    { reviewer: "robert.hayes@techcorp.com", subject: "lisa.park@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
-    { reviewer: "emily.tran@techcorp.com", subject: "lisa.park@techcorp.com", relationship: "manager", templateId: tplPro, status: AssignmentStatus.IN_PROGRESS },
-    { reviewer: "lisa.park@techcorp.com", subject: "robert.hayes@techcorp.com", relationship: "direct_report", templateId: tplPro, status: AssignmentStatus.PENDING },
-    { reviewer: "lisa.park@techcorp.com", subject: "mark.jensen@techcorp.com", relationship: "peer", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "robert.hayes@techcorp.com", subject: "lisa.park@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
+    { reviewer: "emily.tran@techcorp.com", subject: "lisa.park@techcorp.com", direction: "DOWNWARD", templateId: tplPro, status: AssignmentStatus.IN_PROGRESS },
+    { reviewer: "lisa.park@techcorp.com", subject: "robert.hayes@techcorp.com", direction: "UPWARD", templateId: tplPro, status: AssignmentStatus.PENDING },
+    { reviewer: "lisa.park@techcorp.com", subject: "mark.jensen@techcorp.com", direction: "LATERAL", templateId: tplPro, status: AssignmentStatus.SUBMITTED },
   ];
 
   let c2Count = 0;
@@ -838,7 +1078,7 @@ async function main() {
         templateId: a.templateId,
         subjectId: users[a.subject],
         reviewerId: users[a.reviewer],
-        relationship: a.relationship,
+        direction: a.direction,
         status: a.status,
         token: generateToken(),
       },
@@ -893,8 +1133,8 @@ async function main() {
   }
   console.log(`  ${c2Reviewers.length} reviewer links created\n`);
 
-  // ── 8. Cycle 3: DRAFT — Q2 2026 Mid-Year (per-level only, no default template) ──
-  console.log("8. Creating Cycle 3: Q2 2026 Mid-Year (DRAFT, level-only templates)...");
+  // ── 8. Cycle 3: DRAFT — Q2 2026 Mid-Year (multi-template per team) ──
+  console.log("8. Creating Cycle 3: Q2 2026 Mid-Year (DRAFT)...");
 
   const cycle3 = await prisma.evaluationCycle.create({
     data: {
@@ -906,54 +1146,45 @@ async function main() {
     },
   });
 
-  // Platform Team with NO default template — fully per-level
-  const ct3Platform = await prisma.cycleTeam.create({
+  // Platform Team — same level-routed pair as cycle 2
+  await prisma.cycleTeam.create({
     data: {
       cycleId: cycle3.id,
       teamId: teams["Platform Team"],
-      templateId: null, // no default — all per-level
+      templates: {
+        create: [
+          { templateId: tplTC },
+          { templateId: tplJunior },
+          { templateId: tplMgr },
+        ],
+      },
     },
   });
 
-  const c3LevelTemplates = [
-    { levelName: "SE L-1", relationship: "manager", templateId: tpl360 },
-    { levelName: "SE L-1", relationship: "peer", templateId: tpl360 },
-    { levelName: "SE L-1", relationship: "self", templateId: tpl360 },
-    { levelName: "SE L-1", relationship: "direct_report", templateId: tpl360 },
-    { levelName: "SE L-1", relationship: "external", templateId: tpl360 },
-    { levelName: "SE L-2", relationship: "manager", templateId: tplTC },
-    { levelName: "SE L-2", relationship: "peer", templateId: tplTC },
-    { levelName: "SE L-2", relationship: "self", templateId: tplTC },
-    { levelName: "SE L-2", relationship: "direct_report", templateId: tplTC },
-    { levelName: "SE L-2", relationship: "external", templateId: tplSWE },
-    { levelName: "SA L-3", relationship: "manager", templateId: tplMgr },
-    { levelName: "SA L-3", relationship: "peer", templateId: tplMgr },
-    { levelName: "SA L-3", relationship: "self", templateId: tplMgr },
-    { levelName: "SA L-3", relationship: "direct_report", templateId: tplMgr },
-    { levelName: "SA L-3", relationship: "external", templateId: tplSWE },
-  ];
-
-  for (const lt of c3LevelTemplates) {
-    await prisma.cycleTeamLevelTemplate.create({
-      data: {
-        cycleTeamId: ct3Platform.id,
-        levelId: levels[lt.levelName],
-        relationship: lt.relationship,
-        templateId: lt.templateId,
-      },
-    });
-  }
-
-  // Admin Team — simple mode
+  // Admin Team — pairs the all-levels Pro template with the Holistic 360
+  // demonstration template so the routing matrix shows the "wildcard tied
+  // with another wildcard" tiebreak path.
   await prisma.cycleTeam.create({
     data: {
       cycleId: cycle3.id,
       teamId: teams["Admin Team"],
-      templateId: tplPro,
+      templates: {
+        create: [{ templateId: tplPro }, { templateId: holisticTemplate.id }],
+      },
     },
   });
 
-  console.log(`  Cycle 3: 2 teams configured (Platform with ${c3LevelTemplates.length} level overrides, Admin simple)\n`);
+  // Leadership Team — uses the Holistic 360 alone so an admin can preview
+  // every direction-tagged section against a real subject.
+  await prisma.cycleTeam.create({
+    data: {
+      cycleId: cycle3.id,
+      teamId: teams["Leadership Team"],
+      templates: { create: [{ templateId: holisticTemplate.id }] },
+    },
+  });
+
+  console.log("  Cycle 3: 3 teams configured\n");
 
   // ── 9. Audit Log Entries ──
   console.log("9. Creating audit log entries...");
@@ -965,7 +1196,7 @@ async function main() {
     { action: "cycle_close", target: `cycle:${cycle1.id}`, userId: users["maria.santos@techcorp.com"], metadata: { cycleName: "Q4 2025 Performance Review", completionRate: 100 } },
     { action: "calibration_adjust", target: `user:${users["jordan.lee@techcorp.com"]}`, userId: users["maria.santos@techcorp.com"], metadata: { rawScore: 4.2, calibratedScore: 4.0, cycleId: cycle1.id } },
     { action: "decryption", target: `cycle:${cycle1.id}`, userId: users["james.carter@techcorp.com"], metadata: { purpose: "report_generation" } },
-    { action: "cycle_activate", target: `cycle:${cycle2.id}`, userId: users["maria.santos@techcorp.com"], metadata: { cycleName: "Q1 2026 Performance Review", advancedMode: true } },
+    { action: "cycle_activate", target: `cycle:${cycle2.id}`, userId: users["maria.santos@techcorp.com"], metadata: { cycleName: "Q1 2026 Performance Review" } },
     { action: "level_create", target: `level:${levels["SE L-1"]}`, userId: users["james.carter@techcorp.com"], metadata: { name: "SE L-1" } },
     { action: "level_create", target: `level:${levels["SE L-2"]}`, userId: users["james.carter@techcorp.com"], metadata: { name: "SE L-2" } },
     { action: "role_change", target: `user:${users["maria.santos@techcorp.com"]}`, userId: users["james.carter@techcorp.com"], metadata: { from: "EMPLOYEE", to: "HR" } },
@@ -995,8 +1226,8 @@ async function main() {
   console.log(`Teams: ${teamDefs.length}`);
   console.log("Cycles:");
   console.log(`  1. Q4 2025 — CLOSED, ${c1Assignments.length} assignments (all submitted), ${calibrations.length} calibrations`);
-  console.log(`  2. Q1 2026 — ACTIVE, ${c2Assignments.length} assignments (mixed), per-level templates`);
-  console.log(`  3. Q2 2026 — DRAFT, level-only templates (no default)`);
+  console.log(`  2. Q1 2026 — ACTIVE, ${c2Assignments.length} assignments (mixed), level-resolved templates`);
+  console.log(`  3. Q2 2026 — DRAFT, multi-template per team`);
   console.log(`Audit logs: ${auditEntries.length}`);
   console.log("\nCoverage:");
   console.log("  - All user roles (ADMIN, HR, EMPLOYEE, EXTERNAL)");
@@ -1005,10 +1236,12 @@ async function main() {
   console.log("  - Cross-team members (Alex in 2 teams, Sarah in 2 teams, Priya in 2 teams)");
   console.log("  - External evaluators (board advisor, client stakeholder)");
   console.log("  - Seniority levels on engineering teams");
-  console.log("  - Simple mode cycles (team-level template)");
-  console.log("  - Advanced mode cycles (per-level templates)");
-  console.log("  - Level-only templates (no default fallback)");
-  console.log("  - Custom relationship weights");
+  console.log("  - Single-template-per-team cycles");
+  console.log("  - Multi-template-per-team cycles with level-resolved routing");
+  console.log("  - Template-owned levelIds (TechCorp Senior + Junior tracks)");
+  console.log("  - Template-owned direction weights (supervisor_focus, peer_focus)");
+  console.log("  - Per-section direction tags (Junior peer-collab, Senior growth)");
+  console.log("  - All five directions (DOWNWARD, UPWARD, LATERAL, SELF, EXTERNAL)");
   console.log("  - All assignment statuses (PENDING, IN_PROGRESS, SUBMITTED)");
   console.log("  - All cycle statuses (DRAFT, ACTIVE, CLOSED)");
   console.log("  - Encrypted evaluation responses");

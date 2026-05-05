@@ -2,54 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, requireAdminOrHR, isAuthError } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { createAssignmentsForCycle } from "@/lib/assignments";
+import {
+  applyTeamTemplates,
+  createAssignmentsForCycle,
+  computeDirectionCoverageWarnings,
+  validateTeamTemplateCoverage,
+} from "@/lib/assignments";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { parsePaginationParams, buildPaginationMeta } from "@/lib/utils";
+import { errorResponse, zodErrorResponse, internalErrorResponse } from "@/lib/api-responses";
 import type { CycleStatus } from "@prisma/client";
 
-const relationshipWeightsSchema = z.object({
-  manager: z.number().min(0).max(100),
-  peer: z.number().min(0).max(100),
-  directReport: z.number().min(0).max(100),
-  self: z.number().min(0).max(100),
-  external: z.number().min(0).max(100),
-}).refine(
-  (w) => Math.abs(w.manager + w.peer + w.directReport + w.self + w.external - 100) < 0.01,
-  { message: "Weights must sum to 100%" }
-);
-
-const levelTemplateSchema = z.object({
-  levelId: z.string().min(1, "Level ID is required"),
-  relationship: z.enum(["manager", "direct_report", "peer", "self", "external"]).nullable().optional().default(null),
-  templateId: z.string().min(1, "Template ID is required"),
-});
-
-const relationshipTemplateSchema = z.object({
-  relationship: z.enum(["manager", "direct_report", "peer", "self", "external"]),
-  templateId: z.string().min(1, "Template ID is required"),
-});
-
-const teamTemplateSchema = z.object({
+const teamTemplatesSchema = z.object({
   teamId: z.string().min(1, "Team ID is required"),
-  templateId: z.string().optional(), // optional when using per-level or relationship templates
-  weightPreset: z.enum(["equal", "supervisor_focus", "peer_focus", "custom"]).optional(),
-  weights: relationshipWeightsSchema.optional(),
-  managerWeights: relationshipWeightsSchema.optional(),
-  levelTemplates: z.array(levelTemplateSchema).optional(),
-  relationshipTemplates: z.array(relationshipTemplateSchema).optional(),
-}).refine(
-  (tt) =>
-    tt.templateId ||
-    (tt.levelTemplates && tt.levelTemplates.length > 0) ||
-    (tt.relationshipTemplates && tt.relationshipTemplates.length > 0),
-  { message: "Either templateId, levelTemplates, or relationshipTemplates must be provided" }
-);
+  templateIds: z.array(z.string().min(1)).min(1, "At least one template per team"),
+});
 
 const createCycleSchema = z.object({
   name: z.string().min(1, "Cycle name is required"),
   startDate: z.string().refine((d) => !isNaN(Date.parse(d)), "Invalid start date"),
   endDate: z.string().refine((d) => !isNaN(Date.parse(d)), "Invalid end date"),
-  teamTemplates: z.array(teamTemplateSchema).min(1, "At least one team-template pair is required"),
+  teamTemplates: z.array(teamTemplatesSchema).min(1, "At least one team is required"),
 });
 
 export async function GET(request: NextRequest) {
@@ -79,16 +52,16 @@ export async function GET(request: NextRequest) {
     prisma.evaluationCycle.findMany({
       where,
       include: {
-        _count: {
-          select: { assignments: true },
-        },
-        assignments: {
-          select: { status: true },
-        },
+        _count: { select: { assignments: true } },
+        assignments: { select: { status: true } },
         cycleTeams: {
           include: {
             team: { select: { id: true, name: true } },
-            template: { select: { id: true, name: true } },
+            templates: {
+              include: {
+                template: { select: { id: true, name: true } },
+              },
+            },
           },
         },
       },
@@ -127,92 +100,32 @@ export async function POST(request: NextRequest) {
     const endDate = new Date(validated.endDate);
 
     if (endDate <= startDate) {
-      return NextResponse.json({
-        success: false,
-        error: "End date must be after start date",
-        code: "VALIDATION_ERROR",
-      }, { status: 400 });
+      return errorResponse("End date must be after start date", "VALIDATION_ERROR", 400);
     }
 
-    // Check for duplicate teamIds
     const teamIds = validated.teamTemplates.map((tt) => tt.teamId);
     if (new Set(teamIds).size !== teamIds.length) {
-      return NextResponse.json({
-        success: false,
-        error: "Duplicate teams are not allowed",
-        code: "VALIDATION_ERROR",
-      }, { status: 400 });
+      return errorResponse("Duplicate teams are not allowed", "VALIDATION_ERROR", 400);
     }
 
-    // Verify all teams belong to the company
-    const teams = await prisma.team.findMany({
-      where: { id: { in: teamIds }, companyId: authResult.companyId },
-      select: { id: true },
-    });
-    if (teams.length !== teamIds.length) {
-      return NextResponse.json({
-        success: false,
-        error: "One or more teams not found",
-        code: "NOT_FOUND",
-      }, { status: 404 });
+    const validation = await validateTeamTemplateCoverage(
+      authResult.companyId,
+      validated.teamTemplates
+    );
+    if (!validation.ok) {
+      return errorResponse(validation.error, validation.code, 404);
+    }
+    const { pairs, gaps } = validation.data;
+
+    if (gaps.length > 0) {
+      return errorResponse(
+        "Some members are not covered by any assigned template. Add a template that includes their level, or use a template with no level filter.",
+        "COVERAGE_GAP",
+        400,
+        { gaps }
+      );
     }
 
-    // Collect all template IDs (default + level-specific + relationship-only)
-    const allTemplateIds = new Set<string>();
-    for (const tt of validated.teamTemplates) {
-      if (tt.templateId) allTemplateIds.add(tt.templateId);
-      if (tt.levelTemplates) {
-        for (const lt of tt.levelTemplates) allTemplateIds.add(lt.templateId);
-      }
-      if (tt.relationshipTemplates) {
-        for (const rt of tt.relationshipTemplates) allTemplateIds.add(rt.templateId);
-      }
-    }
-
-    // Verify all templates belong to company or are global
-    const templateIds = Array.from(allTemplateIds);
-    if (templateIds.length > 0) {
-      const templates = await prisma.evaluationTemplate.findMany({
-        where: {
-          id: { in: templateIds },
-          OR: [
-            { companyId: authResult.companyId },
-            { isGlobal: true },
-          ],
-        },
-        select: { id: true },
-      });
-      if (templates.length !== templateIds.length) {
-        return NextResponse.json({
-          success: false,
-          error: "One or more templates not found",
-          code: "NOT_FOUND",
-        }, { status: 404 });
-      }
-    }
-
-    // Verify all level IDs (if any) belong to company
-    const allLevelIds = new Set<string>();
-    for (const tt of validated.teamTemplates) {
-      if (tt.levelTemplates) {
-        for (const lt of tt.levelTemplates) allLevelIds.add(lt.levelId);
-      }
-    }
-    if (allLevelIds.size > 0) {
-      const levels = await prisma.level.findMany({
-        where: { id: { in: Array.from(allLevelIds) }, companyId: authResult.companyId },
-        select: { id: true },
-      });
-      if (levels.length !== allLevelIds.size) {
-        return NextResponse.json({
-          success: false,
-          error: "One or more levels not found",
-          code: "NOT_FOUND",
-        }, { status: 404 });
-      }
-    }
-
-    // Create cycle, CycleTeam rows, and level template overrides in a transaction
     const cycle = await prisma.$transaction(async (tx) => {
       const created = await tx.evaluationCycle.create({
         data: {
@@ -224,60 +137,19 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Create CycleTeam records
-      for (const tt of validated.teamTemplates) {
-        const cycleTeam = await tx.cycleTeam.create({
-          data: {
-            cycleId: created.id,
-            teamId: tt.teamId,
-            templateId: tt.templateId ?? null,
-            weightPreset: tt.weightPreset ?? null,
-            weightManager: tt.weights ? tt.weights.manager / 100 : null,
-            weightPeer: tt.weights ? tt.weights.peer / 100 : null,
-            weightDirectReport: tt.weights ? tt.weights.directReport / 100 : null,
-            weightSelf: tt.weights ? tt.weights.self / 100 : null,
-            weightExternal: tt.weights ? tt.weights.external / 100 : null,
-            mgrWeightManager: tt.managerWeights ? tt.managerWeights.manager / 100 : null,
-            mgrWeightPeer: tt.managerWeights ? tt.managerWeights.peer / 100 : null,
-            mgrWeightDirectReport: tt.managerWeights ? tt.managerWeights.directReport / 100 : null,
-            mgrWeightSelf: tt.managerWeights ? tt.managerWeights.self / 100 : null,
-            mgrWeightExternal: tt.managerWeights ? tt.managerWeights.external / 100 : null,
-          },
-        });
-
-        // Create per-level template overrides if provided
-        if (tt.levelTemplates && tt.levelTemplates.length > 0) {
-          await tx.cycleTeamLevelTemplate.createMany({
-            data: tt.levelTemplates.map((lt) => ({
-              cycleTeamId: cycleTeam.id,
-              levelId: lt.levelId,
-              relationship: lt.relationship,
-              templateId: lt.templateId,
-            })),
-          });
-        }
-
-        // Create relationship-only template overrides (no level) if provided
-        if (tt.relationshipTemplates && tt.relationshipTemplates.length > 0) {
-          await tx.cycleTeamLevelTemplate.createMany({
-            data: tt.relationshipTemplates.map((rt) => ({
-              cycleTeamId: cycleTeam.id,
-              levelId: null,
-              relationship: rt.relationship,
-              templateId: rt.templateId,
-            })),
-          });
-        }
-      }
+      await applyTeamTemplates(tx, created.id, validated.teamTemplates);
 
       return created;
     });
 
-    // Generate assignments from team structure while still in DRAFT
+    const directionWarnings = computeDirectionCoverageWarnings(
+      new Map(pairs.map((p) => [p.teamId, p.templates]))
+    );
+
     const { count } = await createAssignmentsForCycle(
       cycle.id,
       authResult.companyId,
-      validated.teamTemplates
+      pairs
     );
 
     const cycleWithRelations = await prisma.evaluationCycle.findUniqueOrThrow({
@@ -287,27 +159,27 @@ export async function POST(request: NextRequest) {
         cycleTeams: {
           include: {
             team: { select: { id: true, name: true } },
-            template: { select: { id: true, name: true } },
+            templates: {
+              include: { template: { select: { id: true, name: true } } },
+            },
           },
         },
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: { ...cycleWithRelations, assignmentsCreated: count },
-    }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        data: { ...cycleWithRelations, assignmentsCreated: count },
+        warnings:
+          directionWarnings.length > 0
+            ? { directionCoverage: directionWarnings }
+            : undefined,
+      },
+      { status: 201 }
+    );
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({
-        success: false,
-        error: "Validation failed",
-        code: "VALIDATION_ERROR",
-      }, { status: 400 });
-    }
-    return NextResponse.json({
-      success: false,
-      error: "Internal server error",
-    }, { status: 500 });
+    if (error instanceof z.ZodError) return zodErrorResponse(error);
+    return internalErrorResponse(error);
   }
 }

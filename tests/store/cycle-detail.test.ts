@@ -42,8 +42,8 @@ describe("useCycleDetail store", () => {
   describe("setAssignments", () => {
     it("sets assignments array", () => {
       const assignments = [
-        { id: "a1", subject: "Alice", reviewer: "Bob", relationship: "peer" as const, status: "PENDING" as const },
-        { id: "a2", subject: "Alice", reviewer: "Carol", relationship: "manager" as const, status: "SUBMITTED" as const },
+        { id: "a1", subject: "Alice", reviewer: "Bob", direction: "LATERAL" as const, status: "PENDING" as const },
+        { id: "a2", subject: "Alice", reviewer: "Carol", direction: "DOWNWARD" as const, status: "SUBMITTED" as const },
       ];
       useCycleDetail.getState().setAssignments(assignments);
       expect(useCycleDetail.getState().assignments).toEqual(assignments);
@@ -105,10 +105,10 @@ describe("useCycleDetail store", () => {
 
   describe("filteredAssignments", () => {
     const assignments = [
-      { id: "a1", subject: "Alice", reviewer: "Bob", relationship: "peer" as const, status: "PENDING" as const },
-      { id: "a2", subject: "Alice", reviewer: "Carol", relationship: "manager" as const, status: "IN_PROGRESS" as const },
-      { id: "a3", subject: "Bob", reviewer: "Alice", relationship: "peer" as const, status: "SUBMITTED" as const },
-      { id: "a4", subject: "Carol", reviewer: "Alice", relationship: "self" as const, status: "SUBMITTED" as const },
+      { id: "a1", subject: "Alice", reviewer: "Bob", direction: "LATERAL" as const, status: "PENDING" as const },
+      { id: "a2", subject: "Alice", reviewer: "Carol", direction: "DOWNWARD" as const, status: "IN_PROGRESS" as const },
+      { id: "a3", subject: "Bob", reviewer: "Alice", direction: "LATERAL" as const, status: "SUBMITTED" as const },
+      { id: "a4", subject: "Carol", reviewer: "Alice", direction: "SELF" as const, status: "SUBMITTED" as const },
     ];
 
     beforeEach(() => {
@@ -137,7 +137,7 @@ describe("useCycleDetail store", () => {
 
     it("returns empty array when no assignments match filter", () => {
       useCycleDetail.getState().setAssignments([
-        { id: "a1", subject: "Alice", reviewer: "Bob", relationship: "peer" as const, status: "SUBMITTED" as const },
+        { id: "a1", subject: "Alice", reviewer: "Bob", direction: "LATERAL" as const, status: "SUBMITTED" as const },
       ]);
       useCycleDetail.getState().setAssignmentFilter("pending");
       const filtered = useCycleDetail.getState().filteredAssignments();
@@ -162,7 +162,7 @@ describe("useCycleDetail store", () => {
         pendingAssignments: 3, inProgressAssignments: 2, completionRate: 50,
       });
       store.setAssignments([
-        { id: "a1", subject: "Alice", reviewer: "Bob", relationship: "peer", status: "PENDING" },
+        { id: "a1", subject: "Alice", reviewer: "Bob", direction: "LATERAL", status: "PENDING" },
       ]);
       store.setIndividuals([
         { id: "u1", name: "Alice", avgScore: 4.5, reviewCount: 3, completedCount: 3 },

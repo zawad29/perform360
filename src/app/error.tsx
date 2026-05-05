@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { Logo } from "@/components/ui/logo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { isDbConnectionError } from "@/lib/db-errors";
+import { DatabaseUnavailable } from "@/components/system/database-unavailable";
 
 export default function Error({
   error,
@@ -15,6 +17,10 @@ export default function Error({
   useEffect(() => {
     console.error("Unhandled error:", error);
   }, [error]);
+
+  if (isDbConnectionError(error)) {
+    return <DatabaseUnavailable onReset={reset} />;
+  }
 
   return (
     <div className="min-h-screen bg-white flex flex-col">

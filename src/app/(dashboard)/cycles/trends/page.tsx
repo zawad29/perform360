@@ -15,8 +15,9 @@ import { KpiSparkline } from "@/components/reports/kpi-sparkline";
 import { ScoreTrendChart } from "@/components/reports/score-trend-chart";
 import { CompletionTrendChart } from "@/components/reports/completion-trend-chart";
 import { TeamPerformanceOverlayChart } from "@/components/reports/team-performance-overlay-chart";
-import { RelationshipTrendChart } from "@/components/reports/relationship-trend-chart";
+import { DirectionTrendChart } from "@/components/reports/direction-trend-chart";
 import { AssignmentVolumeChart } from "@/components/reports/assignment-volume-chart";
+import { DIRECTIONS } from "@/lib/directions";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -111,14 +112,14 @@ function KpiCard({
   );
 }
 
-// ─── Relationship Split Card ───
+// ─── Direction Split Card ───
 
-const RELATIONSHIP_LABELS: Record<string, { label: string; color: string }> = {
-  manager: { label: "Manager", color: "#0071e3" },
-  peer: { label: "Peer", color: "#5ac8fa" },
-  directReport: { label: "Direct Report", color: "#af52de" },
-  self: { label: "Self", color: "#86868b" },
-  external: { label: "External", color: "#f5a623" },
+const DIRECTION_COLORS: Record<string, string> = {
+  downward: "#0071e3",
+  upward: "#5ac8fa",
+  lateral: "#af52de",
+  self: "#86868b",
+  external: "#f5a623",
 };
 
 function RelationshipSplitCard({
@@ -126,13 +127,16 @@ function RelationshipSplitCard({
 }: {
   data: Record<string, number | null>;
 }) {
-  const entries = Object.entries(RELATIONSHIP_LABELS)
-    .map(([key, config]) => ({
-      key,
-      label: config.label,
-      color: config.color,
-      score: data[key] ?? null,
-    }))
+  const entries = DIRECTIONS
+    .map((d) => {
+      const key = d.key.toLowerCase();
+      return {
+        key,
+        label: d.label,
+        color: DIRECTION_COLORS[key],
+        score: data[key] ?? null,
+      };
+    })
     .filter((e) => e.score !== null);
 
   const maxScore = 5;
@@ -286,16 +290,16 @@ function buildTeamOverlayData(report: TrendsReport) {
   });
 }
 
-function buildRelationshipTrendData(report: TrendsReport) {
+function buildDirectionTrendData(report: TrendsReport) {
   return report.cycles
     .filter((c) => !c.isDraft)
     .map((cycle) => ({
       cycleName: cycle.cycleName,
-      manager: cycle.relationshipScores.manager,
-      peer: cycle.relationshipScores.peer,
-      directReport: cycle.relationshipScores.directReport,
-      self: cycle.relationshipScores.self,
-      external: cycle.relationshipScores.external,
+      downward: cycle.directionScores.downward,
+      upward: cycle.directionScores.upward,
+      lateral: cycle.directionScores.lateral,
+      self: cycle.directionScores.self,
+      external: cycle.directionScores.external,
     }));
 }
 
@@ -437,7 +441,7 @@ export default function CycleTrendsPage() {
                 sparklineData={data!.cycles.map((c) => c.teamsEvaluated)}
                 sparklineColor="#af52de"
               />
-              <RelationshipSplitCard data={kpi!.relationshipSplit} />
+              <RelationshipSplitCard data={kpi!.directionSplit} />
               <TopPerformerCard
                 current={kpi!.topPerformerDelta.current}
                 previous={kpi!.topPerformerDelta.previous}
@@ -487,14 +491,41 @@ export default function CycleTrendsPage() {
                 />
               </Card>
 
-              {/* Relationship Type Trends */}
+              {/* Direction Trends */}
               <Card className="lg:col-span-2">
                 <CardHeader>
-                  <CardTitle>Relationship Type Trends</CardTitle>
+                  <CardTitle>Direction Trends</CardTitle>
                 </CardHeader>
-                <RelationshipTrendChart
-                  data={buildRelationshipTrendData(data!)}
-                />
+                {(() => {
+                  // Detect cycles where the set of templates changed vs the previous
+                  // cycle. A change means the direction averages aren't strictly
+                  // comparable — different forms ask different questions.
+                  const cycles = data!.cycles.filter((c) => !c.isDraft);
+                  let templateChanged = false;
+                  for (let i = 1; i < cycles.length; i++) {
+                    const prev = new Set(cycles[i - 1].templateIds);
+                    const curr = new Set(cycles[i].templateIds);
+                    if (
+                      prev.size !== curr.size ||
+                      [...curr].some((id) => !prev.has(id))
+                    ) {
+                      templateChanged = true;
+                      break;
+                    }
+                  }
+                  return (
+                    <>
+                      <DirectionTrendChart data={buildDirectionTrendData(data!)} />
+                      {templateChanged && (
+                        <p className="text-[11px] text-gray-500 px-4 pb-3 leading-snug">
+                          Some cycles in this range used different templates. Direction
+                          comparisons across template changes are approximate — different
+                          forms ask different questions.
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </Card>
 
               {/* Assignment Volume */}

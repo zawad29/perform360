@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/page-header";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -46,12 +45,6 @@ interface Template {
   createdAt: string;
 }
 
-const SCOPE_MAP: Record<string, string | undefined> = {
-  all: undefined,
-  global: "global",
-  company: "company",
-};
-
 function TemplateCardSkeleton() {
   return (
     <Card>
@@ -71,7 +64,6 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const { addToast } = useToast();
@@ -83,8 +75,6 @@ export default function TemplatesPage() {
     try {
       const params = new URLSearchParams({ page: String(page), limit: "12" });
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      const scope = SCOPE_MAP[activeTab];
-      if (scope) params.set("scope", scope);
       const res = await fetch(`/api/templates?${params}`);
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Failed to load templates");
@@ -97,17 +87,12 @@ export default function TemplatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [addToast, page, activeTab, searchQuery]);
+  }, [addToast, page, searchQuery]);
 
   useEffect(() => {
     const timer = setTimeout(fetchTemplates, searchQuery ? 300 : 0);
     return () => clearTimeout(timer);
   }, [fetchTemplates, searchQuery]);
-
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    setPage(1);
-  };
 
   const handleArchive = async (template: Template) => {
     if (template.isGlobal) {
@@ -150,25 +135,19 @@ export default function TemplatesPage() {
         </Link>
       </PageHeader>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="global">Global</TabsTrigger>
-            <TabsTrigger value="company">Company</TabsTrigger>
-          </TabsList>
-          <div className="relative w-full sm:max-w-xs">
-            <Search size={16} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search templates..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              className="w-full h-9 pl-9 pr-4 border border-gray-900 bg-white text-[14px] placeholder:text-gray-400 focus:outline-none focus:outline-2 focus:outline-accent focus:outline-offset-2"
-            />
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:gap-4 mb-4">
+        <div className="relative w-full sm:max-w-xs">
+          <Search size={16} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search templates..."
+            aria-label="Search templates"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+            className="w-full h-9 pl-9 pr-4 border border-gray-900 bg-white text-[14px] placeholder:text-gray-400 focus:outline-none focus:outline-2 focus:outline-accent focus:outline-offset-2"
+          />
         </div>
-      </Tabs>
+      </div>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -177,10 +156,10 @@ export default function TemplatesPage() {
       ) : templates.length === 0 ? (
         <EmptyState
           icon={FileText}
-          title={searchQuery || activeTab !== "all" ? "No templates found" : "No templates yet"}
-          description={!searchQuery && activeTab === "all" ? "Create a custom template or use a global one" : undefined}
+          title={searchQuery ? "No templates found" : "No templates yet"}
+          description={!searchQuery ? "Create your first template to get started" : undefined}
         >
-          {!searchQuery && activeTab === "all" && (
+          {!searchQuery && (
             <Link href="/templates/new">
               <Button variant="secondary" size="sm">Create Template</Button>
             </Link>

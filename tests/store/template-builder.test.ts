@@ -278,10 +278,15 @@ describe("useTemplateBuilder store", () => {
       useTemplateBuilder.getState().loadTemplate({
         name: "Loaded Template",
         description: "A loaded template",
+        levelIds: [],
+        weightPreset: null,
+        weightsMember: null,
+        weightsManager: null,
         sections: [
           {
             id: "s1",
             title: "Section 1",
+            directions: [],
             questions: [
               { id: "q1", text: "Question 1", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 },
             ],
@@ -315,7 +320,93 @@ describe("useTemplateBuilder store", () => {
       expect(state.sections).toEqual([]);
       expect(state.activeSection).toBeNull();
       expect(state.activeQuestion).toBeNull();
+      expect(state.useDirectionRouting).toBe(false);
       expect(state.isDirty).toBe(false);
+    });
+  });
+
+  describe("useDirectionRouting", () => {
+    it("defaults to false", () => {
+      expect(useTemplateBuilder.getState().useDirectionRouting).toBe(false);
+    });
+
+    it("setUseDirectionRouting(false) clears all section directions", () => {
+      const store = useTemplateBuilder.getState();
+      store.loadTemplate({
+        name: "T",
+        description: "",
+        levelIds: [],
+        weightPreset: null,
+        weightsMember: null,
+        weightsManager: null,
+        sections: [
+          {
+            id: "s1",
+            title: "S1",
+            directions: ["DOWNWARD", "LATERAL"],
+            questions: [
+              { id: "q1", text: "Q", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 },
+            ],
+          },
+          {
+            id: "s2",
+            title: "S2",
+            directions: ["SELF"],
+            questions: [
+              { id: "q2", text: "Q", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 },
+            ],
+          },
+        ],
+      });
+      expect(useTemplateBuilder.getState().useDirectionRouting).toBe(true);
+
+      useTemplateBuilder.getState().setUseDirectionRouting(false);
+
+      const state = useTemplateBuilder.getState();
+      expect(state.useDirectionRouting).toBe(false);
+      expect(state.sections.every((s) => s.directions.length === 0)).toBe(true);
+    });
+
+    it("loadTemplate rehydrates useDirectionRouting from sections.directions", () => {
+      useTemplateBuilder.getState().loadTemplate({
+        name: "T",
+        description: "",
+        levelIds: [],
+        weightPreset: null,
+        weightsMember: null,
+        weightsManager: null,
+        sections: [
+          {
+            id: "s1",
+            title: "S1",
+            directions: [],
+            questions: [
+              { id: "q1", text: "Q", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 },
+            ],
+          },
+        ],
+      });
+      expect(useTemplateBuilder.getState().useDirectionRouting).toBe(false);
+
+      useTemplateBuilder.getState().loadTemplate({
+        name: "T",
+        description: "",
+        levelIds: [],
+        weightPreset: null,
+        weightsMember: null,
+        weightsManager: null,
+        sections: [
+          {
+            id: "s1",
+            title: "S1",
+            directions: ["UPWARD"],
+            questions: [
+              { id: "q1", text: "Q", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 },
+            ],
+          },
+        ],
+      });
+      expect(useTemplateBuilder.getState().useDirectionRouting).toBe(true);
     });
   });
 });

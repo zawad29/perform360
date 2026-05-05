@@ -5,17 +5,17 @@ import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
 
-const VALID_IMPERSONATOR_RELATIONSHIPS = ["peer", "manager", "direct_report", "external"] as const;
+import { Direction } from "@prisma/client";
 
 const updateMemberSchema = z.object({
   levelId: z.string().nullable().optional(),
   role: z.enum(["MANAGER", "MEMBER", "EXTERNAL", "IMPERSONATOR"]).optional(),
-  impersonatorRelationships: z
-    .array(z.enum(VALID_IMPERSONATOR_RELATIONSHIPS))
+  impersonatorDirections: z
+    .array(z.nativeEnum(Direction))
     .optional(),
 }).refine(
-  (data) => data.role !== "IMPERSONATOR" || (data.impersonatorRelationships && data.impersonatorRelationships.length > 0),
-  { message: "Impersonator must handle at least one relationship type", path: ["impersonatorRelationships"] }
+  (data) => data.role !== "IMPERSONATOR" || (data.impersonatorDirections && data.impersonatorDirections.length > 0),
+  { message: "Impersonator must handle at least one direction", path: ["impersonatorDirections"] }
 );
 
 export async function DELETE(
@@ -117,7 +117,11 @@ export async function PATCH(
     const body = await request.json();
     const validated = updateMemberSchema.parse(body);
 
-    const updateData: { levelId?: string | null; role?: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR"; impersonatorRelationships?: string[] } = {};
+    const updateData: {
+      levelId?: string | null;
+      role?: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
+      impersonatorDirections?: Direction[];
+    } = {};
 
     if (validated.levelId !== undefined) {
       if (validated.levelId) {
@@ -136,14 +140,13 @@ export async function PATCH(
 
     if (validated.role) {
       updateData.role = validated.role;
-      // Clear impersonator relationships when switching away from IMPERSONATOR
       if (validated.role !== "IMPERSONATOR") {
-        updateData.impersonatorRelationships = [];
+        updateData.impersonatorDirections = [];
       }
     }
 
-    if (validated.impersonatorRelationships !== undefined) {
-      updateData.impersonatorRelationships = validated.impersonatorRelationships;
+    if (validated.impersonatorDirections !== undefined) {
+      updateData.impersonatorDirections = validated.impersonatorDirections;
     }
 
     const updated = await prisma.teamMember.update({

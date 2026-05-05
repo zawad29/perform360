@@ -243,6 +243,7 @@ export default function PeoplePage() {
           <input
             type="text"
             placeholder="Search people..."
+            aria-label="Search people"
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             className="w-full h-9 pl-9 pr-4 bg-white border border-gray-900 text-[14px] placeholder:text-gray-400 focus:outline-none focus:outline-2 focus:outline-accent focus:outline-offset-2"

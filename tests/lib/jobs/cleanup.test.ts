@@ -11,6 +11,7 @@ describe("handleCleanupOtpSessions", () => {
       .mockResolvedValueOnce({ count: 5 } as any)   // expired verified
       .mockResolvedValueOnce({ count: 3 } as any);   // expired unverified
     vi.mocked(pruneOldJobs).mockResolvedValue(10);
+    vi.mocked(prisma.auditLog.deleteMany).mockResolvedValue({ count: 0 } as any);
 
     await handleCleanupOtpSessions({});
 
@@ -32,6 +33,11 @@ describe("handleCleanupOtpSessions", () => {
 
     // Also prunes old jobs
     expect(pruneOldJobs).toHaveBeenCalledTimes(1);
+
+    // Trims old audit logs
+    expect(prisma.auditLog.deleteMany).toHaveBeenCalledWith({
+      where: { createdAt: { lt: expect.any(Date) } },
+    });
   });
 
   it("handles zero records gracefully", async () => {
@@ -39,6 +45,7 @@ describe("handleCleanupOtpSessions", () => {
       .mockResolvedValueOnce({ count: 0 } as any)
       .mockResolvedValueOnce({ count: 0 } as any);
     vi.mocked(pruneOldJobs).mockResolvedValue(0);
+    vi.mocked(prisma.auditLog.deleteMany).mockResolvedValue({ count: 0 } as any);
 
     await expect(handleCleanupOtpSessions({})).resolves.not.toThrow();
   });

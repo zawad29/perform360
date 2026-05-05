@@ -12,6 +12,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import Image from "next/image";
 import Link from "next/link";
+import { UpdateBanner } from "@/components/system/update-banner";
 
 interface NotificationSettings {
   evaluationInvitations: boolean;
@@ -313,6 +314,8 @@ export default function SettingsPage() {
     <div>
       <PageHeader title="Settings" description="Manage your organization settings" />
 
+      <UpdateBanner />
+
       <Tabs defaultValue="general">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
@@ -354,9 +357,11 @@ export default function SettingsPage() {
                     value={companySlug}
                     onChange={(e) => handleSlugChange(e.target.value)}
                     maxLength={50}
+                    aria-invalid={!!slugError || undefined}
+                    aria-describedby={slugError ? "company-slug-error" : undefined}
                   />
                   {slugError && (
-                    <p className="mt-1 text-[12px] text-gray-900">{slugError}</p>
+                    <p id="company-slug-error" role="alert" className="mt-1 text-[12px] text-gray-900">{slugError}</p>
                   )}
                 </div>
                 <div className="space-y-1.5">

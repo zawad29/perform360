@@ -34,7 +34,10 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationAssignment.count).mockResolvedValue(5);
-    vi.mocked(prisma.cycleTeam.count).mockResolvedValue(2);
+    vi.mocked(prisma.cycleTeam.findMany).mockResolvedValue([
+      { templates: [{ templateId: "tpl-1" }] },
+      { templates: [{ templateId: "tpl-1" }] },
+    ] as never);
 
     const report = await buildTrendsReport(COMPANY_ID, DATA_KEY);
 
@@ -45,6 +48,7 @@ describe("buildTrendsReport", () => {
     expect(report.cycles[0].totalAssignments).toBe(5);
     expect(report.cycles[0].teamsEvaluated).toBe(2);
     expect(report.cycles[0].topPerformer).toBeNull();
+    expect(report.cycles[0].templateIds).toEqual(["tpl-1"]);
   });
 
   it("computes completion rate for scored cycle", async () => {
@@ -59,7 +63,7 @@ describe("buildTrendsReport", () => {
       { status: "IN_PROGRESS", subjectId: "u4" },
     ] as never);
 
-    // No templates → emptyPoint
+    // No templateId on assignments → no templates to fetch → emptyPoint
     vi.mocked(prisma.cycleTeam.findMany).mockResolvedValue([]);
 
     const report = await buildTrendsReport(COMPANY_ID, DATA_KEY);
@@ -75,7 +79,7 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { status: "PENDING", subjectId: "u1" },
+      { status: "PENDING", subjectId: "u1", templateId: "tpl1" },
     ] as never);
 
     vi.mocked(prisma.cycleTeam.findMany).mockResolvedValue([
@@ -98,7 +102,7 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { status: "SUBMITTED", subjectId: "u1" },
+      { status: "SUBMITTED", subjectId: "u1", templateId: "tpl1" },
     ] as never);
 
     vi.mocked(prisma.cycleTeam.findMany).mockResolvedValue([
@@ -119,8 +123,8 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { status: "SUBMITTED", subjectId: "u1" },
-      { status: "SUBMITTED", subjectId: "u1" },
+      { status: "SUBMITTED", subjectId: "u1", templateId: "tpl1" },
+      { status: "SUBMITTED", subjectId: "u1", templateId: "tpl1" },
     ] as never);
 
     vi.mocked(prisma.cycleTeam.findMany).mockResolvedValue([
@@ -132,8 +136,8 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationResponse.findMany).mockResolvedValue([
-      { subjectId: "u1", answersEncrypted: "e1", answersIv: "iv1", answersTag: "t1", assignment: { relationship: "manager" } },
-      { subjectId: "u1", answersEncrypted: "e2", answersIv: "iv2", answersTag: "t2", assignment: { relationship: "peer" } },
+      { subjectId: "u1", answersEncrypted: "e1", answersIv: "iv1", answersTag: "t1", assignment: { direction: "DOWNWARD" } },
+      { subjectId: "u1", answersEncrypted: "e2", answersIv: "iv2", answersTag: "t2", assignment: { direction: "LATERAL" } },
     ] as never);
 
     vi.mocked(decryptResponse).mockReturnValue({ q1: 4 });
@@ -143,11 +147,11 @@ describe("buildTrendsReport", () => {
 
     const report = await buildTrendsReport(COMPANY_ID, DATA_KEY);
 
-    expect(report.cycles[0].relationshipScores.manager).toBe(4);
-    expect(report.cycles[0].relationshipScores.peer).toBe(4);
-    expect(report.cycles[0].relationshipScores.self).toBeNull();
-    expect(report.cycles[0].relationshipScores.directReport).toBeNull();
-    expect(report.cycles[0].relationshipScores.external).toBeNull();
+    expect(report.cycles[0].directionScores.downward).toBe(4);
+    expect(report.cycles[0].directionScores.lateral).toBe(4);
+    expect(report.cycles[0].directionScores.self).toBeNull();
+    expect(report.cycles[0].directionScores.upward).toBeNull();
+    expect(report.cycles[0].directionScores.external).toBeNull();
   });
 
   it("identifies top performer", async () => {
@@ -156,8 +160,8 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { status: "SUBMITTED", subjectId: "u1" },
-      { status: "SUBMITTED", subjectId: "u2" },
+      { status: "SUBMITTED", subjectId: "u1", templateId: "tpl1" },
+      { status: "SUBMITTED", subjectId: "u2", templateId: "tpl1" },
     ] as never);
 
     vi.mocked(prisma.cycleTeam.findMany).mockResolvedValue([
@@ -169,8 +173,8 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationResponse.findMany).mockResolvedValue([
-      { subjectId: "u1", answersEncrypted: "e", answersIv: "i", answersTag: "t", assignment: { relationship: "manager" } },
-      { subjectId: "u2", answersEncrypted: "e", answersIv: "i", answersTag: "t", assignment: { relationship: "manager" } },
+      { subjectId: "u1", answersEncrypted: "e", answersIv: "i", answersTag: "t", assignment: { direction: "DOWNWARD" } },
+      { subjectId: "u2", answersEncrypted: "e", answersIv: "i", answersTag: "t", assignment: { direction: "DOWNWARD" } },
     ] as never);
 
     vi.mocked(decryptResponse)
@@ -196,7 +200,7 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { status: "SUBMITTED", subjectId: "u1" },
+      { status: "SUBMITTED", subjectId: "u1", templateId: "tpl1" },
     ] as never);
 
     vi.mocked(prisma.cycleTeam.findMany).mockResolvedValue([
@@ -208,7 +212,7 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationResponse.findMany).mockResolvedValue([
-      { subjectId: "u1", answersEncrypted: "e", answersIv: "i", answersTag: "t", assignment: { relationship: "manager" } },
+      { subjectId: "u1", answersEncrypted: "e", answersIv: "i", answersTag: "t", assignment: { direction: "DOWNWARD" } },
     ] as never);
 
     vi.mocked(decryptResponse).mockReturnValue({ q1: 4.5 });
@@ -229,7 +233,7 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { status: "SUBMITTED", subjectId: "u1" },
+      { status: "SUBMITTED", subjectId: "u1", templateId: "tpl1" },
     ] as never);
 
     vi.mocked(prisma.cycleTeam.findMany).mockResolvedValue([
@@ -241,7 +245,7 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationResponse.findMany).mockResolvedValue([
-      { subjectId: "u1", answersEncrypted: "bad", answersIv: "i", answersTag: "t", assignment: { relationship: "manager" } },
+      { subjectId: "u1", answersEncrypted: "bad", answersIv: "i", answersTag: "t", assignment: { direction: "DOWNWARD" } },
     ] as never);
 
     vi.mocked(decryptResponse).mockImplementation(() => {
@@ -262,7 +266,7 @@ describe("buildTrendsReport", () => {
     ] as never);
 
     vi.mocked(prisma.evaluationAssignment.count).mockResolvedValue(0);
-    vi.mocked(prisma.cycleTeam.count).mockResolvedValue(0);
+    vi.mocked(prisma.cycleTeam.findMany).mockResolvedValue([] as never);
 
     const report = await buildTrendsReport(COMPANY_ID, DATA_KEY);
 

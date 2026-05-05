@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Direction } from "@/lib/directions";
 
 // ─── Types ───
 
@@ -6,7 +7,7 @@ interface Assignment {
   id: string;
   subject: string;
   reviewer: string;
-  relationship: "manager" | "direct_report" | "peer" | "self";
+  direction: Direction;
   status: "SUBMITTED" | "IN_PROGRESS" | "PENDING";
 }
 

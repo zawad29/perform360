@@ -6,7 +6,7 @@ import {
   deriveRelationshipPattern,
   deriveQuestionHighlights,
 } from "@/lib/report-insights";
-import type { RelationshipScores, QuestionDetail } from "@/types/report";
+import type { DirectionScores, QuestionDetail } from "@/types/report";
 
 // ─── Helpers ───
 
@@ -24,12 +24,12 @@ function makeQuestion(
 }
 
 function makeScores(
-  overrides: Partial<RelationshipScores> = {}
-): RelationshipScores {
+  overrides: Partial<DirectionScores> = {}
+): DirectionScores {
   return {
-    manager: null,
-    peer: null,
-    directReport: null,
+    downward: null,
+    lateral: null,
+    upward: null,
     self: null,
     external: null,
     ...overrides,
@@ -83,7 +83,7 @@ describe("computeVariance", () => {
 
 describe("deriveSelfOtherGap", () => {
   it("should return null when self score is null", () => {
-    const scores = makeScores({ self: null, manager: 4.0, peer: 3.5 });
+    const scores = makeScores({ self: null, downward: 4.0, lateral: 3.5 });
     expect(deriveSelfOtherGap(scores)).toBeNull();
   });
 
@@ -93,12 +93,12 @@ describe("deriveSelfOtherGap", () => {
   });
 
   it("should return null when self score is 0", () => {
-    const scores = makeScores({ self: 0, manager: 3.0 });
+    const scores = makeScores({ self: 0, downward: 3.0 });
     expect(deriveSelfOtherGap(scores)).toBeNull();
   });
 
   it("should detect self-aware (small gap)", () => {
-    const scores = makeScores({ self: 3.8, manager: 3.9, peer: 3.7 });
+    const scores = makeScores({ self: 3.8, downward: 3.9, lateral: 3.7 });
     const result = deriveSelfOtherGap(scores)!;
     expect(result).not.toBeNull();
     expect(result.description).toBe("Strong self-awareness");
@@ -106,7 +106,7 @@ describe("deriveSelfOtherGap", () => {
   });
 
   it("should detect self rates higher (moderate)", () => {
-    const scores = makeScores({ self: 4.5, manager: 3.5, peer: 3.5 });
+    const scores = makeScores({ self: 4.5, downward: 3.5, lateral: 3.5 });
     const result = deriveSelfOtherGap(scores)!;
     expect(result.description).toBe("Self rates higher than others");
     expect(result.value).toBe("+1.0");
@@ -114,14 +114,14 @@ describe("deriveSelfOtherGap", () => {
   });
 
   it("should detect self rates higher (small)", () => {
-    const scores = makeScores({ self: 4.0, manager: 3.3, peer: 3.4 });
+    const scores = makeScores({ self: 4.0, downward: 3.3, lateral: 3.4 });
     const result = deriveSelfOtherGap(scores)!;
     expect(result.description).toBe("Self rates higher than others");
     expect(result.color).toBe("#ff9f0a"); // amber for 0.5-1.0
   });
 
   it("should detect self rates lower", () => {
-    const scores = makeScores({ self: 3.0, manager: 4.0, peer: 4.5 });
+    const scores = makeScores({ self: 3.0, downward: 4.0, lateral: 4.5 });
     const result = deriveSelfOtherGap(scores)!;
     expect(result.description).toBe("Self rates lower than others");
     expect(result.iconName).toBe("trending-down");
@@ -129,7 +129,7 @@ describe("deriveSelfOtherGap", () => {
 
   it("should average only non-null other scores", () => {
     // Only manager has a score (4.0), self is 3.0 → gap = -1.0
-    const scores = makeScores({ self: 3.0, manager: 4.0 });
+    const scores = makeScores({ self: 3.0, downward: 4.0 });
     const result = deriveSelfOtherGap(scores)!;
     expect(result.value).toBe("-1.0");
   });
@@ -195,7 +195,7 @@ describe("deriveRaterConsensus", () => {
 
 describe("deriveRelationshipPattern", () => {
   it("should return null when fewer than 2 relationship types", () => {
-    const scores = makeScores({ manager: 4.0 });
+    const scores = makeScores({ downward: 4.0 });
     expect(deriveRelationshipPattern(scores)).toBeNull();
   });
 
@@ -205,7 +205,7 @@ describe("deriveRelationshipPattern", () => {
   });
 
   it("should return consistent when spread is small", () => {
-    const scores = makeScores({ manager: 4.0, peer: 3.8, directReport: 4.1 });
+    const scores = makeScores({ downward: 4.0, lateral: 3.8, upward: 4.1 });
     const result = deriveRelationshipPattern(scores)!;
     expect(result.value).toBe("Consistent");
     expect(result.color).toBe("#34c759");
@@ -213,20 +213,20 @@ describe("deriveRelationshipPattern", () => {
 
   it("should identify highest rater when spread is significant", () => {
     const scores = makeScores({
-      manager: 4.5,
-      peer: 3.2,
-      directReport: 3.0,
+      downward: 4.5,
+      lateral: 3.2,
+      upward: 3.0,
     });
     const result = deriveRelationshipPattern(scores)!;
-    expect(result.description).toBe("Managers rate highest");
+    expect(result.description).toBe("Downward rate highest");
     expect(result.value).toBe("1.5 spread");
     expect(result.color).toBe("#ff9f0a"); // amber for >= 1.0
   });
 
   it("should identify moderate spread", () => {
     const scores = makeScores({
-      manager: 4.0,
-      peer: 3.3,
+      downward: 4.0,
+      lateral: 3.3,
     });
     const result = deriveRelationshipPattern(scores)!;
     expect(result.value).toBe("0.7 spread");
@@ -235,10 +235,10 @@ describe("deriveRelationshipPattern", () => {
 
   it("should exclude self score from relationship pattern", () => {
     // Self is highest at 5.0, but pattern only looks at non-self relationships
-    const scores = makeScores({ self: 5.0, manager: 3.0, peer: 4.0 });
+    const scores = makeScores({ self: 5.0, downward: 3.0, lateral: 4.0 });
     const result = deriveRelationshipPattern(scores)!;
     // Self is excluded, so it's Peers (4.0) vs Managers (3.0) → 1.0 spread
-    expect(result.description).toBe("Peers rate highest");
+    expect(result.description).toBe("Lateral rate highest");
     expect(result.value).toBe("1.0 spread");
   });
 });

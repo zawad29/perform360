@@ -1,19 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Check, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { QuestionRenderer } from "@/components/evaluation/question-renderer";
+import { filterSectionsForDirection } from "@/lib/template-routing";
 
 import type { TemplateQuestion } from "@/types/evaluation";
+import type { Direction } from "@/lib/directions";
 
 interface SectionData {
   id: string;
   title: string;
   description?: string;
+  directions?: Direction[];
   questions: TemplateQuestion[];
 }
 
@@ -21,9 +24,16 @@ interface TemplatePreviewProps {
   name: string;
   description: string;
   sections: SectionData[];
+  // When set, only sections that would render for the given direction are shown.
+  // Mirrors the runtime section filter used by /api/evaluate/[token]/form.
+  directionFilter?: Direction;
 }
 
-export function TemplatePreview({ name, description, sections }: TemplatePreviewProps) {
+export function TemplatePreview({ name, description, sections: rawSections, directionFilter }: TemplatePreviewProps) {
+  const sections = useMemo(
+    () => (directionFilter ? filterSectionsForDirection(rawSections, directionFilter) : rawSections),
+    [rawSections, directionFilter]
+  );
   const [currentSection, setCurrentSection] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
 
@@ -37,13 +47,19 @@ export function TemplatePreview({ name, description, sections }: TemplatePreview
         <div className="w-16 h-16 bg-gray-100 flex items-center justify-center mb-4">
           <Star size={24} strokeWidth={1.5} className="text-gray-300" />
         </div>
-        <p className="text-[14px] text-gray-400 mb-1">No sections yet</p>
-        <p className="text-[12px] text-gray-300">Add sections and questions to see a preview</p>
+        <p className="text-[14px] text-gray-400 mb-1">No sections to show</p>
+        <p className="text-[12px] text-gray-300">
+          {directionFilter
+            ? "No section in this template renders for this direction"
+            : "Add sections and questions to see a preview"}
+        </p>
       </div>
     );
   }
 
-  const section = sections[currentSection];
+  // Clamp out-of-range cursor when the filter shrinks the section list under us.
+  const safeCurrent = Math.min(currentSection, sections.length - 1);
+  const section = sections[safeCurrent];
 
   function getSectionAnsweredCount(sectionIndex: number) {
     return sections[sectionIndex].questions.filter((q) => answers[q.id] !== undefined).length;
@@ -64,7 +80,7 @@ export function TemplatePreview({ name, description, sections }: TemplatePreview
   }
 
   const currentQuestionOffset = sections
-    .slice(0, currentSection)
+    .slice(0, safeCurrent)
     .reduce((acc, s) => acc + s.questions.length, 0);
 
   return (
@@ -103,12 +119,12 @@ export function TemplatePreview({ name, description, sections }: TemplatePreview
           <div className="flex items-center justify-center gap-0">
             {sections.map((s, i) => {
               const complete = isSectionComplete(i);
-              const active = i === currentSection;
+              const active = i === safeCurrent;
               const answered = getSectionAnsweredCount(i);
               const total = s.questions.length;
 
               return (
-                <div key={s.id} className="flex items-center">
+                <div key={s.id ?? `sec-${i}`} className="flex items-center">
                   {i > 0 && (
                     <div
                       className={`h-[2px] w-6 sm:w-10 ${
@@ -118,6 +134,8 @@ export function TemplatePreview({ name, description, sections }: TemplatePreview
                   )}
                   <button
                     onClick={() => setCurrentSection(i)}
+                    aria-label={`Section ${i + 1}: ${s.title}, ${answered} of ${total} answered${complete ? " (complete)" : ""}`}
+                    aria-current={active ? "step" : undefined}
                     className={`
                       relative flex items-center justify-center
                       ${active
@@ -146,7 +164,7 @@ export function TemplatePreview({ name, description, sections }: TemplatePreview
           <div className="text-center mt-3">
             <p className="text-[14px] font-medium text-gray-800">{section.title || "Untitled Section"}</p>
             <p className="text-[12px] text-gray-400 mt-0.5">
-              {getSectionAnsweredCount(currentSection)}/{section.questions.length} answered
+              {getSectionAnsweredCount(safeCurrent)}/{section.questions.length} answered
             </p>
           </div>
         </nav>
@@ -162,7 +180,7 @@ export function TemplatePreview({ name, description, sections }: TemplatePreview
                 )}
               </div>
               <Badge variant="outline" className="flex-shrink-0 tabular-nums">
-                {getSectionAnsweredCount(currentSection)}/{section.questions.length}
+                {getSectionAnsweredCount(safeCurrent)}/{section.questions.length}
               </Badge>
             </div>
           </CardHeader>
@@ -170,7 +188,7 @@ export function TemplatePreview({ name, description, sections }: TemplatePreview
           <div className="space-y-10">
             {section.questions.map((q, qIdx) => (
               <QuestionRenderer
-                key={q.id}
+                key={q.id ?? `q-${safeCurrent}-${qIdx}`}
                 question={q}
                 questionNumber={currentQuestionOffset + qIdx + 1}
                 answer={answers[q.id]}
@@ -193,19 +211,19 @@ export function TemplatePreview({ name, description, sections }: TemplatePreview
         <div className="flex items-center justify-between mt-6 pb-2">
           <Button
             variant="ghost"
-            onClick={() => setCurrentSection(Math.max(0, currentSection - 1))}
-            disabled={currentSection === 0}
+            onClick={() => setCurrentSection(Math.max(0, safeCurrent - 1))}
+            disabled={safeCurrent === 0}
           >
             <ChevronLeft size={16} strokeWidth={1.5} className="mr-1" />
             Previous
           </Button>
 
           <span className="text-caption-style tabular-nums hidden sm:inline">
-            Section {currentSection + 1} of {sections.length}
+            Section {safeCurrent + 1} of {sections.length}
           </span>
 
-          {currentSection < sections.length - 1 ? (
-            <Button onClick={() => setCurrentSection(currentSection + 1)}>
+          {safeCurrent < sections.length - 1 ? (
+            <Button onClick={() => setCurrentSection(safeCurrent + 1)}>
               Next
               <ChevronRight size={16} strokeWidth={1.5} className="ml-1" />
             </Button>

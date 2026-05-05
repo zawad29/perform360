@@ -87,7 +87,7 @@ export async function DELETE(
 
   const level = await prisma.level.findFirst({
     where: { id, companyId: authResult.companyId },
-    include: { _count: { select: { teamMembers: true, cycleTeamLevelTemplates: true } } },
+    include: { _count: { select: { teamMembers: true } } },
   });
 
   if (!level) {
@@ -107,11 +107,15 @@ export async function DELETE(
     );
   }
 
-  if (level._count.cycleTeamLevelTemplates > 0) {
+  // Block deletion if any template uses this level
+  const templateUsage = await prisma.evaluationTemplate.count({
+    where: { companyId: authResult.companyId, levelIds: { has: id } },
+  });
+  if (templateUsage > 0) {
     return NextResponse.json(
       {
         success: false,
-        error: "Cannot delete — this level is used in evaluation cycle template assignments.",
+        error: `Cannot delete — ${templateUsage} template(s) restrict to this level. Remove the level from those templates first.`,
       },
       { status: 409 }
     );

@@ -25,7 +25,23 @@ describe("GET /api/cycles/[id]", () => {
       name: "Q1 2026",
       status: "ACTIVE",
       cycleTeams: [
-        { team: { id: "tm1", name: "Eng" }, template: { id: "t1", name: "Standard" } },
+        {
+          team: { id: "tm1", name: "Eng", members: [] },
+          templates: [
+            {
+              template: {
+                id: "t1",
+                name: "Standard",
+                description: null,
+                levelIds: [],
+                weightPreset: null,
+                weightsMember: null,
+                weightsManager: null,
+                sections: [],
+              },
+            },
+          ],
+        },
       ],
     } as any);
     vi.mocked(prisma.evaluationAssignment.groupBy).mockResolvedValue([
@@ -85,7 +101,7 @@ describe("PATCH /api/cycles/[id]", () => {
 
     const req = createMockRequest(`http://localhost:3000/api/cycles/${validCuid}`, {
       method: "PATCH",
-      body: { teamTemplates: [{ teamId: "t1", templateId: "tmpl1" }] },
+      body: { teamTemplates: [{ teamId: "t1", templateIds: ["tmpl1"] }] },
     });
     const res = await callWith(PATCH, req, validCuid);
     const { status, body } = await parseResponse(res);

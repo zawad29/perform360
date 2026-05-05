@@ -12,7 +12,7 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { ScoreTrendChart } from "@/components/reports/score-trend-chart";
 import { CompetencyRadarChart } from "@/components/reports/radar-chart";
-import { RelationshipScoreChart } from "@/components/reports/relationship-score-chart";
+import { DirectionScoreChart } from "@/components/reports/direction-score-chart";
 import {
   TrendingUp,
   TrendingDown,
@@ -260,15 +260,15 @@ export default function PersonPerformancePage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Relationship Scores</CardTitle>
+            <CardTitle>Direction Scores</CardTitle>
           </CardHeader>
           <div className="px-2 pb-4">
-            <RelationshipScoreChart
-              manager={profile.avgRelationshipScores.manager}
-              peer={profile.avgRelationshipScores.peer}
-              directReport={profile.avgRelationshipScores.directReport}
-              self={profile.avgRelationshipScores.self}
-              external={profile.avgRelationshipScores.external}
+            <DirectionScoreChart
+              downward={profile.avgDirectionScores.downward}
+              upward={profile.avgDirectionScores.upward}
+              lateral={profile.avgDirectionScores.lateral}
+              self={profile.avgDirectionScores.self}
+              external={profile.avgDirectionScores.external}
             />
           </div>
         </Card>
@@ -290,6 +290,7 @@ export default function PersonPerformancePage() {
                 <tr className="border-b border-gray-900">
                   <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Cycle</th>
                   <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                  <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Level</th>
                   <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Score</th>
                   <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Response Rate</th>
                   <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -308,6 +309,19 @@ export default function PersonPerformancePage() {
                       </td>
                       <td className="px-4 py-3 text-[13px] text-gray-500">
                         {startDate} – {endDate}
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-gray-700">
+                        {cycle.levels.length === 0 ? (
+                          <span className="text-gray-400">—</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {cycle.levels.map((lvl) => (
+                              <Badge key={lvl} variant="outline" className="text-[11px]">
+                                {lvl}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-[16px] font-bold text-gray-900 tabular-nums">

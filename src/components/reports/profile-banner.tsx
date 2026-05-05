@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Layers, Users, Shield, CheckCircle2, Clock, AlertCircle } from "lucide-react";
-import { RELATIONSHIP_LABELS } from "@/lib/constants";
+import { DIRECTION_LABELS } from "@/lib/directions";
 import type { SubjectContext, ResponseRate, ReviewerBreakdownItem } from "@/types/report";
 
 interface ProfileBannerProps {
@@ -94,11 +94,11 @@ export function ProfileBanner({
           </span>
           {reviewerBreakdown.map((rb) => (
             <div
-              key={rb.relationship}
+              key={rb.direction}
               className="flex items-center gap-1.5 text-[12px] text-gray-700 bg-white px-2.5 py-1 border border-gray-900"
             >
               <span className="font-medium">
-                {RELATIONSHIP_LABELS[rb.relationship] ?? rb.relationship}
+                {DIRECTION_LABELS[rb.direction] ?? rb.direction}
               </span>
               <span className="text-gray-500 tabular-nums">
                 {rb.completed}/{rb.total}

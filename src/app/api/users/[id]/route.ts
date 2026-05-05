@@ -44,7 +44,7 @@ export async function GET(
         where: { subjectId: id, cycle: { companyId: authResult.companyId } },
         select: {
           id: true, cycleId: true, reviewerId: true,
-          relationship: true, status: true,
+          direction: true, status: true,
           cycle: { select: { id: true, name: true, status: true } },
         },
       }),
@@ -52,7 +52,7 @@ export async function GET(
         where: { reviewerId: id, cycle: { companyId: authResult.companyId } },
         select: {
           id: true, cycleId: true, subjectId: true,
-          relationship: true, status: true,
+          direction: true, status: true,
           cycle: { select: { id: true, name: true, status: true } },
         },
       }),
@@ -78,7 +78,7 @@ export async function GET(
       cycleId: a.cycleId,
       cycleName: a.cycle.name,
       cycleStatus: a.cycle.status,
-      relationship: a.relationship,
+      direction: a.direction,
       status: a.status,
       reviewerName: userMap.get(a.reviewerId) ?? unknownUser,
     }));
@@ -88,7 +88,7 @@ export async function GET(
       cycleId: a.cycleId,
       cycleName: a.cycle.name,
       cycleStatus: a.cycle.status,
-      relationship: a.relationship,
+      direction: a.direction,
       status: a.status,
       subjectName: userMap.get(a.subjectId) ?? unknownUser,
     }));

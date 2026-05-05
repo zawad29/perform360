@@ -63,8 +63,8 @@ describe("Email Templates", () => {
 
   describe("getSummaryInviteEmail", () => {
     const assignments = [
-      { subjectName: "Alice", relationship: "Peer" },
-      { subjectName: "Bob", relationship: "Manager" },
+      { subjectName: "Alice", direction: "Peer" },
+      { subjectName: "Bob", direction: "Manager" },
     ];
 
     it("includes all subject names", () => {
@@ -90,13 +90,13 @@ describe("Email Templates", () => {
     });
 
     it("uses singular for single assignment", () => {
-      const single = [{ subjectName: "Alice", relationship: "Peer" }];
+      const single = [{ subjectName: "Alice", direction: "Peer" }];
       const { text } = getSummaryInviteEmail("Reviewer", "Q1", single, "https://example.com");
       expect(text).toContain("1 evaluation ");
     });
 
     it("escapes HTML in subject names", () => {
-      const xss = [{ subjectName: '<img src=x onerror=alert("xss")>', relationship: "Peer" }];
+      const xss = [{ subjectName: '<img src=x onerror=alert("xss")>', direction: "Peer" }];
       const { html } = getSummaryInviteEmail("Reviewer", "Q1", xss, "https://example.com");
       expect(html).not.toContain('<img src=x');
       expect(html).toContain("&lt;img");
@@ -105,7 +105,7 @@ describe("Email Templates", () => {
 
   describe("getSummaryReminderEmail", () => {
     const assignments = [
-      { subjectName: "Alice", relationship: "Peer" },
+      { subjectName: "Alice", direction: "Peer" },
     ];
 
     it("includes deadline", () => {
@@ -172,8 +172,8 @@ describe("Email Templates", () => {
         getMagicLinkEmail("https://example.com"),
         getEvaluationInviteEmail("R", "S", "C", "https://example.com"),
         getEvaluationReminderEmail("R", "S", "C", "D", "https://example.com"),
-        getSummaryInviteEmail("R", "C", [{ subjectName: "S", relationship: "P" }], "https://example.com"),
-        getSummaryReminderEmail("R", "C", "D", [{ subjectName: "S", relationship: "P" }], "https://example.com"),
+        getSummaryInviteEmail("R", "C", [{ subjectName: "S", direction: "P" }], "https://example.com"),
+        getSummaryReminderEmail("R", "C", "D", [{ subjectName: "S", direction: "P" }], "https://example.com"),
         getUserInviteEmail("R", "C", "https://example.com"),
         getDataExportEmail("C", "D"),
       ];

@@ -198,6 +198,7 @@ export default function CyclesPage() {
             <input
               type="text"
               placeholder="Search cycles..."
+              aria-label="Search cycles"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               className="w-full h-9 pl-9 pr-4 border border-gray-900 bg-white text-[14px] placeholder:text-gray-400 focus:outline-none focus:outline-2 focus:outline-accent focus:outline-offset-2"

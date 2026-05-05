@@ -1,4 +1,4 @@
-import type { RelationshipScores, QuestionDetail, CategoryScore } from "@/types/report";
+import type { DirectionScores, DirectionQuestionCounts, QuestionDetail, CategoryScore } from "@/types/report";
 
 // ─── Variance ───
 
@@ -25,14 +25,19 @@ export interface InsightTileData {
   description: string;
   color: string;
   iconName: "minus" | "trending-up" | "trending-down" | "message-circle" | "users" | "star" | "target";
+  // Optional disclosure line shown beneath the description, e.g. "based on 12
+  // questions across 4 reviewers". Used to defuse direction-asymmetry confusion
+  // when section direction tags filter the question pool unevenly.
+  footnote?: string;
 }
 
 export function deriveSelfOtherGap(
-  scores: RelationshipScores
+  scores: DirectionScores,
+  questionCounts?: DirectionQuestionCounts
 ): InsightTileData | null {
   const selfScore = scores.self;
   const otherScores = (
-    [scores.manager, scores.peer, scores.directReport, scores.external] as (
+    [scores.downward, scores.lateral, scores.upward, scores.external] as (
       | number
       | null
     )[]
@@ -64,12 +69,31 @@ export function deriveSelfOtherGap(
     iconName = "trending-down";
   }
 
+  // Disclose asymmetry if self saw a different question pool than others.
+  let footnote: string | undefined;
+  if (questionCounts) {
+    const selfQ = questionCounts.SELF;
+    const otherQs = [
+      questionCounts.DOWNWARD,
+      questionCounts.UPWARD,
+      questionCounts.LATERAL,
+      questionCounts.EXTERNAL,
+    ].filter((n) => n > 0);
+    if (otherQs.length > 0) {
+      const otherAvgQ = otherQs.reduce((a, b) => a + b, 0) / otherQs.length;
+      if (Math.abs(selfQ - otherAvgQ) >= 1) {
+        footnote = `Self answered ${selfQ} questions; others averaged ${Math.round(otherAvgQ)}`;
+      }
+    }
+  }
+
   return {
     label: "Self-Other Gap",
     value: `${gap > 0 ? "+" : ""}${gap.toFixed(1)}`,
     description,
     color,
     iconName,
+    footnote,
   };
 }
 
@@ -113,15 +137,16 @@ export function deriveRaterConsensus(
 }
 
 export function deriveRelationshipPattern(
-  scores: RelationshipScores
+  scores: DirectionScores,
+  questionCounts?: DirectionQuestionCounts
 ): InsightTileData | null {
   const relEntries = [
-    { label: "Managers", score: scores.manager },
-    { label: "Peers", score: scores.peer },
-    { label: "Direct Reports", score: scores.directReport },
-    { label: "External", score: scores.external },
+    { label: "Downward", score: scores.downward, count: questionCounts?.DOWNWARD ?? 0 },
+    { label: "Lateral", score: scores.lateral, count: questionCounts?.LATERAL ?? 0 },
+    { label: "Upward", score: scores.upward, count: questionCounts?.UPWARD ?? 0 },
+    { label: "External", score: scores.external, count: questionCounts?.EXTERNAL ?? 0 },
   ].filter(
-    (e): e is { label: string; score: number } => e.score !== null && e.score > 0
+    (e): e is { label: string; score: number; count: number } => e.score !== null && e.score > 0
   );
 
   if (relEntries.length < 2) return null;
@@ -138,19 +163,26 @@ export function deriveRelationshipPattern(
   if (spread <= 0.5) {
     color = "#34c759";
     value = "Consistent";
-    description = "Similar scores across relationships";
+    description = "Similar scores across directions";
   } else {
     color = spread >= 1.0 ? "#ff9f0a" : "#0071e3";
     value = `${spread.toFixed(1)} spread`;
     description = `${highest.label} rate highest`;
   }
 
+  // Flag asymmetric question coverage between the highest- and lowest-rated direction.
+  let footnote: string | undefined;
+  if (questionCounts && highest.count > 0 && lowest.count > 0 && highest.count !== lowest.count) {
+    footnote = `${highest.label}: ${highest.count} questions · ${lowest.label}: ${lowest.count}`;
+  }
+
   return {
-    label: "Relationship Pattern",
+    label: "Direction Pattern",
     value,
     description,
     color,
     iconName: "users",
+    footnote,
   };
 }
 

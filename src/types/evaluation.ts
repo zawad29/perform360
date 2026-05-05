@@ -1,3 +1,5 @@
+import type { Direction } from "@/lib/directions";
+
 export interface QuestionOption {
   label: string;
   value: string;
@@ -16,13 +18,14 @@ export interface TemplateQuestion {
 }
 
 export interface TemplateSection {
+  id: string;
   title: string;
   description?: string;
+  /** Empty array = applies to all directions */
+  directions: Direction[];
   questions: TemplateQuestion[];
 }
 
 export interface EvaluationFormData {
   answers: Record<string, string | number | boolean>;
 }
-
-export type RelationshipType = "manager" | "direct_report" | "peer" | "self";

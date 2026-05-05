@@ -34,7 +34,7 @@ const baseAssignment = {
   subjectId: "subject-1",
   cycleId: CYCLE_ID,
   templateId: "tmpl-1",
-  relationship: "PEER",
+  direction: "LATERAL",
 };
 
 const activeCycle = {

@@ -62,7 +62,7 @@ describe("Contract: EvaluationAssignment", () => {
         templateId: template.id,
         subjectId: subject.id,
         reviewerId: reviewer.id,
-        relationship: "PEER",
+        direction: "LATERAL",
       },
     });
 
@@ -82,7 +82,7 @@ describe("Contract: EvaluationAssignment", () => {
       templateId: template.id,
       subjectId: subject.id,
       reviewerId: reviewer.id,
-      relationship: "PEER",
+      direction: "LATERAL" as const,
     };
 
     await prisma.evaluationAssignment.create({ data });
@@ -106,7 +106,7 @@ describe("Contract: EvaluationAssignment", () => {
           templateId: template.id,
           subjectId: subject.id,
           reviewerId: reviewer.id,
-          relationship: "SELF",
+          direction: "SELF",
           status,
         },
       });
@@ -123,12 +123,20 @@ describe("Contract: CycleTeam", () => {
     const template = await factories.template();
 
     await prisma.cycleTeam.create({
-      data: { cycleId: cycle.id, teamId: team.id, templateId: template.id },
+      data: {
+        cycleId: cycle.id,
+        teamId: team.id,
+        templates: { create: [{ templateId: template.id }] },
+      },
     });
 
     await expect(
       prisma.cycleTeam.create({
-        data: { cycleId: cycle.id, teamId: team.id, templateId: template.id },
+        data: {
+          cycleId: cycle.id,
+          teamId: team.id,
+          templates: { create: [{ templateId: template.id }] },
+        },
       })
     ).rejects.toThrow(/Unique constraint/i);
   });
@@ -140,7 +148,11 @@ describe("Contract: CycleTeam", () => {
     const template = await factories.template();
 
     await prisma.cycleTeam.create({
-      data: { cycleId: cycle.id, teamId: team.id, templateId: template.id },
+      data: {
+        cycleId: cycle.id,
+        teamId: team.id,
+        templates: { create: [{ templateId: template.id }] },
+      },
     });
 
     await prisma.evaluationCycle.delete({ where: { id: cycle.id } });

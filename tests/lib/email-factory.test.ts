@@ -5,19 +5,14 @@ import { describe, it, expect, vi } from "vitest";
 // selection logic by mocking the factory's own createProvider internally.
 
 describe("Email Factory", () => {
-  it("defaults EMAIL_PROVIDER to smtp when not set", async () => {
-    // The factory reads process.env.EMAIL_PROVIDER with fallback to "smtp"
+  it("rejects unknown provider name", async () => {
     const saved = process.env.EMAIL_PROVIDER;
-    delete process.env.EMAIL_PROVIDER;
-
-    // We can verify the env var logic by checking the error path
-    // Since we can't load the actual providers in test, we verify the switch logic
     process.env.EMAIL_PROVIDER = "mailgun";
     vi.resetModules();
     const { getEmailProvider } = await import("@/lib/email/factory");
 
     expect(() => getEmailProvider()).toThrow(
-      'Unknown EMAIL_PROVIDER "mailgun". Valid options: resend, brevo, smtp'
+      'Unknown EMAIL_PROVIDER "mailgun". Valid options: console, resend, brevo, smtp'
     );
 
     process.env.EMAIL_PROVIDER = saved;
@@ -29,7 +24,7 @@ describe("Email Factory", () => {
     const { getEmailProvider } = await import("@/lib/email/factory");
 
     expect(() => getEmailProvider()).toThrow("Unknown EMAIL_PROVIDER");
-    expect(() => getEmailProvider()).toThrow("Valid options: resend, brevo, smtp");
+    expect(() => getEmailProvider()).toThrow("Valid options: console, resend, brevo, smtp");
 
     delete process.env.EMAIL_PROVIDER;
   });

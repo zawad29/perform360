@@ -8,6 +8,7 @@ import { JOB_TYPES } from "@/types/job";
 import { getCycleCompletionEmail } from "@/lib/email";
 import type { EmailSendPayload } from "@/types/job";
 import { writeAuditLog } from "@/lib/audit";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 type ApiResponse<T> =
   | { success: true; data: T }
@@ -15,9 +16,12 @@ type ApiResponse<T> =
 
 // ─── GET: Token Validation ───
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const rl = applyRateLimit(request);
+  if (rl) return rl;
+
   try {
     const { token } = await params;
 
@@ -77,7 +81,7 @@ export async function GET(
       subjectName: string;
       reviewerEmailMasked: string;
       cycleName: string;
-      relationship: string;
+      direction: string;
       isImpersonator: boolean;
     }>>({
       success: true,
@@ -86,7 +90,7 @@ export async function GET(
         subjectName: subject?.name ?? "Unknown",
         reviewerEmailMasked: maskedEmail,
         cycleName: assignment.cycle.name,
-        relationship: assignment.relationship,
+        direction: assignment.direction,
         isImpersonator: !!impersonatorMember,
       },
     });
@@ -104,6 +108,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const rl = applyRateLimit(request);
+  if (rl) return rl;
+
   try {
     const { token } = await params;
 
@@ -299,7 +306,7 @@ export async function POST(
       },
       select: {
         token: true,
-        relationship: true,
+        direction: true,
         subjectId: true,
         cycle: { select: { name: true } },
       },
@@ -318,7 +325,7 @@ export async function POST(
       token: a.token,
       subjectName: subjectMap.get(a.subjectId) ?? "Unknown",
       cycleName: a.cycle.name,
-      relationship: a.relationship,
+      direction: a.direction,
     }));
 
     return NextResponse.json<ApiResponse<{

@@ -70,23 +70,78 @@ model VerificationToken {
 // EVALUATION TEMPLATES
 // ─────────────────────────────────────────────────────────
 
-model EvaluationTemplate {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  sections    Json // Array of { title, questions: [{ text, type, options?, required }] }
-  isGlobal    Boolean  @default(false) // kept for migration compatibility
-  isArchived  Boolean  @default(false)
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
-  createdBy   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  cycleTeams              CycleTeam[]
-  cycleTeamLevelTemplates CycleTeamLevelTemplate[]
+enum Direction {
+  DOWNWARD
+  UPWARD
+  LATERAL
+  SELF
+  EXTERNAL
 }
 
+enum WeightPreset {
+  equal
+  supervisor_focus
+  peer_focus
+  custom
+}
+
+model EvaluationTemplate {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+
+  // Bumps on every PATCH. Past iterations are preserved in
+  // `EvaluationTemplateVersion` so admins can view and restore prior versions.
+  version Int @default(1)
+
+  // Template-wide level filter. Empty array = applies to all levels.
+  levelIds String[] @default([])
+
+  // Direction weights (optional). null = equal/default at scoring time.
+  // Shape: { downward, upward, lateral, self, external } as decimals 0.0–1.0
+  weightPreset   WeightPreset?
+  weightsMember  Json?
+  weightsManager Json?
+
+  // Sections JSON: array of
+  //   { id, title, description?, directions: Direction[], questions: [...] }
+  // directions = [] means "all directions"
+  sections Json
+
+  isGlobal   Boolean  @default(false)
+  isArchived Boolean  @default(false)
+  companyId  String?
+  company    Company? @relation(fields: [companyId], references: [id])
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  cycleTeamTemplates CycleTeamTemplate[]
+  versions           EvaluationTemplateVersion[]
+}
+
+// Append-only audit trail of template content. One row per version (so v1 is
+// the initial save, v2 is after the first edit, and so on). The current
+// content also lives on `EvaluationTemplate` itself for fast reads — the
+// version table is the historical record.
+model EvaluationTemplateVersion {
+  id             String             @id @default(cuid())
+  templateId     String
+  template       EvaluationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version        Int
+  name           String
+  description    String?
+  levelIds       String[]           @default([])
+  weightPreset   WeightPreset?
+  weightsMember  Json?
+  weightsManager Json?
+  sections       Json
+  createdBy      String
+  createdAt      DateTime           @default(now())
+
+  @@unique([templateId, version])
+  @@index([templateId])
+}
 
 // ─────────────────────────────────────────────────────────
 // COMPANY (Singleton — one per self-hosted instance)
@@ -127,16 +182,16 @@ enum UserRole {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String
-  name          String
-  avatar        String?
-  role          UserRole  @default(EMPLOYEE)
-  companyId     String
-  company       Company   @relation(fields: [companyId], references: [id])
-  authUserId    String?   // Links to AuthUser for NextAuth session resolution
-  createdAt     DateTime  @default(now())
-  archivedAt    DateTime? // null = active, set = archived (soft delete)
+  id         String    @id @default(cuid())
+  email      String
+  name       String
+  avatar     String?
+  role       UserRole  @default(EMPLOYEE)
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id])
+  authUserId String? // Links to AuthUser for NextAuth session resolution
+  createdAt  DateTime  @default(now())
+  archivedAt DateTime? // null = active, set = archived (soft delete)
 
   // Relations
   teamMemberships  TeamMember[]
@@ -156,12 +211,12 @@ model User {
 // ─────────────────────────────────────────────────────────
 
 model Team {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   description String?
   companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  createdAt   DateTime @default(now())
+  company     Company   @relation(fields: [companyId], references: [id])
+  createdAt   DateTime  @default(now())
   archivedAt  DateTime?
 
   members      TeamMember[]
@@ -177,18 +232,19 @@ enum TeamMemberRole {
 }
 
 model TeamMember {
-  id                       String         @id @default(cuid())
-  userId                   String
-  teamId                   String
-  role                     TeamMemberRole
-  levelId                  String?
-  impersonatorRelationships String[]      @default([])
+  id                     String         @id @default(cuid())
+  userId                 String
+  teamId                 String
+  role                   TeamMemberRole
+  levelId                String?
+  impersonatorDirections Direction[]    @default([])
 
   user  User   @relation(fields: [userId], references: [id])
   team  Team   @relation(fields: [teamId], references: [id])
   level Level? @relation(fields: [levelId], references: [id], onUpdate: Cascade, onDelete: SetNull)
 
   @@unique([userId, teamId])
+  @@index([userId])
 }
 
 model Level {
@@ -198,8 +254,7 @@ model Level {
   company   Company  @relation(fields: [companyId], references: [id])
   createdAt DateTime @default(now())
 
-  teamMembers             TeamMember[]
-  cycleTeamLevelTemplates CycleTeamLevelTemplate[]
+  teamMembers TeamMember[]
 
   @@unique([companyId, name])
 }
@@ -230,41 +285,23 @@ model EvaluationCycle {
   // allows submission route to encrypt reviewer answers without the passphrase.
   cachedDataKeyEncrypted String?
 
-  assignments    EvaluationAssignment[]
-  cycleTeams     CycleTeam[]
-  reviewerLinks  CycleReviewerLink[]
-  calibrations   CalibrationAdjustment[]
+  assignments   EvaluationAssignment[]
+  cycleTeams    CycleTeam[]
+  reviewerLinks CycleReviewerLink[]
+  calibrations  CalibrationAdjustment[]
 
   @@index([companyId, status])
 }
 
 model CycleTeam {
-  id         String              @id @default(cuid())
-  cycleId    String
-  cycle      EvaluationCycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  teamId     String
-  team       Team                @relation(fields: [teamId], references: [id])
-  templateId String?
-  template   EvaluationTemplate? @relation(fields: [templateId], references: [id])
-  createdAt  DateTime            @default(now())
+  id        String          @id @default(cuid())
+  cycleId   String
+  cycle     EvaluationCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  teamId    String
+  team      Team            @relation(fields: [teamId], references: [id])
+  createdAt DateTime        @default(now())
 
-  // Relationship weights (decimals 0.0–1.0, must sum to 1.0 when set)
-  // null = equal weighting (backward-compatible default)
-  weightManager      Float?
-  weightPeer         Float?
-  weightDirectReport Float?
-  weightSelf         Float?
-  weightExternal     Float?
-
-  // Weight preset: "equal" | "supervisor_focus" | "peer_focus" | "custom" | null (legacy)
-  weightPreset           String?
-
-  // Manager-subject weights (when subject has TeamMemberRole.MANAGER)
-  mgrWeightManager       Float?
-  mgrWeightPeer          Float?
-  mgrWeightDirectReport  Float?
-  mgrWeightSelf          Float?
-  mgrWeightExternal      Float?
+  templates CycleTeamTemplate[]
 
   // Team-level calibration offset (e.g., -0.5 for lenient teams, +0.3 for strict)
   // Applied to all members' scores; null = no team-level adjustment
@@ -272,25 +309,19 @@ model CycleTeam {
   calibrationJustification String? @db.Text
   calibrationAdjustedBy    String?
 
-  // Per-level template overrides (advanced mode)
-  levelTemplates CycleTeamLevelTemplate[]
-
   @@unique([cycleId, teamId])
 }
 
-model CycleTeamLevelTemplate {
-  id           String             @id @default(cuid())
-  cycleTeamId  String
-  cycleTeam    CycleTeam          @relation(fields: [cycleTeamId], references: [id], onDelete: Cascade)
-  levelId      String?
-  level        Level?             @relation(fields: [levelId], references: [id])
-  relationship String?            // "manager" | "peer" | "direct_report" | "self" | "external" | null (level-only fallback)
-  templateId   String
-  template     EvaluationTemplate @relation(fields: [templateId], references: [id])
+model CycleTeamTemplate {
+  id          String             @id @default(cuid())
+  cycleTeamId String
+  cycleTeam   CycleTeam          @relation(fields: [cycleTeamId], references: [id], onDelete: Cascade)
+  templateId  String
+  template    EvaluationTemplate @relation(fields: [templateId], references: [id])
 
-  // Uniqueness enforced via partial indexes in migrations (nullable columns)
-  // See: 20260304100000, 20260313000000
+  @@unique([cycleTeamId, templateId])
   @@index([cycleTeamId])
+  @@index([templateId])
 }
 
 enum AssignmentStatus {
@@ -300,23 +331,25 @@ enum AssignmentStatus {
 }
 
 model EvaluationAssignment {
-  id           String           @id @default(cuid())
-  cycleId      String
-  cycle        EvaluationCycle  @relation(fields: [cycleId], references: [id])
-  templateId   String
-  subjectId    String
-  reviewerId   String
-  relationship String
-  status       AssignmentStatus @default(PENDING)
-  token        String           @unique @default(cuid())
-  createdAt    DateTime         @default(now())
+  id         String           @id @default(cuid())
+  cycleId    String
+  cycle      EvaluationCycle  @relation(fields: [cycleId], references: [id])
+  templateId String
+  subjectId  String
+  reviewerId String
+  direction  Direction
+  status     AssignmentStatus @default(PENDING)
+  token      String           @unique @default(cuid())
+  createdAt  DateTime         @default(now())
 
   responses   EvaluationResponse[]
   otpSessions OtpSession[]
 
-  @@unique([cycleId, subjectId, reviewerId, templateId])
+  @@unique([cycleId, subjectId, reviewerId, templateId, direction])
   @@index([cycleId, status])
   @@index([cycleId, subjectId])
+  @@index([reviewerId])
+  @@index([templateId])
 }
 
 // ─────────────────────────────────────────────────────────
@@ -341,20 +374,23 @@ model CycleReviewerLink {
 // ─────────────────────────────────────────────────────────
 
 model OtpSession {
-  id              String                @id @default(cuid())
-  assignmentId    String?
-  assignment      EvaluationAssignment? @relation(fields: [assignmentId], references: [id])
-  reviewerLinkId  String?
-  reviewerLink    CycleReviewerLink?    @relation(fields: [reviewerLinkId], references: [id])
-  email           String
-  otpHash         String
-  attempts        Int                   @default(0)
-  expiresAt       DateTime
-  cooldownUntil   DateTime?
-  verifiedAt      DateTime?
-  sessionToken    String?               @unique
-  sessionExpiry   DateTime?
-  createdAt       DateTime              @default(now())
+  id             String                @id @default(cuid())
+  assignmentId   String?
+  assignment     EvaluationAssignment? @relation(fields: [assignmentId], references: [id])
+  reviewerLinkId String?
+  reviewerLink   CycleReviewerLink?    @relation(fields: [reviewerLinkId], references: [id])
+  email          String
+  otpHash        String
+  attempts       Int                   @default(0)
+  expiresAt      DateTime
+  cooldownUntil  DateTime?
+  verifiedAt     DateTime?
+  sessionToken   String?               @unique
+  sessionExpiry  DateTime?
+  createdAt      DateTime              @default(now())
+
+  @@index([assignmentId])
+  @@index([reviewerLinkId])
 }
 
 // ─────────────────────────────────────────────────────────

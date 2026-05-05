@@ -11,10 +11,11 @@ import {
   deriveBiggestGrowthArea,
 } from "@/lib/report-insights";
 import type { InsightTileData } from "@/lib/report-insights";
-import type { RelationshipScores, QuestionDetail, CategoryScore } from "@/types/report";
+import type { DirectionScores, DirectionQuestionCounts, QuestionDetail, CategoryScore } from "@/types/report";
 
 interface KeyInsightsProps {
-  scoresByRelationship: RelationshipScores;
+  scoresByDirection: DirectionScores;
+  directionQuestionCounts?: DirectionQuestionCounts;
   questionDetails: QuestionDetail[];
   categoryScores: CategoryScore[];
 }
@@ -39,20 +40,21 @@ const GRID_COLS: Record<number, string> = {
 };
 
 export function KeyInsights({
-  scoresByRelationship,
+  scoresByDirection,
+  directionQuestionCounts,
   questionDetails,
   categoryScores,
 }: KeyInsightsProps) {
   const tiles = useMemo(() => {
     const result: InsightTileData[] = [];
 
-    const gap = deriveSelfOtherGap(scoresByRelationship);
+    const gap = deriveSelfOtherGap(scoresByDirection, directionQuestionCounts);
     if (gap) result.push(gap);
 
     const consensus = deriveRaterConsensus(questionDetails);
     if (consensus) result.push(consensus);
 
-    const pattern = deriveRelationshipPattern(scoresByRelationship);
+    const pattern = deriveRelationshipPattern(scoresByDirection, directionQuestionCounts);
     if (pattern) result.push(pattern);
 
     const strongest = deriveStrongestCompetency(categoryScores);
@@ -62,7 +64,7 @@ export function KeyInsights({
     if (growth) result.push(growth);
 
     return result;
-  }, [scoresByRelationship, questionDetails, categoryScores]);
+  }, [scoresByDirection, directionQuestionCounts, questionDetails, categoryScores]);
 
   if (tiles.length === 0) return null;
 
@@ -93,6 +95,11 @@ export function KeyInsights({
             <p className="text-[13px] text-gray-500 mt-0.5 leading-snug">
               {tile.description}
             </p>
+            {tile.footnote && (
+              <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">
+                {tile.footnote}
+              </p>
+            )}
           </div>
         ))}
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -16,6 +16,15 @@ export function MobileNav() {
   const pathname = usePathname();
   const { canManageSettings } = usePermissions();
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
     <div className="lg:hidden">
       <button
@@ -28,8 +37,19 @@ export function MobileNav() {
 
       {open && createPortal(
         <>
-          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setOpen(false)} />
-          <div className="fixed inset-y-0 left-0 z-50 w-[200px] bg-white border-r border-gray-900 flex flex-col">
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            tabIndex={-1}
+            className="fixed inset-0 z-40 bg-black/40 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            className="fixed inset-y-0 left-0 z-50 w-[200px] bg-white border-r border-gray-900 flex flex-col"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Main navigation"
+          >
             <div className="flex items-center justify-between p-4 h-16">
               <Link href="/overview" onClick={() => setOpen(false)} className="flex items-center gap-2">
                 <Logo className="h-8 w-auto" />

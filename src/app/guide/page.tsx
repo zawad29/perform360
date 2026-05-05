@@ -468,7 +468,7 @@ function How360WorksSection({ onNavigate }: { onNavigate?: (id: SectionId) => vo
           <p className="text-callout text-gray-500">
             A person can hold different roles across teams. For example, someone might be a <strong>Manager</strong> in
             one team and a <strong>Member</strong> in another. The 360° report aggregates evaluations from every team they
-            belong to, broken down by relationship type (manager, peer, member, self).
+            belong to, broken down by direction (downward, upward, lateral, self, external).
           </p>
 
           <div className="border border-gray-200 bg-gray-50 p-3 sm:p-4">
@@ -487,7 +487,7 @@ function How360WorksSection({ onNavigate }: { onNavigate?: (id: SectionId) => vo
           </div>
 
           <TipBox>
-            The final report shows scores broken down by relationship type, revealing blind spots that
+            The final report shows scores broken down by direction, revealing blind spots that
             a single manager review would miss. Explore the{" "}
             <button onClick={() => onNavigate?.("example-org")} className="text-gray-900 underline font-medium">
               Example Org
@@ -541,8 +541,8 @@ function RolesSection() {
               In Performs360, <strong>teams</strong> are the building blocks of your evaluation cycles.
               Each team represents a functional group within your organization. Team members are assigned
               one of three roles &mdash; <strong>Manager</strong>, <strong>Member</strong>, or <strong>External</strong> &mdash;
-              which determines the evaluation relationships during review cycles. Peer feedback is
-              automatically derived &mdash; all Members in the same team evaluate each other as peers.
+              which determines the evaluation directions during review cycles. Lateral feedback is
+              automatically derived &mdash; all Members in the same team evaluate each other laterally.
             </p>
           </div>
         </div>
@@ -609,9 +609,9 @@ function RolesSection() {
             </p>
             <p className="text-body text-gray-500 mt-2 leading-relaxed">
               Levels are <strong>completely optional</strong>. The default flow works without them. When levels are assigned,
-              admins can enable <strong>advanced mode</strong> during cycle creation to assign different evaluation
-              templates per level and relationship type &mdash; so a junior engineer might get a different evaluation
-              form than a senior architect.
+              admins can attach multiple templates to a team &mdash; each template can declare which levels it covers and
+              which directions its sections apply to. So a junior engineer can get a different evaluation form than a
+              senior architect, with the right form auto-routed by the subject&rsquo;s level.
             </p>
           </div>
         </div>
@@ -818,11 +818,11 @@ function RunningCyclesSection() {
                 ))}
               </div>
               <p className="text-[12px] text-gray-400">
-                ... and more assignments based on all team relationships
+                ... and more assignments based on all team directions
               </p>
             </div>
           </Card>
-          {/* Advanced mode tip */}
+          {/* Multi-template tip */}
           <div className="mt-3">
             <Card padding="sm" className="border-gray-200 bg-gray-100/30">
               <div className="flex items-start gap-3">
@@ -830,13 +830,13 @@ function RunningCyclesSection() {
                   <Layers size={14} strokeWidth={1.5} className="text-gray-500" />
                 </div>
                 <div>
-                  <p className="text-[13px] font-medium text-gray-900">Advanced Mode: Per-Level Templates</p>
+                  <p className="text-[13px] font-medium text-gray-900">Multi-Template Teams: Level-Resolved Routing</p>
                   <p className="text-[12px] text-gray-600/80 mt-1 leading-relaxed">
-                    If your team members have seniority levels assigned, toggle <strong>&ldquo;Use per-level templates&rdquo;</strong> when
-                    creating a cycle. This lets you assign different evaluation templates based on a member&apos;s level and
-                    relationship type. For example, SE L-1 members might use a &ldquo;Junior Engineer Review&rdquo; template
-                    while SA L-3 architects use a &ldquo;Senior Technical Review&rdquo; template. Members without a level
-                    fall back to the team&apos;s default template.
+                    Attach more than one template to a team and the system auto-routes each subject to the
+                    most-specific template that covers their level. For example, an SE L-1 member can be routed
+                    to a &ldquo;Junior Engineer Review&rdquo; while an SA L-3 architect on the same team gets a
+                    &ldquo;Senior Technical Review&rdquo;. A template with no level filter acts as a wildcard for
+                    everyone else.
                   </p>
                 </div>
               </div>
@@ -1064,9 +1064,9 @@ function ReportsSection() {
           <div className="mt-3">
             <InfoBox>
               Each employee gets a comprehensive report showing scores from <strong>every direction</strong> —
-              manager feedback, peer feedback, upward feedback from members, and their own self-assessment. Open-text
-              comments are grouped by relationship type and kept <strong>anonymous</strong> so reviewers
-              can be candid. Self-assessment scores are shown separately to highlight self-awareness gaps.
+              downward feedback from managers, lateral peer feedback, upward feedback from reports, and their own
+              self-assessment. Open-text comments are grouped by direction and kept <strong>anonymous</strong> so
+              reviewers can be candid. Self-assessment scores are shown separately to highlight self-awareness gaps.
             </InfoBox>
           </div>
         </StepCard>
@@ -1082,8 +1082,8 @@ function ReportsSection() {
               <div className="space-y-2">
                 {[
                   { icon: BarChart3, label: "Radar chart", desc: "Visual breakdown across all competency areas (communication, technical skills, leadership, etc.)" },
-                  { icon: Star, label: "Score breakdown by relationship", desc: "See how managers, peers, and members scored the employee separately" },
-                  { icon: MessageSquare, label: "Anonymized comments", desc: "Open-text feedback grouped by relationship type — reviewers stay anonymous" },
+                  { icon: Star, label: "Score breakdown by direction", desc: "See how downward, upward, lateral, self, and external scores compare separately" },
+                  { icon: MessageSquare, label: "Anonymized comments", desc: "Open-text feedback grouped by direction — reviewers stay anonymous" },
                   { icon: FileText, label: "Per-question detail", desc: "Score distribution for every question in the evaluation template" },
                   { icon: BarChart3, label: "Trend comparison", desc: "Compare against previous cycles to track growth over time" },
                 ].map((item, i) => (

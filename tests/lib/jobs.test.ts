@@ -38,8 +38,8 @@ describe("Job: handleCycleActivate", () => {
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { id: "a1", token: "tok1", subjectId: "s1", reviewerId: "r1", relationship: "peer" },
-      { id: "a2", token: "tok2", subjectId: "s2", reviewerId: "r1", relationship: "manager" },
+      { id: "a1", token: "tok1", subjectId: "s1", reviewerId: "r1", direction: "LATERAL" },
+      { id: "a2", token: "tok2", subjectId: "s2", reviewerId: "r1", direction: "DOWNWARD" },
     ] as any);
 
     vi.mocked(prisma.user.findMany).mockResolvedValue([
@@ -111,8 +111,8 @@ describe("Job: handleCycleActivate", () => {
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { id: "a1", token: "tok1", subjectId: "s1", reviewerId: "r1", relationship: "peer" },
-      { id: "a2", token: "tok2", subjectId: "s1", reviewerId: "r2", relationship: "manager" },
+      { id: "a1", token: "tok1", subjectId: "s1", reviewerId: "r1", direction: "LATERAL" },
+      { id: "a2", token: "tok2", subjectId: "s1", reviewerId: "r2", direction: "DOWNWARD" },
     ] as any);
 
     vi.mocked(prisma.user.findMany).mockResolvedValue([
@@ -182,8 +182,8 @@ describe("Job: handleCycleRemind", () => {
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { token: "tok1", reviewerId: "r1", subjectId: "s1", relationship: "peer" },
-      { token: "tok2", reviewerId: "r1", subjectId: "s2", relationship: "manager" },
+      { token: "tok1", reviewerId: "r1", subjectId: "s1", direction: "LATERAL" },
+      { token: "tok2", reviewerId: "r1", subjectId: "s2", direction: "DOWNWARD" },
     ] as any);
 
     vi.mocked(prisma.user.findMany).mockResolvedValue([
@@ -232,7 +232,7 @@ describe("Job: handleCycleRemind", () => {
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { token: "tok1", reviewerId: "r1", subjectId: "s1", relationship: "peer" },
+      { token: "tok1", reviewerId: "r1", subjectId: "s1", direction: "LATERAL" },
     ] as any);
 
     vi.mocked(prisma.user.findMany).mockResolvedValue([
@@ -317,6 +317,7 @@ describe("Job: handleCleanupOtpSessions", () => {
     vi.mocked(prisma.otpSession.deleteMany)
       .mockResolvedValueOnce({ count: 3 } as any)
       .mockResolvedValueOnce({ count: 5 } as any);
+    vi.mocked(prisma.auditLog.deleteMany).mockResolvedValue({ count: 0 } as any);
 
     await handleCleanupOtpSessions({});
 

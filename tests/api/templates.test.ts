@@ -63,7 +63,7 @@ describe("API /api/templates", () => {
         method: "POST",
         body: {
           name: "Template",
-          sections: [{ title: "Section 1", questions: [{ id: "q1", text: "Q?", type: "text", required: true }] }],
+          sections: [{ id: "s1", title: "Section 1", questions: [{ id: "q1", text: "Q?", type: "text", required: true }] }],
         },
       });
       const res = await POST(req as any);
@@ -78,7 +78,17 @@ describe("API /api/templates", () => {
         name: "New Template",
         companyId: fixtures.admin.companyId,
       };
-      vi.mocked(prisma.evaluationTemplate.create).mockResolvedValue(mockTemplate as any);
+      const createTpl = vi.fn().mockResolvedValue(mockTemplate);
+      const createVersion = vi.fn().mockResolvedValue({});
+      vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => {
+        if (typeof cb === "function") {
+          return cb({
+            evaluationTemplate: { create: createTpl },
+            evaluationTemplateVersion: { create: createVersion },
+          });
+        }
+        return mockTemplate;
+      });
 
       const req = createMockRequest("http://localhost:3000/api/templates", {
         method: "POST",
@@ -86,6 +96,7 @@ describe("API /api/templates", () => {
           name: "New Template",
           description: "A description",
           sections: [{
+            id: "s1",
             title: "Performance",
             questions: [
               { id: "q1", text: "Rate performance", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 },
@@ -98,7 +109,7 @@ describe("API /api/templates", () => {
 
       expect(status).toBe(201);
       expect(body.success).toBe(true);
-      expect(prisma.evaluationTemplate.create).toHaveBeenCalledWith(
+      expect(createTpl).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             name: "New Template",
@@ -106,6 +117,11 @@ describe("API /api/templates", () => {
             createdBy: fixtures.admin.userId,
             isGlobal: false,
           }),
+        })
+      );
+      expect(createVersion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ templateId: "tpl-new", version: 1 }),
         })
       );
     });
@@ -127,7 +143,7 @@ describe("API /api/templates", () => {
       const req = createMockRequest("http://localhost:3000/api/templates", {
         method: "POST",
         body: {
-          sections: [{ title: "S", questions: [{ id: "q1", text: "Q", type: "text", required: true }] }],
+          sections: [{ id: "s1", title: "S", questions: [{ id: "q1", text: "Q", type: "text", required: true }] }],
         },
       });
       const res = await POST(req as any);

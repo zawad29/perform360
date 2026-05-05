@@ -3,6 +3,7 @@ import { generateWithConfig, OllamaConfig } from "@/lib/ollama";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { decryptApiKey } from "@/lib/crypto-utils";
+import { DIRECTION_LABELS, type Direction } from "@/lib/directions";
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     };
 
     const { feedback } = (await req.json()) as {
-      feedback: { questionText: string; relationship: string; text: string }[];
+      feedback: { questionText: string; direction: Direction; text: string }[];
     };
 
     if (!feedback || feedback.length === 0) {
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
     const feedbackBlock = feedback
       .map(
         (f, i) =>
-          `[${i + 1}] (${f.relationship}) Q: "${f.questionText}"\n   "${f.text}"`
+          `[${i + 1}] (${DIRECTION_LABELS[f.direction]}) Q: "${f.questionText}"\n   "${f.text}"`
       )
       .join("\n\n");
 

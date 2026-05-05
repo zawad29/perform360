@@ -1,3 +1,5 @@
+import type { Direction } from "@/lib/directions";
+
 export interface TeamWithMembers {
   id: string;
   name: string;
@@ -16,7 +18,7 @@ export interface TeamMemberWithUser {
   teamId: string;
   role: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
   levelId: string | null;
-  impersonatorRelationships: string[];
+  impersonatorDirections: Direction[];
   level: { id: string; name: string } | null;
   user: {
     id: string;

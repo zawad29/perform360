@@ -759,6 +759,10 @@ export const DEFAULT_TEMPLATES = [
       {
         title: "Leadership",
         description: "Visibility, trust, and communication",
+        // Direct reports, peer managers, and the manager themselves can speak
+        // to day-to-day leadership; the manager's own boss and external
+        // partners aren't close enough to rate this fairly.
+        directions: ["UPWARD", "LATERAL", "SELF"],
         questions: [
           {
             id: "mgr-q1",
@@ -792,6 +796,8 @@ export const DEFAULT_TEMPLATES = [
       {
         title: "Direction",
         description: "Goal setting, clarity, and problem-solving",
+        // Strategic clarity is visible up the chain (boss), down (reports), and across (peers).
+        directions: ["DOWNWARD", "UPWARD", "LATERAL", "SELF"],
         questions: [
           {
             id: "mgr-q4",
@@ -825,6 +831,9 @@ export const DEFAULT_TEMPLATES = [
       {
         title: "Expertise & Judgment",
         description: "Domain knowledge and decision-making quality",
+        // Visible to anyone who works with the manager's output —
+        // skip UPWARD since direct reports rarely see decision-making in full context.
+        directions: ["DOWNWARD", "LATERAL", "EXTERNAL", "SELF"],
         questions: [
           {
             id: "mgr-q7",
@@ -849,6 +858,8 @@ export const DEFAULT_TEMPLATES = [
       {
         title: "Impact",
         description: "Contribution to team performance and results",
+        // Impact is what everyone sees — keep it open to all directions.
+        directions: ["DOWNWARD", "UPWARD", "LATERAL", "EXTERNAL", "SELF"],
         questions: [
           {
             id: "mgr-q9",
@@ -873,6 +884,9 @@ export const DEFAULT_TEMPLATES = [
       {
         title: "Feedback & Recognition",
         description: "Quality of feedback and acknowledgment",
+        // Only direct reports experience feedback delivery first-hand;
+        // self-reflection is also valuable.
+        directions: ["UPWARD", "SELF"],
         questions: [
           {
             id: "mgr-q11",
@@ -897,6 +911,9 @@ export const DEFAULT_TEMPLATES = [
       {
         title: "Development",
         description: "Support for growth and skill development",
+        // Career growth investment is something direct reports experience;
+        // self-reflection on whether one is investing in the team belongs too.
+        directions: ["UPWARD", "SELF"],
         questions: [
           {
             id: "mgr-q13",

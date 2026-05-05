@@ -1,43 +1,48 @@
 # ─────────────────────────────────────────────────────────
 # Performs360 — Production Docker Compose
+#
+# Pulls prebuilt images from GitHub Container Registry. Auto-updates are
+# handled by Watchtower (polls GHCR every 24h and restarts containers when
+# a newer image is published).
+#
+# PostgreSQL is external. Set DATABASE_URL in your .env file pointing to
+# your existing PostgreSQL instance.
 # ─────────────────────────────────────────────────────────
 
-# NOTE: PostgreSQL is external. Set DATABASE_URL in your .env file
-# pointing to your existing PostgreSQL instance.
-
 services:
-  migrate:
-    build:
-      context: .
-      target: migrate
-    container_name: performs360-migrate
-    env_file:
-      - .env
-    command: ["db", "push", "--skip-generate"]
-    restart: "no"
-
   app:
-    build:
-      context: .
-      target: runner
+    image: ghcr.io/tamzid958/perform360-app:latest
     container_name: performs360-app
     restart: unless-stopped
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
+    pull_policy: always
     ports:
       - "${APP_PORT:-3000}:3000"
     env_file:
       - .env
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
   worker:
-    build:
-      context: .
-      target: worker
+    image: ghcr.io/tamzid958/perform360-worker:latest
     container_name: performs360-worker
     restart: unless-stopped
+    pull_policy: always
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      - app
     env_file:
       - .env
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: performs360-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_INCLUDE_RESTARTING: "false"
+      WATCHTOWER_POLL_INTERVAL: "${WATCHTOWER_POLL_INTERVAL:-86400}"
+    command: ["--label-enable"]

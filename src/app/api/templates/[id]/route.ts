@@ -4,28 +4,17 @@ import { requireAuth, requireAdminOrHR, isAuthError } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
-
-const questionSchema = z.object({
-  id: z.string().min(1),
-  text: z.string().min(1),
-  type: z.enum(["rating_scale", "text", "multiple_choice"]),
-  required: z.boolean(),
-  options: z.array(z.string()).optional(),
-  scaleMin: z.number().optional(),
-  scaleMax: z.number().optional(),
-  scaleLabels: z.array(z.string()).optional(),
-  conditionalOn: z.string().optional(),
-});
-
-const sectionSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().optional(),
-  questions: z.array(questionSchema).min(1),
-});
+import { sectionSchema, directionWeightsSchema } from "@/lib/template-schema";
+import { errorResponse, zodErrorResponse, internalErrorResponse } from "@/lib/api-responses";
+import { Prisma, WeightPreset } from "@prisma/client";
 
 const updateTemplateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  levelIds: z.array(z.string()).optional(),
+  weightPreset: z.nativeEnum(WeightPreset).nullable().optional(),
+  weightsMember: directionWeightsSchema.nullable().optional(),
+  weightsManager: directionWeightsSchema.nullable().optional(),
   sections: z.array(sectionSchema).min(1).optional(),
 });
 
@@ -45,19 +34,12 @@ export async function GET(
   const template = await prisma.evaluationTemplate.findFirst({
     where: {
       id: id,
-      OR: [
-        { companyId: authResult.companyId },
-        { isGlobal: true },
-      ],
+      OR: [{ companyId: authResult.companyId }, { isGlobal: true }],
     },
   });
 
   if (!template) {
-    return NextResponse.json({
-      success: false,
-      error: "Template not found",
-      code: "NOT_FOUND",
-    }, { status: 404 });
+    return errorResponse("Template not found", "NOT_FOUND", 404);
   }
 
   return NextResponse.json({
@@ -83,7 +65,6 @@ export async function PATCH(
     const body = await request.json();
     const validated = updateTemplateSchema.parse(body);
 
-    // Only company-owned templates can be edited (not global)
     const existing = await prisma.evaluationTemplate.findFirst({
       where: {
         id: id,
@@ -93,21 +74,63 @@ export async function PATCH(
     });
 
     if (!existing) {
-      return NextResponse.json({
-        success: false,
-        error: "Template not found or cannot be edited",
-        code: "NOT_FOUND",
-      }, { status: 404 });
+      return errorResponse("Template not found or cannot be edited", "NOT_FOUND", 404);
     }
 
-    const updateData: Record<string, unknown> = {};
+    if (validated.levelIds && validated.levelIds.length > 0) {
+      const levels = await prisma.level.findMany({
+        where: { id: { in: validated.levelIds }, companyId: authResult.companyId },
+        select: { id: true },
+      });
+      if (levels.length !== validated.levelIds.length) {
+        return errorResponse("One or more levels not found", "NOT_FOUND", 404);
+      }
+    }
+
+    const updateData: Prisma.EvaluationTemplateUpdateInput = {};
     if (validated.name) updateData.name = validated.name;
     if (validated.description !== undefined) updateData.description = validated.description;
-    if (validated.sections) updateData.sections = JSON.parse(JSON.stringify(validated.sections));
+    if (validated.levelIds) updateData.levelIds = validated.levelIds;
+    if (validated.weightPreset !== undefined) updateData.weightPreset = validated.weightPreset;
+    if (validated.weightsMember !== undefined) {
+      updateData.weightsMember = validated.weightsMember ?? Prisma.JsonNull;
+    }
+    if (validated.weightsManager !== undefined) {
+      updateData.weightsManager = validated.weightsManager ?? Prisma.JsonNull;
+    }
+    if (validated.sections) {
+      updateData.sections = JSON.parse(JSON.stringify(validated.sections));
+    }
 
-    const template = await prisma.evaluationTemplate.update({
-      where: { id: id },
-      data: updateData,
+    // Snapshot the new content into a fresh version row, then update the
+    // main template row in the same transaction. Bumps `version` to match.
+    const nextVersion = existing.version + 1;
+    const template = await prisma.$transaction(async (tx) => {
+      const updated = await tx.evaluationTemplate.update({
+        where: { id: id },
+        data: { ...updateData, version: nextVersion },
+      });
+      await tx.evaluationTemplateVersion.create({
+        data: {
+          templateId: updated.id,
+          version: nextVersion,
+          name: updated.name,
+          description: updated.description,
+          levelIds: updated.levelIds,
+          weightPreset: updated.weightPreset,
+          weightsMember:
+            updated.weightsMember === null
+              ? Prisma.JsonNull
+              : (updated.weightsMember as Prisma.InputJsonValue),
+          weightsManager:
+            updated.weightsManager === null
+              ? Prisma.JsonNull
+              : (updated.weightsManager as Prisma.InputJsonValue),
+          sections: updated.sections as Prisma.InputJsonValue,
+          createdBy: authResult.userId,
+        },
+      });
+      return updated;
     });
 
     return NextResponse.json({
@@ -115,17 +138,8 @@ export async function PATCH(
       data: template,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({
-        success: false,
-        error: "Validation failed",
-        code: "VALIDATION_ERROR",
-      }, { status: 400 });
-    }
-    return NextResponse.json({
-      success: false,
-      error: "Internal server error",
-    }, { status: 500 });
+    if (error instanceof z.ZodError) return zodErrorResponse(error);
+    return internalErrorResponse();
   }
 }
 
@@ -151,19 +165,11 @@ export async function DELETE(
   });
 
   if (!template) {
-    return NextResponse.json({
-      success: false,
-      error: "Template not found or cannot be deleted",
-      code: "NOT_FOUND",
-    }, { status: 404 });
+    return errorResponse("Template not found or cannot be deleted", "NOT_FOUND", 404);
   }
 
   if (template.isArchived) {
-    return NextResponse.json({
-      success: false,
-      error: "Template is already archived",
-      code: "ALREADY_ARCHIVED",
-    }, { status: 400 });
+    return errorResponse("Template is already archived", "ALREADY_ARCHIVED", 400);
   }
 
   await prisma.evaluationTemplate.update({

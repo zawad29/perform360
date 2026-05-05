@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import {
   DndContext,
   closestCenter,
@@ -16,19 +16,27 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
-import { Plus, Pencil, Eye } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useTemplateBuilder } from "@/store/template-builder";
 import { SectionEditor } from "./section-editor";
-import { TemplatePreview } from "./template-preview";
+import { TemplateMetaStrips } from "./template-meta-strips";
 
 export function TemplateBuilder() {
   const {
     name,
     description,
+    levelIds,
+    weightPreset,
+    weightsMember,
+    weightsManager,
     sections,
+    useDirectionRouting,
     setName,
     setDescription,
+    setLevelIds,
+    setWeights,
+    setUseDirectionRouting,
     addSection,
     updateSection,
     removeSection,
@@ -39,8 +47,6 @@ export function TemplateBuilder() {
     moveQuestion,
     moveQuestionBetweenSections,
   } = useTemplateBuilder();
-
-  const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -97,36 +103,7 @@ export function TemplateBuilder() {
 
   return (
     <div>
-      {/* Tab switcher */}
-      <div className="inline-flex items-center gap-0.5 bg-gray-100 p-1 mb-4">
-        <button
-          type="button"
-          onClick={() => setActiveTab("edit")}
-          className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-[14px] font-medium uppercase tracking-caps ${
-            activeTab === "edit"
-              ? "bg-white text-gray-900"
-              : "text-gray-500 hover:text-gray-900"
-          }`}
-        >
-          <Pencil size={13} strokeWidth={2} />
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("preview")}
-          className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-[14px] font-medium uppercase tracking-caps ${
-            activeTab === "preview"
-              ? "bg-white text-gray-900"
-              : "text-gray-500 hover:text-gray-900"
-          }`}
-        >
-          <Eye size={13} strokeWidth={2} />
-          Preview
-        </button>
-      </div>
-
-      {activeTab === "edit" ? (
-        <div className="space-y-4">
+      <div className="space-y-4">
           {/* Template info */}
           <div className="bg-white border border-gray-900 p-6 space-y-4">
             <Input
@@ -152,6 +129,34 @@ export function TemplateBuilder() {
             </div>
           </div>
 
+          {/* Optional config: Levels + Weights as collapsible strips */}
+          <TemplateMetaStrips
+            levelIds={levelIds}
+            onLevelsChange={setLevelIds}
+            preset={weightPreset}
+            member={weightsMember}
+            manager={weightsManager}
+            onWeightsChange={setWeights}
+          />
+
+          {/* Direction routing opt-in */}
+          <label className="flex items-start gap-2 cursor-pointer bg-white border border-gray-200 px-4 py-3">
+            <input
+              type="checkbox"
+              checked={useDirectionRouting}
+              onChange={(e) => setUseDirectionRouting(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="block text-[13px] text-gray-900">
+                Some sections only apply to certain review directions
+              </span>
+              <span className="block text-[12px] text-gray-500 mt-0.5">
+                Off by default. Turn on to tag sections with directions like Downward / Upward / Lateral.
+              </span>
+            </span>
+          </label>
+
           {/* Sections with DnD */}
           <DndContext
             sensors={sensors}
@@ -164,6 +169,7 @@ export function TemplateBuilder() {
                 <SectionEditor
                   key={section.id}
                   section={section}
+                  showDirections={useDirectionRouting}
                   onUpdateSection={(data) => updateSection(section.id, data)}
                   onRemoveSection={() => removeSection(section.id)}
                   onAddQuestion={() => addQuestion(section.id)}
@@ -184,9 +190,6 @@ export function TemplateBuilder() {
             Add Section
           </button>
         </div>
-      ) : (
-        <TemplatePreview name={name} description={description} sections={sections} />
-      )}
     </div>
   );
 }

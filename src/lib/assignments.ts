@@ -1,83 +1,60 @@
+import cuid from "cuid";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateToken } from "@/lib/tokens";
+import { Direction } from "@prisma/client";
+import { DIRECTION_KEYS, isValidDirection } from "@/lib/directions";
+import {
+  resolveAssignmentForm,
+  type SectionShape,
+  type TemplateMeta,
+} from "@/lib/template-routing";
+export type { SectionShape, TemplateMeta };
 
-/** Sentinel key for level-only entries (relationship=NULL in DB) */
-const LEVEL_ONLY_KEY = "__level_only__";
+type TxClient = Prisma.TransactionClient;
 
 interface GeneratedAssignment {
   cycleId: string;
   templateId: string;
   subjectId: string;
   reviewerId: string;
-  relationship: "manager" | "direct_report" | "peer" | "self" | "external";
+  direction: Direction;
   token: string;
 }
 
-// levelId → relationship → templateId
-type LevelRelationshipTemplateMap = Map<string, Map<string, string>>;
-// teamId → LevelRelationshipTemplateMap
-type TeamLevelTemplateMap = Map<string, LevelRelationshipTemplateMap>;
-// teamId → relationship → templateId (no level dimension)
-type TeamRelationshipTemplateMap = Map<string, Map<string, string>>;
+interface TeamMemberData {
+  userId: string;
+  role: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
+  levelId: string | null;
+  impersonatorDirections?: readonly Direction[] | readonly string[];
+}
 
-/**
- * Resolve template for an assignment.
- * Priority: level+relationship > level-only > relationship-only > team default > null (skip).
- */
-function resolveTemplate(
-  teamId: string,
-  subjectLevelId: string | null,
-  relationship: string,
-  teamTemplateMap: Map<string, string | null>,
-  teamLevelTemplateMap: TeamLevelTemplateMap,
-  teamRelationshipTemplateMap: TeamRelationshipTemplateMap = new Map()
-): string | null {
-  if (subjectLevelId) {
-    const levelMap = teamLevelTemplateMap.get(teamId);
-    if (levelMap) {
-      const relMap = levelMap.get(subjectLevelId);
-      if (relMap) {
-        // 1. Try level + relationship
-        const templateId = relMap.get(relationship);
-        if (templateId) return templateId;
-        // 2. Try level-only (applies to all relationships for this level)
-        const levelOnly = relMap.get(LEVEL_ONLY_KEY);
-        if (levelOnly) return levelOnly;
-      }
-    }
-  }
+interface TeamWithMembers {
+  id: string;
+  members: TeamMemberData[];
+}
 
-  // 3. Try relationship-only template (no level required)
-  const relMap = teamRelationshipTemplateMap.get(teamId);
-  if (relMap) {
-    const templateId = relMap.get(relationship);
-    if (templateId) return templateId;
-  }
-
-  // 4. Fallback to team default template
-  return teamTemplateMap.get(teamId) ?? null;
+export interface TeamTemplatesPair {
+  teamId: string;
+  templates: TemplateMeta[];
 }
 
 /**
  * Generate evaluation assignments from team structure for a cycle.
  *
- * Each team has a default templateId (optional). Level-specific templates
- * override the default per (levelId, relationship) pair.
- *
  * Rules:
- *  - Manager evaluates each Member (relationship: "manager")
- *  - Each Member evaluates their Manager(s) (relationship: "direct_report")
- *  - Members evaluate each other as peers (relationship: "peer")
- *  - External evaluates all Members and Managers (relationship: "external", one-way)
- *  - Self-evaluation for every non-external member (one per template)
- *  - Deduplication across teams by (subjectId, reviewerId, templateId) key
+ *  - DOWNWARD: Manager → Member (one assignment per manager-member pair)
+ *  - UPWARD:   Member → Manager
+ *  - LATERAL:  Members ↔ Members; Managers ↔ Managers
+ *  - SELF:     Each non-external/non-impersonator member reviews themselves
+ *  - EXTERNAL: External users review all members and managers (one-way)
+ *  - Impersonators take over the directions listed in their impersonatorDirections.
+ *  - Deduplication across teams by (subjectId, reviewerId, templateId, direction).
  */
 export function generateAssignmentsFromTeams(
   cycleId: string,
   teams: TeamWithMembers[],
-  teamTemplateMap: Map<string, string | null>,
-  teamLevelTemplateMap: TeamLevelTemplateMap = new Map(),
-  teamRelationshipTemplateMap: TeamRelationshipTemplateMap = new Map()
+  teamTemplatesMap: Map<string, TemplateMeta[]>
 ): GeneratedAssignment[] {
   const seen = new Set<string>();
   const assignments: GeneratedAssignment[] = [];
@@ -85,19 +62,18 @@ export function generateAssignmentsFromTeams(
   function addAssignment(
     subjectId: string,
     reviewerId: string,
-    relationship: GeneratedAssignment["relationship"],
+    direction: Direction,
     templateId: string
   ) {
-    const key = `${subjectId}:${reviewerId}:${templateId}`;
+    const key = `${subjectId}:${reviewerId}:${templateId}:${direction}`;
     if (seen.has(key)) return;
     seen.add(key);
-
     assignments.push({
       cycleId,
       templateId,
       subjectId,
       reviewerId,
-      relationship,
+      direction,
       token: generateToken(),
     });
   }
@@ -106,169 +82,307 @@ export function generateAssignmentsFromTeams(
   const selfEvalPairs = new Set<string>();
 
   for (const team of teams) {
+    const templates = teamTemplatesMap.get(team.id) ?? [];
+    if (templates.length === 0) continue;
+
     const managers = team.members.filter((m) => m.role === "MANAGER");
     const members = team.members.filter((m) => m.role === "MEMBER");
     const externals = team.members.filter((m) => m.role === "EXTERNAL");
     const impersonators = team.members.filter((m) => m.role === "IMPERSONATOR");
 
-    // Collect all relationships handled by impersonators in this team
-    // "self" is never delegated — impersonators cannot create valid self-evaluations
-    const handledRelationships = new Set<string>();
+    // Directions handled by impersonators; SELF is never delegated.
+    const handledDirections = new Set<Direction>();
     for (const imp of impersonators) {
-      for (const rel of imp.impersonatorRelationships ?? []) {
-        if (rel === "self") continue;
-        handledRelationships.add(rel);
+      for (const dir of imp.impersonatorDirections ?? []) {
+        if (!isValidDirection(dir) || dir === "SELF") continue;
+        handledDirections.add(dir);
       }
     }
 
-    // All evaluable subjects: managers + members (impersonators are NOT subjects)
     const evaluableSubjects = [...managers, ...members];
 
     // ── Impersonator assignments ──
-    // Each relationship type targets specific subjects:
-    //   manager → members (downward review)
-    //   direct_report → managers (upward review)
-    //   peer → members (lateral review)
-    //   self → all managers + members
-    //   external → all managers + members
     for (const imp of impersonators) {
-      for (const rel of imp.impersonatorRelationships ?? []) {
-        if (rel === "self") continue; // impersonators cannot create valid self-evaluations
+      for (const rawDirection of imp.impersonatorDirections ?? []) {
+        if (!isValidDirection(rawDirection) || rawDirection === "SELF") continue;
+        const direction = rawDirection;
         let subjects: typeof evaluableSubjects;
-        switch (rel) {
-          case "manager":
+        switch (direction) {
+          case "DOWNWARD":
             subjects = members;
             break;
-          case "peer":
+          case "LATERAL":
             subjects = [...members, ...managers];
             break;
-          case "direct_report":
+          case "UPWARD":
             subjects = managers;
             break;
-          default: // "external"
+          case "EXTERNAL":
+          default:
             subjects = evaluableSubjects;
             break;
         }
         for (const subject of subjects) {
-          const tpl = resolveTemplate(team.id, subject.levelId, rel, teamTemplateMap, teamLevelTemplateMap, teamRelationshipTemplateMap);
-          if (tpl) addAssignment(subject.userId, imp.userId, rel as GeneratedAssignment["relationship"], tpl);
+          const resolved = resolveAssignmentForm(templates, subject.levelId, direction);
+          if (resolved) addAssignment(subject.userId, imp.userId, direction, resolved.templateId);
         }
       }
     }
 
-    // ── Normal assignments (skip relationships handled by impersonators) ──
-
-    // Track non-external, non-impersonator users for self-evaluations
-    if (!handledRelationships.has("self")) {
+    // ── Self-evaluations (non-external, non-impersonator) ──
+    if (!handledDirections.has("SELF")) {
       for (const m of team.members) {
         if (m.role === "EXTERNAL" || m.role === "IMPERSONATOR") continue;
-        const tpl = resolveTemplate(team.id, m.levelId, "self", teamTemplateMap, teamLevelTemplateMap, teamRelationshipTemplateMap);
-        if (tpl) selfEvalPairs.add(`${m.userId}:${tpl}`);
+        const resolved = resolveAssignmentForm(templates, m.levelId, "SELF");
+        if (resolved) selfEvalPairs.add(`${m.userId}:${resolved.templateId}`);
       }
     }
 
-    // Manager evaluates each Member (downward) — template based on subject's level
-    if (!handledRelationships.has("manager")) {
+    // ── DOWNWARD: Manager evaluates each Member ──
+    if (!handledDirections.has("DOWNWARD")) {
       for (const mgr of managers) {
         for (const member of members) {
-          const tpl = resolveTemplate(team.id, member.levelId, "manager", teamTemplateMap, teamLevelTemplateMap, teamRelationshipTemplateMap);
-          if (tpl) addAssignment(member.userId, mgr.userId, "manager", tpl);
+          const resolved = resolveAssignmentForm(templates, member.levelId, "DOWNWARD");
+          if (resolved) addAssignment(member.userId, mgr.userId, "DOWNWARD", resolved.templateId);
         }
       }
     }
 
-    // Member evaluates each Manager (upward) — template based on subject's (manager's) level
-    if (!handledRelationships.has("direct_report")) {
+    // ── UPWARD: Member evaluates each Manager ──
+    if (!handledDirections.has("UPWARD")) {
       for (const member of members) {
         for (const mgr of managers) {
-          const tpl = resolveTemplate(team.id, mgr.levelId, "direct_report", teamTemplateMap, teamLevelTemplateMap, teamRelationshipTemplateMap);
-          if (tpl) addAssignment(mgr.userId, member.userId, "direct_report", tpl);
+          const resolved = resolveAssignmentForm(templates, mgr.levelId, "UPWARD");
+          if (resolved) addAssignment(mgr.userId, member.userId, "UPWARD", resolved.templateId);
         }
       }
     }
 
-    // Peer evaluations — template based on subject's level
-    if (!handledRelationships.has("peer")) {
-      // Member-to-member peers
+    // ── LATERAL: peer evaluations ──
+    if (!handledDirections.has("LATERAL")) {
       for (const reviewer of members) {
         for (const subject of members) {
           if (reviewer.userId === subject.userId) continue;
-          const tpl = resolveTemplate(team.id, subject.levelId, "peer", teamTemplateMap, teamLevelTemplateMap, teamRelationshipTemplateMap);
-          if (tpl) addAssignment(subject.userId, reviewer.userId, "peer", tpl);
+          const resolved = resolveAssignmentForm(templates, subject.levelId, "LATERAL");
+          if (resolved) addAssignment(subject.userId, reviewer.userId, "LATERAL", resolved.templateId);
         }
       }
-      // Manager-to-manager peers
       for (const reviewer of managers) {
         for (const subject of managers) {
           if (reviewer.userId === subject.userId) continue;
-          const tpl = resolveTemplate(team.id, subject.levelId, "peer", teamTemplateMap, teamLevelTemplateMap, teamRelationshipTemplateMap);
-          if (tpl) addAssignment(subject.userId, reviewer.userId, "peer", tpl);
+          const resolved = resolveAssignmentForm(templates, subject.levelId, "LATERAL");
+          if (resolved) addAssignment(subject.userId, reviewer.userId, "LATERAL", resolved.templateId);
         }
       }
     }
 
-    // External evaluates Members and Managers — template based on subject's level
-    if (!handledRelationships.has("external")) {
+    // ── EXTERNAL: external users review members and managers ──
+    if (!handledDirections.has("EXTERNAL")) {
       for (const ext of externals) {
         for (const member of members) {
-          const tpl = resolveTemplate(team.id, member.levelId, "external", teamTemplateMap, teamLevelTemplateMap, teamRelationshipTemplateMap);
-          if (tpl) addAssignment(member.userId, ext.userId, "external", tpl);
+          const resolved = resolveAssignmentForm(templates, member.levelId, "EXTERNAL");
+          if (resolved) addAssignment(member.userId, ext.userId, "EXTERNAL", resolved.templateId);
         }
         for (const mgr of managers) {
-          const tpl = resolveTemplate(team.id, mgr.levelId, "external", teamTemplateMap, teamLevelTemplateMap, teamRelationshipTemplateMap);
-          if (tpl) addAssignment(mgr.userId, ext.userId, "external", tpl);
+          const resolved = resolveAssignmentForm(templates, mgr.levelId, "EXTERNAL");
+          if (resolved) addAssignment(mgr.userId, ext.userId, "EXTERNAL", resolved.templateId);
         }
       }
     }
   }
 
-  // Self-evaluations
   selfEvalPairs.forEach((pair) => {
     const [userId, templateId] = pair.split(":");
-    addAssignment(userId, userId, "self", templateId);
+    addAssignment(userId, userId, "SELF", templateId);
   });
 
   return assignments;
 }
 
-interface TeamMemberData {
-  userId: string;
-  role: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
-  levelId: string | null;
-  impersonatorRelationships?: string[];
-}
-
-interface TeamWithMembers {
-  id: string;
-  members: TeamMemberData[];
-}
-
-export interface TeamTemplatePair {
+export interface CoverageGap {
   teamId: string;
-  templateId?: string | null;
-  levelTemplates?: {
-    levelId: string;
-    relationship: string | null;
-    templateId: string;
-  }[];
-  relationshipTemplates?: {
-    relationship: string;
-    templateId: string;
-  }[];
+  teamName: string;
+  members: { userId: string; name: string; levelName: string | null }[];
+}
+
+export interface ValidatedTeamTemplates {
+  pairs: TeamTemplatesPair[];
+  templateMap: Map<string, TemplateMeta>;
+  /** Empty when coverage is complete; non-empty payload should be returned to the client as a 400. */
+  gaps: CoverageGap[];
 }
 
 /**
- * Fetch selected teams with members, then generate
- * and persist assignments in a transaction.
+ * Validate that every team-member's level is covered by at least one assigned
+ * template (templates with empty levelIds satisfy any level), and load the
+ * template metadata needed to generate assignments.
+ *
+ * Used by both POST /api/cycles and PATCH /api/cycles/[id].
+ *
+ * Returns a discriminated result:
+ *   - `{ ok: false, error, code? }` when teams/templates aren't found
+ *   - `{ ok: true, data }` otherwise; if `data.gaps` is non-empty, the caller
+ *     should return 400 COVERAGE_GAP without proceeding.
+ */
+export async function validateTeamTemplateCoverage(
+  companyId: string,
+  teamTemplates: { teamId: string; templateIds: string[] }[]
+): Promise<
+  | { ok: false; error: string; code: "NOT_FOUND" }
+  | { ok: true; data: ValidatedTeamTemplates }
+> {
+  const teamIds = teamTemplates.map((tt) => tt.teamId);
+  const allTemplateIds = Array.from(
+    new Set(teamTemplates.flatMap((tt) => tt.templateIds))
+  );
+
+  const [teams, templates] = await Promise.all([
+    prisma.team.findMany({
+      where: { id: { in: teamIds }, companyId },
+      include: {
+        members: {
+          select: {
+            userId: true,
+            role: true,
+            levelId: true,
+            user: { select: { id: true, name: true } },
+            level: { select: { id: true, name: true } },
+          },
+        },
+      },
+    }),
+    prisma.evaluationTemplate.findMany({
+      where: {
+        id: { in: allTemplateIds },
+        OR: [{ companyId }, { isGlobal: true }],
+        isArchived: false,
+      },
+      select: { id: true, levelIds: true, sections: true },
+    }),
+  ]);
+
+  if (teams.length !== teamIds.length) {
+    return { ok: false, error: "One or more teams not found", code: "NOT_FOUND" };
+  }
+  if (templates.length !== allTemplateIds.length) {
+    return { ok: false, error: "One or more templates not found", code: "NOT_FOUND" };
+  }
+
+  const templateMap = new Map<string, TemplateMeta>(
+    templates.map((t) => [
+      t.id,
+      {
+        id: t.id,
+        levelIds: t.levelIds,
+        sections: t.sections as unknown as SectionShape[],
+      },
+    ])
+  );
+  const teamMap = new Map(teams.map((t) => [t.id, t]));
+
+  const gaps: CoverageGap[] = [];
+  for (const tt of teamTemplates) {
+    const team = teamMap.get(tt.teamId);
+    if (!team) continue;
+    const assigned = tt.templateIds
+      .map((id) => templateMap.get(id))
+      .filter((x): x is TemplateMeta => Boolean(x));
+
+    const hasWildcard = assigned.some((t) => t.levelIds.length === 0);
+    if (hasWildcard) continue;
+
+    const coveredLevels = new Set(assigned.flatMap((t) => t.levelIds));
+    const missing: CoverageGap["members"] = [];
+    for (const m of team.members) {
+      if (m.role === "EXTERNAL" || m.role === "IMPERSONATOR") continue;
+      if (m.levelId === null || !coveredLevels.has(m.levelId)) {
+        missing.push({
+          userId: m.userId,
+          name: m.user?.name ?? "Unknown",
+          levelName: m.level?.name ?? null,
+        });
+      }
+    }
+    if (missing.length > 0) {
+      gaps.push({ teamId: team.id, teamName: team.name, members: missing });
+    }
+  }
+
+  const pairs: TeamTemplatesPair[] = teamTemplates.map((tt) => ({
+    teamId: tt.teamId,
+    templates: tt.templateIds.map((id) => templateMap.get(id)!),
+  }));
+
+  return { ok: true, data: { pairs, templateMap, gaps } };
+}
+
+/**
+ * Compute direction-coverage warnings: which directions had zero matching sections
+ * across all templates assigned to a team. Soft signal — the cycle is still created.
+ */
+export function computeDirectionCoverageWarnings(
+  teamTemplatesMap: Map<string, TemplateMeta[]>
+): { teamId: string; missingDirections: Direction[] }[] {
+  const warnings: { teamId: string; missingDirections: Direction[] }[] = [];
+  for (const [teamId, templates] of teamTemplatesMap.entries()) {
+    const missing: Direction[] = [];
+    for (const direction of DIRECTION_KEYS) {
+      const covered = templates.some((tpl) =>
+        (tpl.sections ?? []).some((s: SectionShape) => {
+          const dirs = s.directions ?? [];
+          return dirs.length === 0 || dirs.includes(direction);
+        })
+      );
+      if (!covered) missing.push(direction);
+    }
+    if (missing.length > 0) warnings.push({ teamId, missingDirections: missing });
+  }
+  return warnings;
+}
+
+/**
+ * Create CycleTeam + CycleTeamTemplate rows for a cycle in a transaction.
+ *
+ * Pre-generates client-side cuids so both inserts can be batched into single
+ * `createMany` calls (two round-trips total instead of 2N).
+ */
+export async function applyTeamTemplates(
+  tx: TxClient,
+  cycleId: string,
+  teamTemplates: { teamId: string; templateIds: string[] }[]
+): Promise<void> {
+  const cycleTeams = teamTemplates.map((tt) => ({
+    id: cuid(),
+    cycleId,
+    teamId: tt.teamId,
+  }));
+
+  const cycleTeamTemplates = teamTemplates.flatMap((tt, i) =>
+    tt.templateIds.map((templateId) => ({
+      cycleTeamId: cycleTeams[i].id,
+      templateId,
+    }))
+  );
+
+  await tx.cycleTeam.createMany({ data: cycleTeams });
+  if (cycleTeamTemplates.length > 0) {
+    await tx.cycleTeamTemplate.createMany({
+      data: cycleTeamTemplates,
+      skipDuplicates: true,
+    });
+  }
+}
+
+/**
+ * Fetch teams + templates and persist the generated assignments in a transaction.
  */
 export async function createAssignmentsForCycle(
   cycleId: string,
   companyId: string,
-  teamTemplatePairs: TeamTemplatePair[]
+  teamTemplatesPairs: TeamTemplatesPair[]
 ): Promise<{ count: number; reviewerEmails: ReviewerInfo[] }> {
-  const teamIds = teamTemplatePairs.map((p) => p.teamId);
+  const teamIds = teamTemplatesPairs.map((p) => p.teamId);
 
-  // Fetch teams with members (now including levelId)
   const teams = await prisma.team.findMany({
     where: { id: { in: teamIds }, companyId },
     include: {
@@ -277,7 +391,7 @@ export async function createAssignmentsForCycle(
           userId: true,
           role: true,
           levelId: true,
-          impersonatorRelationships: true,
+          impersonatorDirections: true,
         },
       },
     },
@@ -287,97 +401,19 @@ export async function createAssignmentsForCycle(
     return { count: 0, reviewerEmails: [] };
   }
 
-  // Build teamId → default templateId map
-  const teamTemplateMap = new Map<string, string | null>(
-    teamTemplatePairs.map((p) => [p.teamId, p.templateId ?? null])
-  );
-
-  // Build teamId → levelId → relationship → templateId map
-  const teamLevelTemplateMap: TeamLevelTemplateMap = new Map();
-  for (const pair of teamTemplatePairs) {
-    if (!pair.levelTemplates?.length) continue;
-    const levelMap: LevelRelationshipTemplateMap = new Map();
-    for (const lt of pair.levelTemplates) {
-      if (!levelMap.has(lt.levelId)) {
-        levelMap.set(lt.levelId, new Map());
-      }
-      const relKey = lt.relationship ?? LEVEL_ONLY_KEY;
-      levelMap.get(lt.levelId)!.set(relKey, lt.templateId);
-    }
-    teamLevelTemplateMap.set(pair.teamId, levelMap);
+  const teamTemplatesMap = new Map<string, TemplateMeta[]>();
+  for (const pair of teamTemplatesPairs) {
+    teamTemplatesMap.set(pair.teamId, pair.templates);
   }
 
-  // Build teamId → relationship → templateId map (no level dimension)
-  const teamRelationshipTemplateMap: TeamRelationshipTemplateMap = new Map();
-  for (const pair of teamTemplatePairs) {
-    if (!pair.relationshipTemplates?.length) continue;
-    const relMap = new Map<string, string>();
-    for (const rt of pair.relationshipTemplates) {
-      relMap.set(rt.relationship, rt.templateId);
-    }
-    teamRelationshipTemplateMap.set(pair.teamId, relMap);
-  }
-
-  // Also load persisted CycleTeamLevelTemplate records (for existing cycles)
-  const cycleTeams = await prisma.cycleTeam.findMany({
-    where: { cycleId, teamId: { in: teamIds } },
-    include: { levelTemplates: true },
-  });
-
-  // Merge DB entries into maps — input entries take precedence, DB fills gaps
-  for (const ct of cycleTeams) {
-    if (ct.levelTemplates.length === 0) continue;
-
-    // Separate: level-specific (levelId != null) vs relationship-only (levelId == null)
-    const levelEntries = ct.levelTemplates.filter((lt) => lt.levelId !== null);
-    const relEntries = ct.levelTemplates.filter((lt) => lt.levelId === null);
-
-    if (levelEntries.length > 0) {
-      if (!teamLevelTemplateMap.has(ct.teamId)) {
-        teamLevelTemplateMap.set(ct.teamId, new Map());
-      }
-      const levelMap = teamLevelTemplateMap.get(ct.teamId)!;
-      for (const lt of levelEntries) {
-        if (!levelMap.has(lt.levelId!)) levelMap.set(lt.levelId!, new Map());
-        const relKey = lt.relationship ?? LEVEL_ONLY_KEY;
-        // Input takes precedence — only fill from DB if not already set
-        if (!levelMap.get(lt.levelId!)!.has(relKey)) {
-          levelMap.get(lt.levelId!)!.set(relKey, lt.templateId);
-        }
-      }
-    }
-
-    if (relEntries.length > 0) {
-      if (!teamRelationshipTemplateMap.has(ct.teamId)) {
-        teamRelationshipTemplateMap.set(ct.teamId, new Map());
-      }
-      const relMap = teamRelationshipTemplateMap.get(ct.teamId)!;
-      for (const rt of relEntries) {
-        if (!relMap.has(rt.relationship!)) {
-          relMap.set(rt.relationship!, rt.templateId);
-        }
-      }
-    }
-  }
-
-  const assignments = generateAssignmentsFromTeams(
-    cycleId,
-    teams,
-    teamTemplateMap,
-    teamLevelTemplateMap,
-    teamRelationshipTemplateMap
-  );
-
-  if (assignments.length === 0) {
-    return { count: 0, reviewerEmails: [] };
-  }
+  const assignments = generateAssignmentsFromTeams(cycleId, teams, teamTemplatesMap);
+  if (assignments.length === 0) return { count: 0, reviewerEmails: [] };
 
   const created = await prisma.evaluationAssignment.createMany({
     data: assignments,
     skipDuplicates: true,
   });
 
-  // Fetch reviewer info for email sending
   const reviewerIds = Array.from(new Set(assignments.map((a) => a.reviewerId)));
   const users = await prisma.user.findMany({
     where: { id: { in: reviewerIds } },
@@ -390,7 +426,6 @@ export async function createAssignmentsForCycle(
   for (const assignment of assignments) {
     const reviewer = userMap.get(assignment.reviewerId);
     if (!reviewer) continue;
-
     if (!reviewerInfoMap.has(reviewer.id)) {
       reviewerInfoMap.set(reviewer.id, {
         reviewerId: reviewer.id,
@@ -399,12 +434,11 @@ export async function createAssignmentsForCycle(
         assignments: [],
       });
     }
-
     const subjectUser = userMap.get(assignment.subjectId);
     reviewerInfoMap.get(reviewer.id)!.assignments.push({
       token: assignment.token,
       subjectName: subjectUser?.name ?? "Unknown",
-      relationship: assignment.relationship,
+      direction: assignment.direction,
     });
   }
 
@@ -421,6 +455,6 @@ export interface ReviewerInfo {
   assignments: {
     token: string;
     subjectName: string;
-    relationship: string;
+    direction: Direction;
   }[];
 }

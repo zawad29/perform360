@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole, isAuthError } from "@/lib/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const rl = applyRateLimit(req);
+  if (rl) return rl;
+
   const authResult = await requireRole("ADMIN");
   if (isAuthError(authResult)) return authResult;
 

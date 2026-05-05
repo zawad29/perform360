@@ -104,8 +104,8 @@ describe("Review: Assignments list (GET /api/review/[token]/assignments)", () =>
     } as any);
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
-      { id: "a1", token: "tok1", subjectId: "s1", relationship: "peer", status: "PENDING" },
-      { id: "a2", token: "tok2", subjectId: "s2", relationship: "manager", status: "SUBMITTED" },
+      { id: "a1", token: "tok1", subjectId: "s1", direction: "LATERAL", status: "PENDING" },
+      { id: "a2", token: "tok2", subjectId: "s2", direction: "DOWNWARD", status: "SUBMITTED" },
     ] as any);
 
     vi.mocked(prisma.user.findMany).mockResolvedValue([

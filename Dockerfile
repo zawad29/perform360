@@ -1,5 +1,10 @@
 # ─────────────────────────────────────────────────────────
 # Performs360 — Multi-stage Production Dockerfile
+#
+# Builds two runtime images: `runner` (Next.js app) and `worker` (background
+# job processor). The app's entrypoint runs `prisma db push` on every start
+# so schema changes ride along with image updates — no separate migration
+# step required from the operator.
 # ─────────────────────────────────────────────────────────
 
 # Stage 1: Install dependencies
@@ -20,25 +25,19 @@ RUN \
   fi
 RUN npx prisma generate
 
-# Stage 2: Migrate
-FROM node:20-alpine AS migrate
-RUN apk add --no-cache openssl
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY prisma ./prisma
-ENTRYPOINT ["node_modules/.bin/prisma"]
-
-# Stage 3: Build the Next.js app
+# Stage 2: Build the Next.js app
 FROM node:20-alpine AS builder
+ARG APP_VERSION=dev
 RUN apk add --no-cache openssl
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
 RUN npm run build
 
-# Stage 4: Production runner (Next.js app)
+# Stage 3: Production runner (Next.js app + on-start migration)
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
@@ -57,9 +56,9 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js db push --skip-generate --accept-data-loss=false && exec node server.js"]
 
-# Stage 5: Worker runner (needs full node_modules for tsx + esbuild)
+# Stage 4: Worker runner (needs full node_modules for tsx + esbuild)
 FROM node:20-alpine AS worker
 RUN apk add --no-cache openssl
 WORKDIR /app
