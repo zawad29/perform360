@@ -14,18 +14,10 @@ env:
   IMAGE_BASE: ${{ github.repository }}
 
 jobs:
+  # Build both targets back-to-back in one job so the heavy `deps` and
+  # `builder` stages stay hot in BuildKit's local cache between them.
   build:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [app, worker]
-        include:
-          - target: app
-            stage: runner
-          - target: worker
-            stage: worker
-
     steps:
       - uses: actions/checkout@v4
 
@@ -35,7 +27,6 @@ jobs:
           version=$(node -p "require('./package.json').version")
           echo "value=$version" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
@@ -45,11 +36,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute image tags
-        id: meta
+      - name: Compute app tags
+        id: meta-app
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}-${{ matrix.target }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}-app
           # Triggered only on `v*` tags (and manual dispatch). Each tag push
           # becomes the new `:latest` and gets a semver-named tag too.
           tags: |
@@ -57,19 +48,43 @@ jobs:
             type=match,pattern=v(\d+\.\d+\.\d+),group=1
             type=raw,value=latest
 
-      - name: Build & push
+      - name: Compute worker tags
+        id: meta-worker
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}-worker
+          tags: |
+            type=ref,event=tag
+            type=match,pattern=v(\d+\.\d+\.\d+),group=1
+            type=raw,value=latest
+
+      - name: Build & push app
         uses: docker/build-push-action@v5
         with:
           context: .
-          target: ${{ matrix.stage }}
-          platforms: linux/amd64,linux/arm64
+          target: runner
+          platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta-app.outputs.tags }}
+          labels: ${{ steps.meta-app.outputs.labels }}
           build-args: |
             APP_VERSION=${{ steps.version.outputs.value }}
-          cache-from: type=gha,scope=${{ matrix.target }}
-          cache-to: type=gha,scope=${{ matrix.target }},mode=max
+          cache-from: type=gha,scope=build
+          cache-to: type=gha,scope=build,mode=max
+
+      - name: Build & push worker
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: worker
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta-worker.outputs.tags }}
+          labels: ${{ steps.meta-worker.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.value }}
+          cache-from: type=gha,scope=build
+          cache-to: type=gha,scope=build,mode=max
 
   release:
     needs: build
