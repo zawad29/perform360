@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
         encryptionKeyEncrypted: true,
         encryptionSalt: true,
         encryptionSetupAt: true,
+        keyVersion: true,
       },
     });
 
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cookieValue = encryptDataKeyForCookie(dataKey);
+    const cookieValue = encryptDataKeyForCookie(dataKey, company.keyVersion);
 
     const response = NextResponse.json<ApiResponse<{ unlocked: true }>>({
       success: true,
@@ -107,7 +108,15 @@ export async function GET(request: NextRequest) {
   const authResult = await requireRole("ADMIN", "HR");
   if (isAuthError(authResult)) return authResult;
 
-  const dataKey = getDataKeyFromRequest(request);
+  const company = await prisma.company.findUnique({
+    where: { id: authResult.companyId },
+    select: { encryptionSetupAt: true, keyVersion: true },
+  });
+
+  const dataKey =
+    company?.encryptionSetupAt
+      ? getDataKeyFromRequest(request, company.keyVersion)
+      : null;
 
   return NextResponse.json<ApiResponse<{ unlocked: boolean }>>({
     success: true,

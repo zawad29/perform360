@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   // Check encryption is still set up
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { encryptionSetupAt: true },
+    select: { encryptionSetupAt: true, keyVersion: true },
   });
   if (!company?.encryptionSetupAt) {
     return NextResponse.json<ApiResponse<never>>(
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const dataKey = getDataKeyFromRequest(request);
+  const dataKey = getDataKeyFromRequest(request, company.keyVersion);
   if (!dataKey) {
     return NextResponse.json<ApiResponse<never>>(
       {

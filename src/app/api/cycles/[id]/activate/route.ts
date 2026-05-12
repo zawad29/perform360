@@ -21,6 +21,22 @@ export async function POST(
   const authResult = await requireAdminOrHR();
   if (isAuthError(authResult)) return authResult;
 
+  const company = await prisma.company.findUnique({
+    where: { id: authResult.companyId },
+    select: { encryptionSetupAt: true, keyVersion: true },
+  });
+
+  if (!company?.encryptionSetupAt) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Encryption is not set up. Complete encryption setup before activating a cycle.",
+        code: "ENCRYPTION_NOT_SETUP",
+      },
+      { status: 400 }
+    );
+  }
+
   // 1. Fetch cycle and validate
   const cycle = await prisma.evaluationCycle.findFirst({
     where: {
@@ -49,7 +65,7 @@ export async function POST(
 
   // Require the admin's decrypted data key (from encryption unlock session).
   // This is cached on the cycle so the submission route can encrypt reviewer answers.
-  const dataKey = getDataKeyFromRequest(request);
+  const dataKey = getDataKeyFromRequest(request, company.keyVersion);
   if (!dataKey) {
     return NextResponse.json(
       {

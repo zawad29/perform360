@@ -7,6 +7,7 @@ import { parseResponse } from "../helpers";
 
 const unlockRoute = await import("@/app/api/encryption/unlock/route");
 const statusRoute = await import("@/app/api/encryption/status/route");
+const hardResetRoute = await import("@/app/api/encryption/hard-reset/route");
 
 function setupAuth(role: "ADMIN" | "HR" | "EMPLOYEE" = "ADMIN") {
   vi.mocked(auth).mockResolvedValue({
@@ -83,6 +84,10 @@ describe("GET /api/encryption/unlock (check cookie)", () => {
 
   it("returns unlocked: false when no cookie", async () => {
     setupAuth("ADMIN");
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({
+      encryptionSetupAt: new Date("2025-01-01"),
+      keyVersion: 2,
+    } as any);
     vi.mocked(getDataKeyFromRequest).mockReturnValue(null);
 
     const req = makeReq("http://localhost:3000/api/encryption/unlock");
@@ -94,12 +99,87 @@ describe("GET /api/encryption/unlock (check cookie)", () => {
 
   it("returns unlocked: true when cookie present", async () => {
     setupAuth("HR");
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({
+      encryptionSetupAt: new Date("2025-01-01"),
+      keyVersion: 3,
+    } as any);
     vi.mocked(getDataKeyFromRequest).mockReturnValue(Buffer.alloc(32, "k"));
 
     const req = makeReq("http://localhost:3000/api/encryption/unlock");
     const res = await unlockRoute.GET(req);
     const { body } = await parseResponse(res);
     expect(body.data.unlocked).toBe(true);
+  });
+});
+
+describe("POST /api/encryption/hard-reset", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns 400 when confirmation text is wrong", async () => {
+    setupAuth("ADMIN");
+    const req = makeReq("http://localhost:3000/api/encryption/hard-reset", {
+      method: "POST",
+      body: {
+        newPassphrase: "brand-new-secret",
+        confirmNewPassphrase: "brand-new-secret",
+        confirmationText: "RESET",
+      },
+    });
+
+    const res = await hardResetRoute.POST(req);
+    const { status, body } = await parseResponse(res);
+    expect(status).toBe(400);
+    expect(body.error).toContain("RESET ENCRYPTION");
+  });
+
+  it("hard resets encryption, rotates key version, and clears the unlock cookie", async () => {
+    setupAuth("ADMIN");
+
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({
+      encryptionSetupAt: new Date("2025-01-01"),
+      keyVersion: 2,
+    } as any);
+
+    const tx = {
+      company: { update: vi.fn().mockResolvedValue(undefined) },
+      recoveryCode: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 8 }),
+        createMany: vi.fn().mockResolvedValue({ count: 8 }),
+      },
+      evaluationCycle: {
+        updateMany: vi.fn().mockResolvedValue({ count: 2 }),
+      },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(async (cb: unknown) => {
+      if (typeof cb !== "function") throw new Error("Expected transaction callback");
+      return cb(tx as any);
+    });
+
+    const req = makeReq("http://localhost:3000/api/encryption/hard-reset", {
+      method: "POST",
+      body: {
+        newPassphrase: "brand-new-secret",
+        confirmNewPassphrase: "brand-new-secret",
+        confirmationText: "RESET ENCRYPTION",
+      },
+    });
+
+    const res = await hardResetRoute.POST(req);
+    const { status, body } = await parseResponse(res);
+
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.data.keyVersion).toBe(3);
+    expect(body.data.recoveryCodes).toHaveLength(8);
+    expect(tx.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          keyVersion: 3,
+        }),
+      })
+    );
+    expect(tx.evaluationCycle.updateMany).toHaveBeenCalled();
+    expect(res.headers.get("set-cookie")).toContain("_enc_dk=");
   });
 });
 

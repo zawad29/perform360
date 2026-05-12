@@ -8,6 +8,7 @@ import {
   decryptDataKey,
   encryptDataKey,
 } from "@/lib/encryption";
+import { encryptDataKeyForCookie } from "@/lib/encryption-session";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit";
 import { enqueue } from "@/lib/queue";
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
     // Generate new data key and encrypt it with existing master key
     const newDataKey = generateDataKey();
     const newEncryptedDataKey = encryptDataKey(newDataKey, masterKey);
+    const cachedDataKeyEncrypted = encryptDataKeyForCookie(newDataKey);
     const newKeyVersion = company.keyVersion + 1;
 
     // Recovery codes store an independently encrypted copy of the data key.
@@ -89,6 +91,14 @@ export async function POST(request: NextRequest) {
           encryptionKeyEncrypted: newEncryptedDataKey,
           keyVersion: newKeyVersion,
         },
+      });
+
+      await tx.evaluationCycle.updateMany({
+        where: {
+          companyId: authResult.companyId,
+          cachedDataKeyEncrypted: { not: null },
+        },
+        data: { cachedDataKeyEncrypted },
       });
 
       if (recoveryCodesInvalidated) {

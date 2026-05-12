@@ -25,7 +25,7 @@ describe("Encryption Session", () => {
       const { encryptDataKeyForCookie, decryptDataKeyFromCookie } = await getModule();
       const dataKey = Buffer.alloc(32, "a");
 
-      const cookieValue = encryptDataKeyForCookie(dataKey);
+      const cookieValue = encryptDataKeyForCookie(dataKey, 2);
       expect(typeof cookieValue).toBe("string");
       expect(cookieValue.length).toBeGreaterThan(0);
 
@@ -98,17 +98,29 @@ describe("Encryption Session", () => {
     it("decrypts data key from valid cookie", async () => {
       const { encryptDataKeyForCookie, getDataKeyFromRequest, COOKIE_NAME } = await getModule();
       const dataKey = Buffer.alloc(32, "d");
-      const cookieValue = encryptDataKeyForCookie(dataKey);
+      const cookieValue = encryptDataKeyForCookie(dataKey, 4);
 
       const request = {
         cookies: { get: vi.fn().mockReturnValue({ value: cookieValue }) },
       } as unknown as import("next/server").NextRequest;
 
-      const result = getDataKeyFromRequest(request);
+      const result = getDataKeyFromRequest(request, 4);
       expect(result).not.toBeNull();
       expect(result!.equals(dataKey)).toBe(true);
 
       expect(request.cookies.get).toHaveBeenCalledWith(COOKIE_NAME);
+    });
+
+    it("returns null when the cookie key version does not match", async () => {
+      const { encryptDataKeyForCookie, getDataKeyFromRequest } = await getModule();
+      const cookieValue = encryptDataKeyForCookie(Buffer.alloc(32, "z"), 5);
+
+      const request = {
+        cookies: { get: vi.fn().mockReturnValue({ value: cookieValue }) },
+      } as unknown as import("next/server").NextRequest;
+
+      const result = getDataKeyFromRequest(request, 6);
+      expect(result).toBeNull();
     });
   });
 

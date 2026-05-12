@@ -58,6 +58,14 @@ export default function EncryptionSettingsPage() {
   const [_rotationJobId, setRotationJobId] = useState<string | null>(null);
   const [rotationStatus, setRotationStatus] = useState<"idle" | "processing" | "completed" | "failed">("idle");
 
+  // Hard reset state
+  const [showHardResetDialog, setShowHardResetDialog] = useState(false);
+  const [hardResetPassphrase, setHardResetPassphrase] = useState("");
+  const [hardResetConfirmPassphrase, setHardResetConfirmPassphrase] = useState("");
+  const [hardResetConfirmationText, setHardResetConfirmationText] = useState("");
+  const [isHardResetting, setIsHardResetting] = useState(false);
+  const [hardResetCodes, setHardResetCodes] = useState<string[]>([]);
+
   const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/encryption/status");
@@ -153,14 +161,14 @@ export default function EncryptionSettingsPage() {
     }
   }
 
-  async function handleCopyCodes() {
-    await navigator.clipboard.writeText(newCodes.join("\n"));
+  async function copyCodes(codes: string[]) {
+    await navigator.clipboard.writeText(codes.join("\n"));
     setCopied(true);
     addToast("Recovery codes copied to clipboard", "success");
     setTimeout(() => setCopied(false), 2000);
   }
 
-  function handleDownloadCodes() {
+  function downloadCodes(codes: string[]) {
     const content = [
       "Performs360 — Encryption Recovery Codes",
       "Generated: " + new Date().toISOString(),
@@ -168,7 +176,7 @@ export default function EncryptionSettingsPage() {
       "IMPORTANT: Store these codes in a secure location.",
       "Each code can only be used once.",
       "",
-      ...newCodes.map((code, i) => `${i + 1}. ${code}`),
+      ...codes.map((code, i) => `${i + 1}. ${code}`),
     ].join("\n");
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -177,6 +185,37 @@ export default function EncryptionSettingsPage() {
     a.download = "performs360-recovery-codes.txt";
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function handleHardReset() {
+    setIsHardResetting(true);
+    try {
+      const res = await fetch("/api/encryption/hard-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          newPassphrase: hardResetPassphrase,
+          confirmNewPassphrase: hardResetConfirmPassphrase,
+          confirmationText: hardResetConfirmationText,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setHardResetCodes(data.data.recoveryCodes);
+        setHardResetPassphrase("");
+        setHardResetConfirmPassphrase("");
+        setHardResetConfirmationText("");
+        setRotationStatus("idle");
+        addToast("Encryption hard reset complete. Previous encrypted data is no longer readable.", "warning");
+        fetchStatus();
+      } else {
+        addToast(data.error || "Failed to hard reset encryption", "error");
+      }
+    } catch {
+      addToast("Network error", "error");
+    } finally {
+      setIsHardResetting(false);
+    }
   }
 
   async function handleRotateKey() {
@@ -493,6 +532,45 @@ export default function EncryptionSettingsPage() {
             )}
           </div>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div>
+                <AlertTriangle size={20} strokeWidth={1.5} className="text-gray-900" />
+              </div>
+              <div>
+                <CardTitle>Hard Reset Encryption</CardTitle>
+                <CardDescription>
+                  Start fresh with a brand-new encryption key and passphrase. Existing encrypted responses will become unreadable.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <div className="mt-4 space-y-4">
+            <div className="flex gap-3 p-3 border border-gray-900">
+              <AlertTriangle size={16} strokeWidth={1.5} className="text-gray-900 flex-shrink-0 mt-0.5" />
+              <div className="text-[13px] text-gray-900 space-y-1">
+                <p className="font-medium">Use this only if you cannot recover the current passphrase.</p>
+                <p>Old encrypted report data will remain in the database but can no longer be decrypted.</p>
+                <p>Active cycles will continue, but new submissions will use the new encryption key.</p>
+              </div>
+            </div>
+            <Button
+              variant="danger"
+              className="text-red-600"
+              onClick={() => {
+                setShowHardResetDialog(true);
+                setHardResetPassphrase("");
+                setHardResetConfirmPassphrase("");
+                setHardResetConfirmationText("");
+                setHardResetCodes([]);
+              }}
+            >
+              Hard Reset Encryption
+            </Button>
+          </div>
+        </Card>
       </div>
 
       {/* Regenerate Recovery Codes Dialog */}
@@ -523,11 +601,11 @@ export default function EncryptionSettingsPage() {
                 ))}
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
-                <Button variant="secondary" onClick={handleCopyCodes} className="flex-1">
+                <Button variant="secondary" onClick={() => copyCodes(newCodes)} className="flex-1">
                   <Copy size={16} strokeWidth={1.5} className="mr-2" />
                   {copied ? "Copied!" : "Copy All"}
                 </Button>
-                <Button variant="secondary" onClick={handleDownloadCodes} className="flex-1">
+                <Button variant="secondary" onClick={() => downloadCodes(newCodes)} className="flex-1">
                   <Download size={16} strokeWidth={1.5} className="mr-2" />
                   Download
                 </Button>
@@ -611,6 +689,110 @@ export default function EncryptionSettingsPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showHardResetDialog} onOpenChange={setShowHardResetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {hardResetCodes.length > 0 ? "New Recovery Codes" : "Hard Reset Encryption"}
+            </DialogTitle>
+            <DialogDescription>
+              {hardResetCodes.length > 0
+                ? "Save these recovery codes now. This is the only time they will be shown."
+                : "This creates a new encryption key and passphrase without the old one. Previously encrypted responses will become unreadable."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {hardResetCodes.length > 0 ? (
+            <div className="space-y-4 mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {hardResetCodes.map((code, i) => (
+                  <div
+                    key={i}
+                    className="px-3 py-2 bg-gray-50 border border-gray-900 font-mono text-[13px] sm:text-[14px] text-gray-800 text-center"
+                  >
+                    {code}
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button variant="secondary" onClick={() => copyCodes(hardResetCodes)} className="flex-1">
+                  <Copy size={16} strokeWidth={1.5} className="mr-2" />
+                  {copied ? "Copied!" : "Copy All"}
+                </Button>
+                <Button variant="secondary" onClick={() => downloadCodes(hardResetCodes)} className="flex-1">
+                  <Download size={16} strokeWidth={1.5} className="mr-2" />
+                  Download
+                </Button>
+              </div>
+              <Button
+                onClick={() => {
+                  setShowHardResetDialog(false);
+                  setHardResetCodes([]);
+                }}
+                className="w-full"
+              >
+                Done
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 mt-2">
+              <div className="flex gap-3 p-3 border border-gray-900">
+                <AlertTriangle size={16} strokeWidth={1.5} className="text-gray-900 flex-shrink-0 mt-0.5" />
+                <div className="text-[13px] text-gray-900 space-y-1">
+                  <p className="font-medium">This action will:</p>
+                  <p>Generate a brand-new data encryption key and passphrase.</p>
+                  <p>Invalidate your current unlock session and replace all recovery codes.</p>
+                  <p>Make existing encrypted responses permanently unreadable.</p>
+                </div>
+              </div>
+              <Input
+                id="hard-reset-passphrase"
+                label="New Passphrase"
+                type="password"
+                placeholder="Enter new passphrase (12+ characters)"
+                value={hardResetPassphrase}
+                onChange={(e) => setHardResetPassphrase(e.target.value)}
+              />
+              <Input
+                id="hard-reset-confirm-passphrase"
+                label="Confirm New Passphrase"
+                type="password"
+                placeholder="Confirm new passphrase"
+                value={hardResetConfirmPassphrase}
+                onChange={(e) => setHardResetConfirmPassphrase(e.target.value)}
+                error={hardResetConfirmPassphrase && hardResetPassphrase !== hardResetConfirmPassphrase ? "Passphrases do not match" : undefined}
+              />
+              <Input
+                id="hard-reset-confirmation-text"
+                label='Type "RESET ENCRYPTION" to Confirm'
+                type="text"
+                placeholder="RESET ENCRYPTION"
+                value={hardResetConfirmationText}
+                onChange={(e) => setHardResetConfirmationText(e.target.value)}
+              />
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => setShowHardResetDialog(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  className="flex-1 text-red-600"
+                  onClick={handleHardReset}
+                  disabled={
+                    hardResetPassphrase.length < 12 ||
+                    hardResetPassphrase !== hardResetConfirmPassphrase ||
+                    hardResetConfirmationText.trim() !== "RESET ENCRYPTION" ||
+                    isHardResetting
+                  }
+                >
+                  {isHardResetting ? "Resetting..." : "Permanently Reset Encryption"}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

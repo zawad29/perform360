@@ -42,7 +42,7 @@ export async function GET(
   // Check if encryption is still set up (may have been reset by superadmin)
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { encryptionSetupAt: true },
+    select: { encryptionSetupAt: true, keyVersion: true },
   });
   if (!company?.encryptionSetupAt) {
     return NextResponse.json<ApiResponse<never>>(
@@ -51,7 +51,7 @@ export async function GET(
     );
   }
 
-  const dataKey = getDataKeyFromRequest(request);
+  const dataKey = getDataKeyFromRequest(request, company.keyVersion);
   if (!dataKey) {
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: "Encryption locked. Enter your passphrase to view reports.", code: "ENCRYPTION_LOCKED" },

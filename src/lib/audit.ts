@@ -10,6 +10,7 @@ type AuditAction =
   | "cycle_remind"
   | "cycle_close"
   | "encryption_setup"
+  | "encryption_hard_reset"
   | "encryption_passphrase_change"
   | "encryption_recovery"
   | "recovery_codes_regenerate"

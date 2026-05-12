@@ -25,6 +25,10 @@ describe("Integration: Cycle Lifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth(fixtures.admin);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({
+      encryptionSetupAt: new Date("2025-01-01"),
+      keyVersion: 1,
+    } as any);
   });
 
   it("DRAFT → cannot activate without encryption key", async () => {
