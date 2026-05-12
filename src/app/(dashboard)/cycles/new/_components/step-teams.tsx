@@ -6,6 +6,7 @@ import { MultiCombobox } from "@/components/ui/multi-combobox";
 import type { MultiComboboxOption } from "@/components/ui/multi-combobox";
 import { Plus, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { RoutingMatrix, type MatrixTemplate } from "@/components/cycles/routing-matrix";
+import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 import type {
   AssignmentGroup,
   CoverageGapTeam,
@@ -23,11 +24,6 @@ interface StepTeamsProps {
   onTeamSearch: (q: string) => void;
   onTemplateSearch: (q: string) => void;
   fetchError: string;
-}
-
-// Members that count as evaluation subjects (skip impersonators).
-function isEvaluableRole(role: string) {
-  return role === "MANAGER" || role === "MEMBER" || role === "EXTERNAL";
 }
 
 function computeGroupGaps(
@@ -49,7 +45,7 @@ function computeGroupGaps(
     if (!team) continue;
 
     const uncovered = team.members
-      .filter((m) => isEvaluableRole(m.role))
+      .filter((m) => isCycleSubjectRole(m.role))
       .filter((m) => m.levelId === null || !coveredLevelIds.has(m.levelId))
       .map((m) => ({
         userId: m.userId,
@@ -210,7 +206,7 @@ export function StepTeams({
                     className="text-gray-900 mt-0.5 shrink-0"
                   />
                   <p className="text-[12px] text-gray-700">
-                    All evaluable members are covered by a matching template.
+                    All cycle subjects are covered by a matching template.
                   </p>
                 </div>
               )}

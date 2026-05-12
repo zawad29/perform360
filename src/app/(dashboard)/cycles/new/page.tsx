@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/page-header";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 import { useDebouncedSearch } from "./_components/use-debounced-search";
 import { StepBasics } from "./_components/step-basics";
 import { StepTeams } from "./_components/step-teams";
@@ -96,7 +97,7 @@ export default function NewCyclePage() {
         if (!team) continue;
         const hasGap = team.members.some(
           (m) =>
-            (m.role === "MANAGER" || m.role === "MEMBER" || m.role === "EXTERNAL") &&
+            isCycleSubjectRole(m.role) &&
             (m.levelId === null || !coveredLevelIds.has(m.levelId))
         );
         if (hasGap) return true;

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { generateToken } from "@/lib/tokens";
 import { Direction } from "@prisma/client";
 import { DIRECTION_KEYS, isValidDirection } from "@/lib/directions";
+import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 import {
   resolveAssignmentForm,
   type SectionShape,
@@ -294,7 +295,7 @@ export async function validateTeamTemplateCoverage(
     const coveredLevels = new Set(assigned.flatMap((t) => t.levelIds));
     const missing: CoverageGap["members"] = [];
     for (const m of team.members) {
-      if (m.role === "EXTERNAL" || m.role === "IMPERSONATOR") continue;
+      if (!isCycleSubjectRole(m.role)) continue;
       if (m.levelId === null || !coveredLevels.has(m.levelId)) {
         missing.push({
           userId: m.userId,

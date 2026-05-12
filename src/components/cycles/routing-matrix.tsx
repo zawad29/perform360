@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 import { resolveTemplateForSubject, type TemplateMeta } from "@/lib/template-routing";
 import type { DirectionWeights } from "@/lib/directions";
 import { RoutingPreviewModal } from "./routing-preview-modal";
@@ -31,7 +32,10 @@ interface RoutingMatrixProps {
   templates: MatrixTemplate[];
 }
 
-const COLUMN_ORDER: Array<MatrixMember["role"]> = ["MANAGER", "MEMBER", "EXTERNAL"];
+const COLUMN_ORDER: Array<Extract<MatrixMember["role"], "MANAGER" | "MEMBER">> = [
+  "MANAGER",
+  "MEMBER",
+];
 const COLUMN_LABEL: Record<MatrixMember["role"], string> = {
   MANAGER: "Manager",
   MEMBER: "Member",
@@ -51,9 +55,10 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
     template: MatrixTemplate;
   } | null>(null);
 
-  // Filter out impersonators — they aren't subjects, they're stand-in reviewers.
+  // Only managers and members are cycle subjects. Externals and impersonators
+  // are reviewers only, so they should not participate in subject routing.
   const evaluable = useMemo(
-    () => members.filter((m) => m.role !== "IMPERSONATOR"),
+    () => members.filter((m) => isCycleSubjectRole(m.role)),
     [members]
   );
 
