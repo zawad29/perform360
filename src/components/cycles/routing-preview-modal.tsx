@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TemplatePreview } from "@/components/templates/template-preview";
@@ -55,11 +55,9 @@ export function RoutingPreviewModal({
 
   const [activeDirection, setActiveDirection] = useState<Direction>(directions[0]?.key ?? "DOWNWARD");
 
-  useEffect(() => {
-    if (!directions.some((direction) => direction.key === activeDirection)) {
-      setActiveDirection(directions[0]?.key ?? "DOWNWARD");
-    }
-  }, [activeDirection, directions]);
+  const resolvedDirection = directions.some((d) => d.key === activeDirection)
+    ? activeDirection
+    : (directions[0]?.key ?? "DOWNWARD");
 
   const profile = ROLE_TO_PROFILE[subjectRole];
   const appliedWeights = profile === "manager" ? weightsManager : weightsMember;
@@ -91,7 +89,7 @@ export function RoutingPreviewModal({
         {/* Direction tab strip */}
         <div className="flex border-b border-gray-200 px-5 mt-3 overflow-x-auto shrink-0" role="tablist">
           {directions.map((d) => {
-            const active = d.key === activeDirection;
+            const active = d.key === resolvedDirection;
             return (
               <button
                 key={d.key}
@@ -118,7 +116,7 @@ export function RoutingPreviewModal({
             name={template.name}
             description={template.description ?? ""}
             sections={sections}
-            directionFilter={activeDirection}
+            directionFilter={resolvedDirection}
           />
         </div>
 
@@ -131,7 +129,7 @@ export function RoutingPreviewModal({
             <div className="flex items-center gap-3 text-[12px] text-gray-600 flex-wrap">
               {directions.map((d) => {
                 const value = appliedWeights[d.key.toLowerCase() as keyof DirectionWeights];
-                const isCurrent = d.key === activeDirection;
+                const isCurrent = d.key === resolvedDirection;
                 return (
                   <span
                     key={d.key}
@@ -144,7 +142,7 @@ export function RoutingPreviewModal({
             </div>
           ) : (
             <span className="text-[12px] text-gray-500">
-              No weights configured · {DIRECTION_LABELS[activeDirection]} averages contribute equally
+              No weights configured · {DIRECTION_LABELS[resolvedDirection]} averages contribute equally
             </span>
           )}
         </div>
