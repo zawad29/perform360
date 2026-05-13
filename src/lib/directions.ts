@@ -9,6 +9,9 @@ export interface DirectionMeta {
   description: string;
 }
 
+export type SubjectRole = "MANAGER" | "MEMBER";
+export type TemplatePreviewAudience = SubjectRole | "EXTERNAL_REVIEWER";
+
 export const DIRECTIONS: readonly DirectionMeta[] = [
   {
     key: "DOWNWARD",
@@ -51,6 +54,36 @@ export const DIRECTION_LABELS: Record<Direction, string> = Object.fromEntries(
 export const DIRECTION_GLYPHS: Record<Direction, string> = Object.fromEntries(
   DIRECTIONS.map((d) => [d.key, d.glyph])
 ) as Record<Direction, string>;
+
+export const SUBJECT_DIRECTIONS: Record<SubjectRole, readonly Direction[]> = {
+  MEMBER: ["DOWNWARD", "LATERAL", "SELF", "EXTERNAL"],
+  MANAGER: ["UPWARD", "LATERAL", "SELF", "EXTERNAL"],
+};
+
+export function getDirectionsForSubjectRole(role: SubjectRole): readonly Direction[] {
+  return SUBJECT_DIRECTIONS[role];
+}
+
+export function getDirectionMetaForSubjectRole(
+  role: SubjectRole,
+  availableDirections?: readonly Direction[]
+): DirectionMeta[] {
+  const allowed = new Set(getDirectionsForSubjectRole(role));
+  return DIRECTIONS.filter(
+    (direction) =>
+      allowed.has(direction.key) &&
+      (!availableDirections || availableDirections.includes(direction.key))
+  );
+}
+
+export function getDirectionMetaForTemplatePreview(
+  audience: TemplatePreviewAudience
+): DirectionMeta[] {
+  if (audience === "EXTERNAL_REVIEWER") {
+    return DIRECTIONS.filter((direction) => direction.key === "EXTERNAL");
+  }
+  return getDirectionMetaForSubjectRole(audience);
+}
 
 // Monochrome palette used by report charts (score, trend, comparison).
 // Single source of truth so palette changes don't drift across charts.

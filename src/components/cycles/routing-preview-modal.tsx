@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TemplatePreview } from "@/components/templates/template-preview";
 import {
-  DIRECTIONS,
   DIRECTION_LABELS,
+  getDirectionMetaForSubjectRole,
   type Direction,
   type DirectionWeights,
+  type SubjectRole,
 } from "@/lib/directions";
 import type { TemplateMeta } from "@/lib/template-routing";
 import type { TemplateQuestion } from "@/types/evaluation";
@@ -22,7 +23,7 @@ interface RoutingPreviewModalProps {
   subjectName?: string;
   subjectLabel: string; // e.g. "MEMBER · SE L-1"
   // The subject's role drives which weight column applies.
-  subjectRole: "MANAGER" | "MEMBER" | "EXTERNAL";
+  subjectRole: SubjectRole;
   weightsMember: DirectionWeights | null;
   weightsManager: DirectionWeights | null;
   // Restrict the direction tab strip when previewing a real subject who only
@@ -34,7 +35,6 @@ interface RoutingPreviewModalProps {
 const ROLE_TO_PROFILE: Record<RoutingPreviewModalProps["subjectRole"], "member" | "manager"> = {
   MANAGER: "manager",
   MEMBER: "member",
-  EXTERNAL: "member",
 };
 
 export function RoutingPreviewModal({
@@ -48,11 +48,18 @@ export function RoutingPreviewModal({
   weightsManager,
   availableDirections,
 }: RoutingPreviewModalProps) {
-  const directions = availableDirections && availableDirections.length > 0
-    ? DIRECTIONS.filter((d) => availableDirections.includes(d.key))
-    : DIRECTIONS;
+  const directions = useMemo(
+    () => getDirectionMetaForSubjectRole(subjectRole, availableDirections),
+    [availableDirections, subjectRole]
+  );
 
   const [activeDirection, setActiveDirection] = useState<Direction>(directions[0]?.key ?? "DOWNWARD");
+
+  useEffect(() => {
+    if (!directions.some((direction) => direction.key === activeDirection)) {
+      setActiveDirection(directions[0]?.key ?? "DOWNWARD");
+    }
+  }, [activeDirection, directions]);
 
   const profile = ROLE_TO_PROFILE[subjectRole];
   const appliedWeights = profile === "manager" ? weightsManager : weightsMember;
@@ -122,7 +129,7 @@ export function RoutingPreviewModal({
           </Badge>
           {appliedWeights ? (
             <div className="flex items-center gap-3 text-[12px] text-gray-600 flex-wrap">
-              {DIRECTIONS.map((d) => {
+              {directions.map((d) => {
                 const value = appliedWeights[d.key.toLowerCase() as keyof DirectionWeights];
                 const isCurrent = d.key === activeDirection;
                 return (

@@ -10,7 +10,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/page-header";
 import { Edit, Copy, Globe, Building2, AlertCircle, Layers, FileText, Calendar } from "lucide-react";
 import Link from "next/link";
-import { DIRECTIONS, DIRECTION_LABELS, DIRECTION_GLYPHS, type Direction, type DirectionWeights, type WeightPreset } from "@/lib/directions";
+import {
+  DIRECTIONS,
+  DIRECTION_LABELS,
+  DIRECTION_GLYPHS,
+  type Direction,
+  type DirectionWeights,
+  type SubjectRole,
+  type WeightPreset,
+} from "@/lib/directions";
 import { TemplatePreview } from "@/components/templates/template-preview";
 import { TemplateVersionHistory } from "@/components/templates/template-version-history";
 import type { TemplateQuestion } from "@/types/evaluation";
@@ -45,6 +53,46 @@ interface Template {
   createdAt: string;
 }
 
+interface PreviewFlowOption {
+  direction: Direction;
+  label: string;
+  description: string;
+  fixedSubjectRole: SubjectRole | null;
+}
+
+const PREVIEW_FLOW_OPTIONS: readonly PreviewFlowOption[] = [
+  {
+    direction: "DOWNWARD",
+    label: "Manager -> Member",
+    description: "What a manager fills out for a member.",
+    fixedSubjectRole: "MEMBER",
+  },
+  {
+    direction: "UPWARD",
+    label: "Member -> Manager",
+    description: "What a member fills out for a manager.",
+    fixedSubjectRole: "MANAGER",
+  },
+  {
+    direction: "LATERAL",
+    label: "Peer",
+    description: "Peer review between teammates.",
+    fixedSubjectRole: null,
+  },
+  {
+    direction: "SELF",
+    label: "Self",
+    description: "What someone fills out about themselves.",
+    fixedSubjectRole: null,
+  },
+  {
+    direction: "EXTERNAL",
+    label: "External",
+    description: "What an outside reviewer fills out.",
+    fixedSubjectRole: null,
+  },
+] as const;
+
 
 export default function TemplateDetailPage() {
   const params = useParams<{ templateId: string }>();
@@ -53,8 +101,8 @@ export default function TemplateDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState(false);
-  const [previewRole, setPreviewRole] = useState<"MANAGER" | "MEMBER" | "EXTERNAL">("MEMBER");
   const [activeDirection, setActiveDirection] = useState<Direction>("DOWNWARD");
+  const [previewSubjectRole, setPreviewSubjectRole] = useState<SubjectRole>("MEMBER");
 
   const fetchTemplate = useCallback(async () => {
     setLoading(true);
@@ -160,8 +208,11 @@ export default function TemplateDetailPage() {
   }
 
   const totalQuestions = sections.reduce((acc, s) => acc + s.questions.length, 0);
-  const profile = previewRole === "MANAGER" ? "manager" : "member";
-  const appliedWeights = profile === "manager" ? template.weightsManager : template.weightsMember;
+  const activeFlow = PREVIEW_FLOW_OPTIONS.find((flow) => flow.direction === activeDirection) ?? PREVIEW_FLOW_OPTIONS[0];
+  const effectiveSubjectRole = activeFlow.fixedSubjectRole ?? previewSubjectRole;
+  const appliedWeights = effectiveSubjectRole === "MANAGER" ? template.weightsManager : template.weightsMember;
+  const activeWeight = appliedWeights?.[activeDirection.toLowerCase() as keyof DirectionWeights] ?? null;
+  const showSubjectRoleToggle = activeFlow.fixedSubjectRole === null;
 
   return (
     <div className="max-w-6xl">
@@ -345,45 +396,56 @@ export default function TemplateDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
         {/* Main: form preview */}
         <Card padding="sm" className="overflow-hidden p-0">
-          <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap items-center gap-3">
-            <p className="text-[12px] font-medium uppercase tracking-caps text-gray-700">Form preview</p>
-            <div className="inline-flex items-center gap-0.5 bg-gray-100 p-0.5 ml-auto">
-              {(["MEMBER", "MANAGER", "EXTERNAL"] as const).map((role) => (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => setPreviewRole(role)}
-                  className={`px-2.5 py-1 text-[11px] font-medium uppercase tracking-caps ${
-                    previewRole === role ? "bg-white text-gray-900" : "text-gray-500 hover:text-gray-900"
-                  }`}
-                >
-                  {role.charAt(0) + role.slice(1).toLowerCase()}
-                </button>
-              ))}
+          <div className="px-4 py-3 border-b border-gray-200 space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div>
+                <p className="text-[12px] font-medium uppercase tracking-caps text-gray-700">Form preview</p>
+                <p className="text-[12px] text-gray-500 mt-0.5">
+                  Pick the review flow you want to inspect.
+                </p>
+              </div>
+              {showSubjectRoleToggle && (
+                <div className="inline-flex items-center gap-0.5 bg-gray-100 p-0.5 ml-auto">
+                  {(["MEMBER", "MANAGER"] as const).map((role) => (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => setPreviewSubjectRole(role)}
+                      className={`px-2.5 py-1 text-[11px] font-medium uppercase tracking-caps ${
+                        effectiveSubjectRole === role ? "bg-white text-gray-900" : "text-gray-500 hover:text-gray-900"
+                      }`}
+                    >
+                      {role === "MEMBER" ? "For Member" : "For Manager"}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
 
-          <div className="flex border-b border-gray-200 px-4 overflow-x-auto" role="tablist">
-            {DIRECTIONS.map((d) => {
-              const active = d.key === activeDirection;
-              return (
-                <button
-                  key={d.key}
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setActiveDirection(d.key)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium uppercase tracking-caps shrink-0 ${
-                    active
-                      ? "text-gray-900 border-b-2 border-accent -mb-px"
-                      : "text-gray-500 hover:text-gray-900"
-                  }`}
-                  title={d.description}
-                >
-                  <span aria-hidden="true">{d.glyph}</span>
-                  {d.label}
-                </button>
-              );
-            })}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2">
+              {PREVIEW_FLOW_OPTIONS.map((flow) => {
+                const active = flow.direction === activeDirection;
+                return (
+                  <button
+                    key={flow.direction}
+                    type="button"
+                    onClick={() => setActiveDirection(flow.direction)}
+                    className={`border px-3 py-2 text-left ${
+                      active
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-400"
+                    }`}
+                  >
+                    <div className="text-[12px] font-medium uppercase tracking-caps">
+                      {flow.label}
+                    </div>
+                    <div className={`text-[11px] mt-1 ${active ? "text-gray-200" : "text-gray-500"}`}>
+                      {flow.description}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="bg-gray-50">
@@ -397,23 +459,18 @@ export default function TemplateDetailPage() {
 
           <div className="border-t border-gray-200 bg-white px-4 py-2 flex items-center gap-2.5 flex-wrap">
             <Badge variant="outline" className="shrink-0">
-              {profile === "manager" ? "Manager profile" : "Member profile"}
+              {activeFlow.label}
             </Badge>
-            {appliedWeights ? (
-              <div className="flex items-center gap-3 text-[12px] text-gray-600 flex-wrap">
-                {DIRECTIONS.map((d) => {
-                  const value = appliedWeights[d.key.toLowerCase() as keyof DirectionWeights];
-                  const isCurrent = d.key === activeDirection;
-                  return (
-                    <span key={d.key} className={isCurrent ? "text-gray-900 font-semibold" : ""}>
-                      <span aria-hidden="true">{d.glyph}</span> {Math.round(value)}%
-                    </span>
-                  );
-                })}
-              </div>
+            <Badge variant="outline" className="shrink-0">
+              {effectiveSubjectRole === "MANAGER" ? "Manager subject" : "Member subject"}
+            </Badge>
+            {activeWeight !== null ? (
+              <span className="text-[12px] text-gray-600">
+                This flow uses <span className="font-semibold text-gray-900">{Math.round(activeWeight)}%</span> of the {effectiveSubjectRole === "MANAGER" ? "manager" : "member"} profile.
+              </span>
             ) : (
               <span className="text-[12px] text-gray-500">
-                No weights · {DIRECTION_LABELS[activeDirection]} averages contribute equally
+                No weights configured for the {effectiveSubjectRole === "MANAGER" ? "manager" : "member"} profile.
               </span>
             )}
           </div>

@@ -326,6 +326,7 @@ export default function CycleDetailPage() {
   const [closing, setClosing] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [reopening, setReopening] = useState(false);
+  const [reopenEndDate, setReopenEndDate] = useState("");
   const [exportingExcel, setExportingExcel] = useState(false);
   const { locked, reset, handleApiResponse, handleUnlocked } = useEncryptionUnlock();
   const { addToast } = useToast();
@@ -693,10 +694,11 @@ export default function CycleDetailPage() {
   async function handleClose() {
     setClosing(true);
     try {
+      const todayIso = new Date().toISOString().split("T")[0];
       const res = await fetch(`/api/cycles/${cycleId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "CLOSED" }),
+        body: JSON.stringify({ status: "CLOSED", endDate: todayIso }),
       });
       const json = await res.json();
       if (json.success) {
@@ -716,14 +718,17 @@ export default function CycleDetailPage() {
   async function handleReopen() {
     setReopening(true);
     try {
+      const body: Record<string, string> = { status: "ACTIVE" };
+      if (reopenEndDate) body.endDate = reopenEndDate;
       const res = await fetch(`/api/cycles/${cycleId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "ACTIVE" }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (json.success) {
         setShowReopenDialog(false);
+        setReopenEndDate("");
         addToast("Cycle reopened", "success");
         fetchCycle();
       } else {
@@ -1901,7 +1906,13 @@ export default function CycleDetailPage() {
       </Dialog>
 
       {/* ─── Reopen Cycle Confirmation Dialog ─── */}
-      <Dialog open={showReopenDialog} onOpenChange={setShowReopenDialog}>
+      <Dialog
+        open={showReopenDialog}
+        onOpenChange={(open) => {
+          setShowReopenDialog(open);
+          if (!open) setReopenEndDate("");
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reopen this cycle?</DialogTitle>
@@ -1936,6 +1947,14 @@ export default function CycleDetailPage() {
                 </li>
               </ul>
             </div>
+            <Input
+              id="reopen-end-date"
+              label="New End Date"
+              type="date"
+              value={reopenEndDate}
+              onChange={(e) => setReopenEndDate(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+            />
           </div>
           <div className="flex justify-end gap-2">
             <Button
@@ -1945,7 +1964,7 @@ export default function CycleDetailPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleReopen} disabled={reopening}>
+            <Button onClick={handleReopen} disabled={reopening || !reopenEndDate}>
               {reopening ? (
                 "Reopening\u2026"
               ) : (

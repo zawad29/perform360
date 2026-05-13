@@ -242,7 +242,7 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
           template={previewSubject.template}
           subjectName={previewSubject.member.name}
           subjectLabel={`${COLUMN_LABEL[previewSubject.member.role] ?? previewSubject.member.role} · ${previewSubject.member.levelName ?? "no level"}`}
-          subjectRole={previewSubject.member.role === "IMPERSONATOR" ? "MEMBER" : previewSubject.member.role}
+          subjectRole={previewSubject.member.role === "MANAGER" ? "MANAGER" : "MEMBER"}
           weightsMember={previewSubject.template.weightsMember}
           weightsManager={previewSubject.template.weightsManager}
         />
