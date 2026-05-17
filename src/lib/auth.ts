@@ -1,5 +1,5 @@
 import NextAuth from "next-auth";
-import EmailProvider from "next-auth/providers/email";
+import EmailProvider from "next-auth/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "./prisma";
 import { sendEmail, getMagicLinkEmail } from "./email";
@@ -55,6 +55,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     EmailProvider({
       server: { host: "", port: 0, auth: { user: "", pass: "" } },
       from: "noreply@performs360.com",
+      maxAge: 5 * 60, // 5 minutes
       async sendVerificationRequest({ identifier: email, url }) {
         const { html, text } = getMagicLinkEmail(url);
         await sendEmail({

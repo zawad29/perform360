@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await signIn("email", {
+      await signIn("nodemailer", {
         email: parsed.data.email,
         redirect: false,
         redirectTo: "/overview",

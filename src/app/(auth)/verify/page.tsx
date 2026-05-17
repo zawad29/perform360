@@ -35,7 +35,7 @@ export default function VerifyPage() {
               Click the link in your email to sign in.
             </p>
             <p className="text-callout text-gray-400">
-              The link expires in 24 hours. Check your spam folder if you
+              The link expires in 5 minutes. Check your spam folder if you
               don&apos;t see it.
             </p>
           </div>
