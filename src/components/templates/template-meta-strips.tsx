@@ -69,24 +69,28 @@ export function TemplateMetaStrips({
 
   return (
     <div className="space-y-2">
-      <Strip
-        label="Levels"
-        summary={levelSummary}
-        open={openLevels}
-        onToggle={() => setOpenLevels((v) => !v)}
-        actionLabel={openLevels ? "Done" : "Change"}
-      />
+      <div data-tour="template-levels">
+        <Strip
+          label="Levels"
+          summary={levelSummary}
+          open={openLevels}
+          onToggle={() => setOpenLevels((v) => !v)}
+          actionLabel={openLevels ? "Done" : "Change"}
+        />
+      </div>
       {openLevels && (
         <TemplateLevels selected={levelIds} onChange={onLevelsChange} />
       )}
 
-      <Strip
-        label="Weights"
-        summary={weightSummary}
-        open={openWeights}
-        onToggle={() => setOpenWeights((v) => !v)}
-        actionLabel={openWeights ? "Done" : preset ? "Change" : "Add"}
-      />
+      <div data-tour="template-weights">
+        <Strip
+          label="Weights"
+          summary={weightSummary}
+          open={openWeights}
+          onToggle={() => setOpenWeights((v) => !v)}
+          actionLabel={openWeights ? "Done" : preset ? "Change" : "Add"}
+        />
+      </div>
       {openWeights && (
         <TemplateWeights
           preset={preset}

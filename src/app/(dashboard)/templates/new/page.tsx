@@ -77,7 +77,7 @@ export default function NewTemplatePage() {
         <Button variant="secondary" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button onClick={handleSave} disabled={isLoading || !name.trim()}>
+        <Button data-tour="template-save" onClick={handleSave} disabled={isLoading || !name.trim()}>
           {isLoading ? "Saving..." : "Save Template"}
         </Button>
       </PageHeader>

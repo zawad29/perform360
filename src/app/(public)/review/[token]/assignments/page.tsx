@@ -55,7 +55,7 @@ export default function ReviewAssignmentsPage({ params: paramsPromise }: { param
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 bg-white border border-gray-900 flex items-center justify-center">
             <Loader2 size={22} className="text-gray-900 animate-spin" />
@@ -71,7 +71,7 @@ export default function ReviewAssignmentsPage({ params: paramsPromise }: { param
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-[480px] space-y-8">
           <div className="text-center">
             <div className="w-16 h-16 bg-white border border-gray-900 flex items-center justify-center mx-auto mb-6">
@@ -100,7 +100,7 @@ export default function ReviewAssignmentsPage({ params: paramsPromise }: { param
   });
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="flex-1 bg-white">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white border-b border-gray-900">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">

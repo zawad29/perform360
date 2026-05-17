@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
+import { GitHubLink } from "@/components/ui/built-by";
 import { cn } from "@/lib/utils";
 import {
   ChevronLeft,
@@ -133,6 +134,11 @@ export function Sidebar({ companyName }: SidebarProps) {
           );
           return collapsed ? <Tooltip key={item.name} label={item.name}>{link}</Tooltip> : link;
         })}
+        {collapsed ? (
+          <Tooltip label="GitHub"><GitHubLink collapsed /></Tooltip>
+        ) : (
+          <GitHubLink />
+        )}
         {(() => {
           const signOutButton = (
             <button

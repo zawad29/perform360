@@ -46,6 +46,7 @@ export async function GET(
     where: { cycleId },
     select: {
       id: true,
+      token: true,
       templateId: true,
       subjectId: true,
       reviewerId: true,

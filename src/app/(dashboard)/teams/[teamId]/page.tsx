@@ -28,10 +28,11 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { UserPlus, MoreHorizontal, Mail, Trash2, AlertCircle, ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, ArrowRight, Archive, ArchiveRestore, Layers, Search, X } from "lucide-react";
+import { UserPlus, MoreHorizontal, Mail, Trash2, AlertCircle, ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, ArrowRight, Archive, ArchiveRestore, Layers, Search, X, Pencil } from "lucide-react";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { DIRECTIONS, DIRECTION_LABELS, type Direction } from "@/lib/directions";
 
@@ -253,6 +254,12 @@ export default function TeamDetailPage() {
   const [addImpersonatorDirs, setAddImpersonatorDirs] = useState<Direction[]>([]);
   const [addLoading, setAddLoading] = useState(false);
   const [levels, setLevels] = useState<LevelOption[]>([]);
+  // Edit member state
+  const [editMember, setEditMember] = useState<TeamMember | null>(null);
+  const [editRole, setEditRole] = useState("MEMBER");
+  const [editLevelId, setEditLevelId] = useState<string>("");
+  const [editImpersonatorDirs, setEditImpersonatorDirs] = useState<Direction[]>([]);
+  const [editLoading, setEditLoading] = useState(false);
   const { addToast } = useToast();
 
   const fetchTeam = useCallback(async () => {
@@ -388,6 +395,41 @@ export default function TeamDetailPage() {
     }
   };
 
+  const openEditDialog = (member: TeamMember) => {
+    setEditMember(member);
+    setEditRole(member.role);
+    setEditLevelId(member.levelId ?? "");
+    setEditImpersonatorDirs(member.impersonatorDirections ?? []);
+  };
+
+  const handleEditMember = async () => {
+    if (!editMember) return;
+    setEditLoading(true);
+    try {
+      const body: Record<string, unknown> = { role: editRole };
+      if (editRole !== "IMPERSONATOR" && editRole !== "EXTERNAL") {
+        body.levelId = editLevelId || null;
+      }
+      if (editRole === "IMPERSONATOR") {
+        body.impersonatorDirections = editImpersonatorDirs;
+      }
+      const res = await fetch(`/api/teams/${params.teamId}/members/${editMember.user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to update member");
+      addToast("Member updated", "success");
+      setEditMember(null);
+      fetchTeam();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : "Failed to update member", "error");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const handleRemoveMember = async (userId: string, name: string) => {
     try {
       const res = await fetch(`/api/teams/${params.teamId}/members/${userId}`, {
@@ -491,7 +533,7 @@ export default function TeamDetailPage() {
               <Archive size={16} strokeWidth={1.5} className="mr-1.5" />
               Archive
             </Button>
-            <Button onClick={() => setShowAddDialog(true)}>
+            <Button data-tour="add-member" onClick={() => setShowAddDialog(true)}>
               <UserPlus size={16} strokeWidth={1.5} className="mr-1.5" />
               Add Member
             </Button>
@@ -558,7 +600,7 @@ export default function TeamDetailPage() {
       </div>
 
       {/* Members List */}
-      <Card>
+      <Card data-tour="members-list">
         <CardHeader>
           <CardTitle>Members</CardTitle>
         </CardHeader>
@@ -579,13 +621,11 @@ export default function TeamDetailPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 shrink-0 pl-13 sm:pl-0">
-                  {levels.length > 0 && member.role !== "IMPERSONATOR" && member.role !== "EXTERNAL" && (
-                    <LevelPicker
-                      levels={levels}
-                      currentLevelId={member.levelId}
-                      currentLevelName={member.level?.name ?? null}
-                      onSelect={(levelId) => handleChangeLevel(member.user.id, levelId)}
-                    />
+                  {member.level && member.role !== "IMPERSONATOR" && member.role !== "EXTERNAL" && (
+                    <span className="inline-flex items-center gap-1 border border-gray-200 px-2.5 py-0.5 text-[12px] font-medium text-gray-500">
+                      <Layers size={12} strokeWidth={1.5} className="shrink-0" />
+                      {member.level.name}
+                    </span>
                   )}
                   {roleLabels[member.role] && (
                     <Badge variant={roleBadgeVariant[member.role]}>
@@ -608,8 +648,13 @@ export default function TeamDetailPage() {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEditDialog(member)}>
+                        <Pencil size={14} strokeWidth={1.5} className="mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        className="text-gray-900"
+                        className="text-red-600"
                         onClick={() => handleRemoveMember(member.user.id, member.user.name)}
                       >
                         <Trash2 size={14} strokeWidth={1.5} className="mr-2" />
@@ -623,6 +668,83 @@ export default function TeamDetailPage() {
           </div>
         )}
       </Card>
+
+      {/* Edit Member Dialog */}
+      <Dialog open={!!editMember} onOpenChange={(open) => { if (!open) setEditMember(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Member</DialogTitle>
+            <DialogDescription>{editMember?.user.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-medium text-gray-700">Team Role</label>
+              <Select
+                value={editRole}
+                onValueChange={(v) => {
+                  setEditRole(v);
+                  if (v !== "IMPERSONATOR") setEditImpersonatorDirs([]);
+                  if (v === "IMPERSONATOR" || v === "EXTERNAL") setEditLevelId("");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MANAGER">Manager</SelectItem>
+                  <SelectItem value="MEMBER">Member</SelectItem>
+                  <SelectItem value="EXTERNAL">External</SelectItem>
+                  <SelectItem value="IMPERSONATOR">Impersonator</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {editRole === "IMPERSONATOR" && (
+              <div className="space-y-1.5">
+                <label className="block text-[13px] font-medium text-gray-700">Directions to Cover</label>
+                <div className="flex flex-wrap gap-2">
+                  {IMPERSONATOR_DIRECTION_OPTIONS.map((opt) => (
+                    <label key={opt.value} className="flex items-center gap-1.5 text-[13px] text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editImpersonatorDirs.includes(opt.value)}
+                        onChange={(e) => {
+                          setEditImpersonatorDirs((prev) =>
+                            e.target.checked ? [...prev, opt.value] : prev.filter((r) => r !== opt.value)
+                          );
+                        }}
+                        className="border-gray-300"
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+                {editImpersonatorDirs.length === 0 && (
+                  <p role="alert" className="text-[12px] text-gray-900">Select at least one direction</p>
+                )}
+              </div>
+            )}
+
+            {levels.length > 0 && editRole !== "IMPERSONATOR" && editRole !== "EXTERNAL" && (
+              <AddLevelPicker
+                levels={levels}
+                selectedId={editLevelId}
+                onSelect={setEditLevelId}
+              />
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                disabled={editLoading || (editRole === "IMPERSONATOR" && editImpersonatorDirs.length === 0)}
+                onClick={handleEditMember}
+              >
+                {editLoading ? "Saving..." : "Save Changes"}
+              </Button>
+              <Button variant="ghost" onClick={() => setEditMember(null)}>Cancel</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Member Dialog */}
       <Dialog
@@ -644,18 +766,20 @@ export default function TeamDetailPage() {
             <DialogDescription>Add an existing user to this team</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            <Combobox
-              id="member-select"
-              label="Select Person"
-              placeholder="Search by name or email..."
-              value={selectedUserId}
-              onChange={setSelectedUserId}
-              options={userOptions}
-              onSearchChange={setUserSearchQuery}
-              loading={usersLoading}
-              emptyMessage="No matching users found"
-            />
-            <div className="space-y-1.5">
+            <div data-tour="member-search">
+              <Combobox
+                id="member-select"
+                label="Select Person"
+                placeholder="Search by name or email..."
+                value={selectedUserId}
+                onChange={setSelectedUserId}
+                options={userOptions}
+                onSearchChange={setUserSearchQuery}
+                loading={usersLoading}
+                emptyMessage="No matching users found"
+              />
+            </div>
+            <div className="space-y-1.5" data-tour="member-role">
               <label className="block text-[13px] font-medium text-gray-700">Team Role</label>
               <Select value={addRole} onValueChange={(v) => { setAddRole(v); if (v !== "IMPERSONATOR") setAddImpersonatorDirs([]); if (v === "IMPERSONATOR" || v === "EXTERNAL") setAddLevelId(""); }}>
                 <SelectTrigger>
@@ -670,7 +794,7 @@ export default function TeamDetailPage() {
               </Select>
             </div>
             {addRole === "IMPERSONATOR" && (
-              <div className="space-y-1.5">
+              <div className="space-y-1.5" data-tour="impersonator-directions">
                 <label className="block text-[13px] font-medium text-gray-700">Directions to Cover</label>
                 <div className="flex flex-wrap gap-2">
                   {IMPERSONATOR_DIRECTION_OPTIONS.map((opt) => (
@@ -695,11 +819,13 @@ export default function TeamDetailPage() {
               </div>
             )}
             {levels.length > 0 && addRole !== "IMPERSONATOR" && addRole !== "EXTERNAL" && (
-              <AddLevelPicker
-                levels={levels}
-                selectedId={addLevelId}
-                onSelect={setAddLevelId}
-              />
+              <div data-tour="member-level">
+                <AddLevelPicker
+                  levels={levels}
+                  selectedId={addLevelId}
+                  onSelect={setAddLevelId}
+                />
+              </div>
             )}
             <div className="flex gap-3 pt-2">
               <Button disabled={addLoading || !selectedUserId || (addRole === "IMPERSONATOR" && addImpersonatorDirs.length === 0)} onClick={handleAddMember}>

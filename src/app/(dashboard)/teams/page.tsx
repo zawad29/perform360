@@ -23,7 +23,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Users, Plus, Search, MoreHorizontal, Eye, Trash2, Archive, ArchiveRestore, ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, ArrowRight, Upload, Pencil, Layers } from "lucide-react";
+import { Users, Plus, Search, MoreHorizontal, Eye, Trash2, Archive, ArchiveRestore, ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, ArrowRight, Upload, Pencil, Layers, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorCard } from "@/components/ui/error-card";
 import Link from "next/link";
@@ -371,6 +371,7 @@ export default function TeamsPage() {
                   const managerCount = team.members.filter((m) => m.role === "MANAGER").length;
                   const memberCount = team.members.filter((m) => m.role === "MEMBER").length;
                   const externalCount = team.members.filter((m) => m.role === "EXTERNAL").length;
+                  const isIncomplete = managerCount < 1 || memberCount < 1;
                   const hasDownward = managerCount > 0 && memberCount > 0;
                   const hasUpward = managerCount > 0 && memberCount > 0;
                   const hasLateral = memberCount >= 2 || managerCount >= 2;
@@ -381,8 +382,16 @@ export default function TeamsPage() {
                     <Card key={team.id} className={`h-full flex flex-col group ${team.archivedAt ? "opacity-70" : ""}`}>
                       <CardHeader>
                         <div className="flex items-start justify-between">
-                          <div className="p-2.5">
-                            <Users size={20} strokeWidth={1.5} className="text-gray-900" />
+                          <div className="flex items-center gap-2">
+                            <div className="p-2.5">
+                              <Users size={20} strokeWidth={1.5} className="text-gray-900" />
+                            </div>
+                            {isIncomplete && !team.archivedAt && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-caps border border-red-500 bg-red-50 text-red-600">
+                                <AlertTriangle size={9} strokeWidth={2.5} />
+                                Incomplete
+                              </span>
+                            )}
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

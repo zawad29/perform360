@@ -163,7 +163,7 @@ export default function EvaluateOTPPage({ params: paramsPromise }: { params: Pro
   // Checking existing session
   if (isCheckingSession) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={24} className="text-gray-900 animate-spin" />
           <p className="text-[14px] text-gray-900">Verifying...</p>
@@ -175,7 +175,7 @@ export default function EvaluateOTPPage({ params: paramsPromise }: { params: Pro
   // Token validation error
   if (tokenError) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-[420px] space-y-8">
           <div className="text-center">
             <div className="w-16 h-16 bg-white border border-gray-900 flex items-center justify-center mx-auto mb-6">
@@ -192,7 +192,7 @@ export default function EvaluateOTPPage({ params: paramsPromise }: { params: Pro
   // Token still validating
   if (isValidating) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={24} className="text-gray-900 animate-spin" />
           <p className="text-[14px] text-gray-900">Validating evaluation link...</p>
@@ -202,7 +202,7 @@ export default function EvaluateOTPPage({ params: paramsPromise }: { params: Pro
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+    <div className="flex-1 flex items-center justify-center p-4">
       <div className="w-full max-w-[420px] space-y-8">
         <div className="text-center">
           <div className="w-16 h-16 bg-white border border-gray-900 flex items-center justify-center mx-auto mb-6">

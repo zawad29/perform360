@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TemplatePreview } from "@/components/templates/template-preview";
@@ -34,9 +33,7 @@ interface VersionEntry {
 
 interface Props {
   templateId: string;
-  /** Disables the Restore button (e.g. global templates can't be edited). */
   readOnly?: boolean;
-  /** Called after a successful restore so the parent can refetch the live template. */
   onRestored?: () => void;
 }
 
@@ -91,73 +88,102 @@ export function TemplateVersionHistory({ templateId, readOnly = false, onRestore
   }
 
   return (
-    <Card padding="md">
-      <div className="flex items-center gap-2 mb-3">
-        <History size={16} strokeWidth={1.5} className="text-gray-500" />
-        <h3 className="text-[14px] font-medium uppercase tracking-caps text-gray-900">
+    <Card padding="sm" className="p-0 overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
+        <History size={14} strokeWidth={1.5} className="text-gray-500 shrink-0" />
+        <p className="text-[12px] font-medium uppercase tracking-caps text-gray-700">
           Version history
-        </h3>
+        </p>
       </div>
 
       {loading && (
-        <div className="space-y-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
+        <div className="px-4 py-3 space-y-3">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
         </div>
       )}
 
       {error && !loading && (
-        <p role="alert" className="text-[13px] text-gray-900">{error}</p>
+        <p role="alert" className="px-4 py-3 text-[12px] text-[var(--color-error)]">{error}</p>
       )}
 
       {!loading && !error && versions.length === 0 && (
-        <p className="text-[13px] text-gray-400">No saved versions yet.</p>
+        <p className="px-4 py-4 text-[12px] text-gray-400">No saved versions yet.</p>
       )}
 
       {!loading && !error && versions.length > 0 && (
-        <ul className="divide-y divide-gray-100">
-          {versions.map((v) => {
+        <ol className="relative">
+          {versions.map((v, idx) => {
             const isCurrent = v.version === currentVersion;
+            const isLast = idx === versions.length - 1;
             return (
-              <li key={v.id} className="py-2 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-medium text-gray-900">
+              <li key={v.id} className="relative flex gap-3 px-4 py-3 group">
+                {/* Timeline spine */}
+                {!isLast && (
+                  <span className="absolute left-[26px] top-[36px] bottom-0 w-px bg-gray-100" aria-hidden="true" />
+                )}
+
+                {/* Version dot */}
+                <div className="shrink-0 flex flex-col items-center mt-0.5">
+                  <span
+                    className={`flex items-center justify-center w-5 h-5 text-[10px] font-bold border ${
+                      isCurrent
+                        ? "bg-[#111111] border-[#111111] text-white"
+                        : "bg-white border-gray-300 text-gray-500"
+                    }`}
+                  >
+                    {v.version}
+                  </span>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0 pt-0.5">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-[12px] font-semibold text-gray-900 truncate">
                       v{v.version}
+                      {isCurrent && (
+                        <span className="ml-1.5 text-[10px] font-medium text-[var(--color-accent)] uppercase tracking-caps">
+                          current
+                        </span>
+                      )}
                     </span>
-                    {isCurrent && (
-                      <Badge variant="outline" className="text-[10px]">Current</Badge>
-                    )}
                   </div>
-                  <p className="text-[12px] text-gray-500 truncate">
+                  <p className="text-[11px] text-gray-400">
                     {formatDate(v.createdAt)}
                   </p>
+
+                  {/* Actions — visible on row hover */}
+                  <div className="flex items-center gap-1.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewing(v)}
+                      aria-label={`View version ${v.version}`}
+                      className="h-6 px-2 text-[11px]"
+                    >
+                      <Eye size={11} strokeWidth={1.5} className="mr-1" />
+                      Preview
+                    </Button>
+                    {!readOnly && !isCurrent && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRestore(v)}
+                        disabled={restoring === v.id}
+                        aria-label={`Restore version ${v.version}`}
+                        className="h-6 px-2 text-[11px]"
+                      >
+                        <RotateCcw size={11} strokeWidth={1.5} className="mr-1" />
+                        {restoring === v.id ? "Restoring…" : "Restore"}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setViewing(v)}
-                  aria-label={`View version ${v.version}`}
-                >
-                  <Eye size={14} strokeWidth={1.5} className="mr-1" />
-                  View
-                </Button>
-                {!readOnly && !isCurrent && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRestore(v)}
-                    disabled={restoring === v.id}
-                    aria-label={`Restore version ${v.version}`}
-                  >
-                    <RotateCcw size={14} strokeWidth={1.5} className="mr-1" />
-                    {restoring === v.id ? "Restoring…" : "Restore"}
-                  </Button>
-                )}
               </li>
             );
           })}
-        </ul>
+        </ol>
       )}
 
       <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>

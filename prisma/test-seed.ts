@@ -47,6 +47,19 @@ function encryptDataKey(dataKey: Buffer, masterKey: Buffer): string {
   return Buffer.concat([iv, tag, encrypted]).toString("base64");
 }
 
+// Mirror of encryptDataKeyForCookie from src/lib/encryption-session.ts
+// cachedDataKeyEncrypted must be in this format so the submission route can decrypt it
+function encryptDataKeyForCycle(dataKey: Buffer): string {
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) throw new Error("NEXTAUTH_SECRET not set — cannot seed cachedDataKeyEncrypted");
+  const SESSION_KEY_SALT = "performs360-enc-session-key";
+  const salt = Buffer.alloc(32);
+  Buffer.from(SESSION_KEY_SALT, "utf-8").copy(salt);
+  const sessionKey = deriveKey(secret, salt);
+  const { encrypted, iv, tag } = encrypt(dataKey.toString("base64"), sessionKey);
+  return Buffer.from(JSON.stringify({ e: encrypted, i: iv, t: tag })).toString("base64");
+}
+
 function encrypt(plaintext: string, key: Buffer): { encrypted: string; iv: string; tag: string } {
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, key, iv);
@@ -656,7 +669,7 @@ async function main() {
       status: CycleStatus.CLOSED,
       startDate: new Date("2025-10-01"),
       endDate: new Date("2025-12-31"),
-      cachedDataKeyEncrypted: encryptedDataKey, // for test purposes, reuse company key
+      cachedDataKeyEncrypted: encryptDataKeyForCycle(dataKey),
     },
   });
 
@@ -938,8 +951,8 @@ async function main() {
       companyId: company.id,
       status: CycleStatus.ACTIVE,
       startDate: new Date("2026-01-01"),
-      endDate: new Date("2026-03-31"),
-      cachedDataKeyEncrypted: encryptedDataKey,
+      endDate: new Date("2026-12-31"),
+      cachedDataKeyEncrypted: encryptDataKeyForCycle(dataKey),
     },
   });
 

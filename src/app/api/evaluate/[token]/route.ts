@@ -28,7 +28,7 @@ export async function GET(
     const assignment = await prisma.evaluationAssignment.findUnique({
       where: { token },
       include: {
-        cycle: { select: { name: true, status: true, endDate: true } },
+        cycle: { select: { name: true, status: true } },
       },
     });
 
@@ -49,13 +49,6 @@ export async function GET(
     if (assignment.status === "SUBMITTED") {
       return NextResponse.json<ApiResponse<never>>(
         { success: false, error: "This evaluation has already been submitted", code: "ALREADY_SUBMITTED" },
-        { status: 410 }
-      );
-    }
-
-    if (new Date() > assignment.cycle.endDate) {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "This evaluation cycle has ended", code: "CYCLE_EXPIRED" },
         { status: 410 }
       );
     }
@@ -173,9 +166,15 @@ export async function POST(
 
     const sections = template.sections as Array<{
       title: string;
+      directions?: string[];
       questions: Array<{ id: string; text: string; required: boolean }>;
     }>;
-    const allQuestions = sections.flatMap((s) =>
+    const direction = assignment.direction;
+    const visibleSections = sections.filter((s) => {
+      const dirs = s.directions ?? [];
+      return dirs.length === 0 || dirs.includes(direction);
+    });
+    const allQuestions = visibleSections.flatMap((s) =>
       s.questions.map((q) => ({ ...q, sectionTitle: s.title }))
     );
     const requiredQuestions = allQuestions.filter((q) => q.required);

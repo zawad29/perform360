@@ -215,7 +215,7 @@ export default function NewCyclePage() {
         </nav>
 
         {/* Step content */}
-        <div className="min-h-[280px]">
+        <div className="min-h-[280px]" data-wizard-step={step}>
           {step === 0 && (
             <StepBasics
               name={name}

@@ -216,14 +216,14 @@ export default function PeoplePage() {
   return (
     <div>
       <PageHeader title="People" description="Manage users in your organization">
-        <Button onClick={() => setShowInviteDialog(true)}>
+        <Button data-tour="invite-button" onClick={() => setShowInviteDialog(true)}>
           <UserPlus size={16} strokeWidth={2} className="mr-1.5" />
           Invite User
         </Button>
       </PageHeader>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex gap-1">
+        <div className="flex gap-1" data-tour="role-filter-tabs">
           {ROLE_FILTERS.map((f) => (
             <button
               key={f.value}
@@ -273,7 +273,7 @@ export default function PeoplePage() {
           description={!searchQuery ? "Invite people to your organization to get started" : undefined}
         />
       ) : (
-        <Card padding="sm">
+        <Card padding="sm" data-tour="people-list">
           <div className="overflow-x-auto -mx-4 sm:mx-0">
             <table className="w-full min-w-[360px] sm:min-w-0">
               <thead>
@@ -393,7 +393,7 @@ export default function PeoplePage() {
               onChange={(e) => setInviteEmail(e.target.value)}
               required
             />
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" data-tour="role-select">
               <label className="block text-[14px] font-medium uppercase tracking-caps text-gray-900">Role</label>
               <Select value={inviteRole} onValueChange={setInviteRole}>
                 <SelectTrigger>

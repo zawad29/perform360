@@ -60,6 +60,8 @@ import {
   MoreHorizontal,
   Scale,
   FileSpreadsheet,
+  Link2,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -119,6 +121,7 @@ interface CycleApiData {
 
 interface AssignmentWithNames {
   id: string;
+  token: string;
   subjectId: string;
   reviewerId: string;
   subjectName: string;
@@ -328,6 +331,7 @@ export default function CycleDetailPage() {
   const [reopening, setReopening] = useState(false);
   const [reopenEndDate, setReopenEndDate] = useState("");
   const [exportingExcel, setExportingExcel] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const { locked, reset, handleApiResponse, handleUnlocked } = useEncryptionUnlock();
   const { addToast } = useToast();
 
@@ -739,6 +743,14 @@ export default function CycleDetailPage() {
     } finally {
       setReopening(false);
     }
+  }
+
+  function copyLink(assignmentId: string, token: string) {
+    const url = `${window.location.origin}/evaluate/${token}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(assignmentId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
   }
 
   function clearFilters() {
@@ -1190,6 +1202,7 @@ export default function CycleDetailPage() {
                           <th className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2">
                             Status
                           </th>
+                          <th className="px-4 py-2 w-10" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
@@ -1256,6 +1269,18 @@ export default function CycleDetailPage() {
                                     </Button>
                                   )}
                               </div>
+                            </td>
+                            <td className="px-2 py-2.5">
+                              <button
+                                onClick={() => copyLink(a.id, a.token)}
+                                title="Copy evaluation link"
+                                className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+                              >
+                                {copiedId === a.id
+                                  ? <Check size={14} strokeWidth={2} className="text-green-600" />
+                                  : <Link2 size={14} strokeWidth={1.5} />
+                                }
+                              </button>
                             </td>
                           </tr>
                         ))}
