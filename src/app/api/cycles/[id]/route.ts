@@ -193,6 +193,28 @@ export async function PATCH(
       }
     }
 
+    // Reopening (CLOSED → ACTIVE) requires a future end date so auto-close
+    // doesn't immediately re-close the cycle.
+    if (existing.status === "CLOSED" && validated.status === "ACTIVE") {
+      if (!validated.endDate) {
+        return errorResponse(
+          "A new end date is required to reopen a cycle.",
+          "VALIDATION_ERROR",
+          400
+        );
+      }
+      const newEnd = new Date(validated.endDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (newEnd < today) {
+        return errorResponse(
+          "End date must be today or in the future.",
+          "VALIDATION_ERROR",
+          400
+        );
+      }
+    }
+
     if (validated.teamTemplates && existing.status !== "DRAFT") {
       return errorResponse(
         "Team-template assignments can only be changed while cycle is in DRAFT",

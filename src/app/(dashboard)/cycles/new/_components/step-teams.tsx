@@ -26,6 +26,33 @@ interface StepTeamsProps {
   fetchError: string;
 }
 
+function computeExternalDirectionWarnings(
+  group: AssignmentGroup,
+  teams: TeamOption[],
+  templates: TemplateOption[]
+): string[] {
+  if (group.teamIds.length === 0 || group.templateIds.length === 0) return [];
+
+  const groupTemplates = templates.filter((t) => group.templateIds.includes(t.id));
+  const coversExternal = groupTemplates.some((t) =>
+    (t.sections ?? []).some((s) => {
+      const dirs = (s.directions ?? []) as string[];
+      return dirs.length === 0 || dirs.includes("EXTERNAL");
+    })
+  );
+  if (coversExternal) return [];
+
+  const teamsWithExternals: string[] = [];
+  for (const teamId of group.teamIds) {
+    const team = teams.find((t) => t.id === teamId);
+    if (!team) continue;
+    if (team.members.some((m) => m.role === "EXTERNAL")) {
+      teamsWithExternals.push(team.name);
+    }
+  }
+  return teamsWithExternals;
+}
+
 function computeGroupGaps(
   group: AssignmentGroup,
   teams: TeamOption[],
@@ -140,6 +167,7 @@ export function StepTeams({
       <div className="space-y-4">
         {groups.map((group, index) => {
           const gaps = computeGroupGaps(group, teams, templates);
+          const externalWarningTeams = computeExternalDirectionWarnings(group, teams, templates);
           const groupReady =
             group.teamIds.length > 0 && group.templateIds.length > 0;
           const groupTemplates: MatrixTemplate[] = templates
@@ -208,6 +236,27 @@ export function StepTeams({
                   <p className="text-[12px] text-gray-700">
                     All cycle subjects are covered by a matching template.
                   </p>
+                </div>
+              )}
+
+              {groupReady && gaps.length === 0 && externalWarningTeams.length > 0 && (
+                <div className="border border-gray-900 bg-white p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle
+                      size={14}
+                      strokeWidth={1.5}
+                      className="text-gray-900 mt-0.5 shrink-0"
+                    />
+                    <div>
+                      <p className="text-[12px] font-semibold text-gray-900">
+                        External reviewers won&apos;t receive assignments or emails
+                      </p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        {externalWarningTeams.join(", ")}{" "}
+                        {externalWarningTeams.length === 1 ? "has" : "have"} external reviewers, but none of the selected templates include the External direction. In the template editor, add &ldquo;External&rdquo; to at least one section&apos;s direction filter, or leave directions empty to match all reviewers. You can still proceed — external reviewers will be skipped.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
 

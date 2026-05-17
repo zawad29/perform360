@@ -281,29 +281,29 @@
       <div class="mt-10 border border-gray-800 flex items-center justify-between gap-4 px-4 md:px-5 py-4 reveal d1 overflow-x-auto">
         <div class="flex items-center gap-3 font-mono text-[12px] md:text-[13px] min-w-0">
           <span class="text-accent font-bold select-none shrink-0">$</span>
-          <span class="text-gray-400 break-all md:whitespace-nowrap">curl -fsSL https://raw.githubusercontent.com/tamzid958/perform360/master/deploy.sh | bash</span>
+          <span class="text-gray-400 break-all md:whitespace-nowrap">curl -fsSL https://raw.githubusercontent.com/tamzid958/perform360/master/docker-compose.yml -o docker-compose.yml</span>
         </div>
         <button id="copyBtn" class="text-gray-500 hover:text-gray-300 transition-colors shrink-0" aria-label="Copy">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
       </div>
 
-      <!-- What the script does — 3-column grid -->
+      <!-- Steps — 3-column grid -->
       <div class="grid grid-cols-1 md:grid-cols-3 border border-t-0 border-gray-800 reveal d2">
         <div class="p-6 md:p-8 border-b md:border-b-0 md:border-r border-gray-800">
           <span class="text-[11px] uppercase tracking-caps text-gray-500 block mb-3">01</span>
-          <h3 class="text-sm font-medium mb-1.5">Detect &amp; Install</h3>
-          <p class="text-xs text-gray-500 leading-relaxed">Checks your OS, installs Docker and dependencies if missing. Works on Ubuntu, Debian, macOS.</p>
+          <h3 class="text-sm font-medium mb-1.5">Create &amp; Fetch</h3>
+          <p class="text-xs text-gray-500 leading-relaxed"><code class="text-gray-400">mkdir performs360 &amp;&amp; cd performs360</code>, then grab the compose file with the command above. Requires Docker with Compose and an external PostgreSQL database.</p>
         </div>
         <div class="p-6 md:p-8 border-b md:border-b-0 md:border-r border-gray-800">
           <span class="text-[11px] uppercase tracking-caps text-gray-500 block mb-3">02</span>
           <h3 class="text-sm font-medium mb-1.5">Configure</h3>
-          <p class="text-xs text-gray-500 leading-relaxed">Interactive wizard sets up your database URL, encryption passphrase, email, and domain.</p>
+          <p class="text-xs text-gray-500 leading-relaxed"><code class="text-gray-400">curl -fsSL …/.env.production.example -o .env</code>, then edit it. Set <code class="text-gray-400">DATABASE_URL</code>, <code class="text-gray-400">NEXTAUTH_SECRET</code>, your public URL, and email provider.</p>
         </div>
         <div class="p-6 md:p-8">
           <span class="text-[11px] uppercase tracking-caps text-gray-500 block mb-3">03</span>
-          <h3 class="text-sm font-medium mb-1.5">Build &amp; Launch</h3>
-          <p class="text-xs text-gray-500 leading-relaxed">Pulls containers, runs migrations, starts the app and background worker. Ready at port 3000.</p>
+          <h3 class="text-sm font-medium mb-1.5">Pull &amp; Start</h3>
+          <p class="text-xs text-gray-500 leading-relaxed"><code class="text-gray-400">docker compose pull &amp;&amp; docker compose up -d</code>. App runs on port 3000. Visit <code class="text-gray-400">/setup-encryption</code> on first boot to initialize encryption keys.</p>
         </div>
       </div>
 
@@ -375,7 +375,7 @@
     }));
 
     document.getElementById('copyBtn').addEventListener('click', function() {
-      navigator.clipboard.writeText('curl -fsSL https://raw.githubusercontent.com/tamzid958/perform360/master/deploy.sh | bash');
+      navigator.clipboard.writeText('curl -fsSL https://raw.githubusercontent.com/tamzid958/perform360/master/docker-compose.yml -o docker-compose.yml');
       this.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
       setTimeout(() => { this.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'; }, 2000);
     });
