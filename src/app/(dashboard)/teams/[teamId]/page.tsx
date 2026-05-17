@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { UserPlus, MoreHorizontal, Mail, Trash2, AlertCircle, ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, ArrowRight, Archive, ArchiveRestore, Layers, Search, X, Pencil } from "lucide-react";
+import { UserPlus, MoreHorizontal, Mail, Trash2, AlertCircle, ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, ArrowRight, Archive, ArchiveRestore, Layers, Search, Pencil } from "lucide-react";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { DIRECTIONS, DIRECTION_LABELS, type Direction } from "@/lib/directions";
 
@@ -77,89 +77,6 @@ const roleLabels: Record<string, string> = {
 const IMPERSONATOR_DIRECTION_OPTIONS: { value: Direction; label: string }[] = DIRECTIONS
   .filter((d) => d.key !== "SELF")
   .map((d) => ({ value: d.key, label: d.label }));
-
-function LevelPicker({
-  levels,
-  currentLevelId,
-  currentLevelName,
-  onSelect,
-}: {
-  levels: LevelOption[];
-  currentLevelId: string | null;
-  currentLevelName: string | null;
-  onSelect: (levelId: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-
-  const filtered = search
-    ? levels.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()))
-    : levels;
-
-  return (
-    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch(""); }}>
-      <PopoverTrigger asChild>
-        <button
-          className="inline-flex items-center gap-1 border border-dashed border-gray-300 px-2.5 py-0.5 text-[12px] font-medium text-gray-600 hover:border-gray-400 hover:bg-gray-50"
-          aria-label="Change level"
-        >
-          <Layers size={12} strokeWidth={1.5} className="shrink-0" />
-          {currentLevelName ?? "Set level"}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-52 p-0">
-        {levels.length > 5 && (
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-            <Search size={14} strokeWidth={1.5} className="text-gray-400 shrink-0" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search levels..."
-              className="flex-1 text-[13px] bg-transparent outline-none placeholder:text-gray-400"
-              autoFocus
-            />
-          </div>
-        )}
-        <div className="max-h-48 overflow-y-auto py-1">
-          {filtered.length === 0 ? (
-            <p className="text-[12px] text-gray-400 text-center py-3">No levels found</p>
-          ) : (
-            filtered.map((lvl) => (
-              <button
-                key={lvl.id}
-                onClick={() => {
-                  if (lvl.id !== currentLevelId) onSelect(lvl.id);
-                  setOpen(false);
-                  setSearch("");
-                }}
-                className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-gray-50 flex items-center justify-between ${
-                  lvl.id === currentLevelId ? "text-gray-900 font-medium" : "text-gray-700"
-                }`}
-              >
-                {lvl.name}
-                {lvl.id === currentLevelId && (
-                  <span className="text-[10px] text-gray-900">current</span>
-                )}
-              </button>
-            ))
-          )}
-        </div>
-        {currentLevelId && (
-          <div className="border-t border-gray-100 py-1">
-            <button
-              onClick={() => { onSelect(null); setOpen(false); setSearch(""); }}
-              className="w-full text-left px-3 py-1.5 text-[13px] text-gray-400 hover:text-gray-600 hover:bg-gray-50 flex items-center gap-1.5"
-            >
-              <X size={12} strokeWidth={1.5} />
-              Remove level
-            </button>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 function AddLevelPicker({
   levels,
@@ -376,22 +293,6 @@ export default function TeamDetailPage() {
       fetchTeam();
     } catch (err) {
       addToast(err instanceof Error ? err.message : "Failed to update team", "error");
-    }
-  };
-
-  const handleChangeLevel = async (userId: string, levelId: string | null) => {
-    try {
-      const res = await fetch(`/api/teams/${params.teamId}/members/${userId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ levelId }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Failed to update level");
-      addToast("Level updated", "success");
-      fetchTeam();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : "Failed to update level", "error");
     }
   };
 

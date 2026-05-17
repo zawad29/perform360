@@ -141,7 +141,11 @@ export function GuideButton() {
   }, [pathname]);
 
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    // SSR guard: delay portal mount until client hydration is complete
+    const id = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(id);
+  }, []);
 
   const hasAnySteps = getStepsForPath(pathname).length > 0;
   if (!hasAnySteps || !mounted) return null;
