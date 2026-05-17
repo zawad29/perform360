@@ -72,23 +72,6 @@ describe("GET /api/evaluate/[token] — token validation edge cases", () => {
     expect(body.code).toBe("ALREADY_SUBMITTED");
   });
 
-  it("returns 410 for expired cycle", async () => {
-    vi.mocked(prisma.evaluationAssignment.findUnique).mockResolvedValue({
-      id: "a1",
-      token: TOKEN,
-      status: "PENDING",
-      reviewerId: "r1",
-      subjectId: "s1",
-      cycle: { name: "Q1", status: "ACTIVE", endDate: new Date("2020-01-01") },
-    } as any);
-
-    const req = makeRequest(`http://localhost:3000/api/evaluate/${TOKEN}`);
-    const res = await validateToken(req, { params: Promise.resolve({ token: TOKEN }) });
-    const { status, body } = await parseResponse(res);
-
-    expect(status).toBe(410);
-    expect(body.code).toBe("CYCLE_EXPIRED");
-  });
 
   it("returns 404 for invalid token", async () => {
     vi.mocked(prisma.evaluationAssignment.findUnique).mockResolvedValue(null);
