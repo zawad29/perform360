@@ -538,7 +538,7 @@ function RolesSection() {
           <div className="min-w-0">
             <h2 className="text-title-small text-gray-900">Understanding Team Structure</h2>
             <p className="text-body text-gray-500 mt-2 leading-relaxed">
-              In Performs360, <strong>teams</strong> are the building blocks of your evaluation cycles.
+              In Performs360, <strong>teams</strong>{' '}are the building blocks of your evaluation cycles.
               Each team represents a functional group within your organization. Team members are assigned
               one of three roles &mdash; <strong>Manager</strong>, <strong>Member</strong>, or <strong>External</strong> &mdash;
               which determines the evaluation directions during review cycles. Lateral feedback is
@@ -603,7 +603,7 @@ function RolesSection() {
           <div className="min-w-0">
             <h2 className="text-title-small text-gray-900">Seniority Levels (Optional)</h2>
             <p className="text-body text-gray-500 mt-2 leading-relaxed">
-              In addition to roles, you can assign <strong>seniority levels</strong> to team members &mdash;
+              In addition to roles, you can assign <strong>seniority levels</strong>{' '}to team members &mdash;
               for example, &ldquo;SE L-1&rdquo;, &ldquo;SE L-2&rdquo;, &ldquo;Designer D-1&rdquo;. Levels are
               defined globally per company and can be assigned to any team member regardless of role.
             </p>
