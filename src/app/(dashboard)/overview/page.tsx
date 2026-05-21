@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -228,7 +228,7 @@ export default function DashboardPage() {
   const [activityLoading, setActivityLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  async function fetchData() {
     setLoading(true);
     setActivityLoading(true);
     setError(null);
@@ -238,32 +238,51 @@ export default function DashboardPage() {
         fetch("/api/cycles?status=ACTIVE"),
         fetch("/api/dashboard/activity"),
       ]);
-
       const statsJson = await statsRes.json();
       const cyclesJson = await cyclesRes.json();
       const activityJson = await activityRes.json();
-
       if (!statsJson.success) throw new Error(statsJson.error || "Failed to load stats");
       if (!cyclesJson.success) throw new Error(cyclesJson.error || "Failed to load cycles");
-
       setStats(statsJson.data);
       setAllCycles(cyclesJson.data as Cycle[]);
       setCycleIndex(0);
-
-      if (activityJson.success) {
-        setActivities(activityJson.data);
-      }
+      if (activityJson.success) setActivities(activityJson.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
       setLoading(false);
       setActivityLoading(false);
     }
-  }, []);
+  }
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    const controller = new AbortController();
+    Promise.all([
+      fetch("/api/dashboard/stats", { signal: controller.signal }).then((r) => r.json()),
+      fetch("/api/cycles?status=ACTIVE", { signal: controller.signal }).then((r) => r.json()),
+      fetch("/api/dashboard/activity", { signal: controller.signal }).then((r) => r.json()),
+    ])
+      .then(([statsJson, cyclesJson, activityJson]) => {
+        if (!statsJson.success) throw new Error(statsJson.error || "Failed to load stats");
+        if (!cyclesJson.success) throw new Error(cyclesJson.error || "Failed to load cycles");
+        setStats(statsJson.data);
+        setAllCycles(cyclesJson.data as Cycle[]);
+        setCycleIndex(0);
+        if (activityJson.success) setActivities(activityJson.data);
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Failed to load dashboard");
+      })
+      .finally(() => { setLoading(false); setActivityLoading(false); });
+    return () => controller.abort();
+  }, []);
+
+  const activeCycle = allCycles.length > 0 ? allCycles[cycleIndex] : null;
+  const [now] = useState(() => Date.now());
+  const daysLeft = activeCycle
+    ? Math.max(0, Math.ceil((new Date(activeCycle.endDate).getTime() - now) / 86400000))
+    : 0;
 
   if (error) {
     return (
@@ -286,12 +305,6 @@ export default function DashboardPage() {
       </div>
     );
   }
-
-  const activeCycle = allCycles.length > 0 ? allCycles[cycleIndex] : null;
-
-  const daysLeft = activeCycle
-    ? Math.max(0, Math.ceil((new Date(activeCycle.endDate).getTime() - Date.now()) / 86400000))
-    : 0;
 
   const completedCount = activeCycle?.submittedCount ?? 0;
   const pendingCount = activeCycle?.pendingCount ?? 0;

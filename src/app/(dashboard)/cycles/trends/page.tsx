@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/page-header";
@@ -322,7 +322,7 @@ export default function CycleTrendsPage() {
     useEncryptionUnlock();
   const { addToast } = useToast();
 
-  const fetchTrends = useCallback(async () => {
+  async function fetchTrends() {
     setLoading(true);
     setError(null);
     try {
@@ -332,18 +332,29 @@ export default function CycleTrendsPage() {
       if (!json.success) throw new Error(json.error || "Failed to load trends");
       setData(json.data);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to load trends";
+      const msg = err instanceof Error ? err.message : "Failed to load trends";
       setError(msg);
       addToast(msg, "error");
     } finally {
       setLoading(false);
     }
-  }, [handleApiResponse, addToast]);
+  }
 
   useEffect(() => {
-    fetchTrends();
-  }, [fetchTrends]);
+    fetch("/api/cycles/trends")
+      .then((r) => r.json())
+      .then((json) => {
+        if (handleApiResponse(json)) return;
+        if (!json.success) throw new Error(json.error || "Failed to load trends");
+        setData(json.data);
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : "Failed to load trends";
+        setError(msg);
+        addToast(msg, "error");
+      })
+      .finally(() => setLoading(false));
+  }, [handleApiResponse, addToast]);
 
   const handleUnlockedAndRefetch = () => {
     handleUnlocked();

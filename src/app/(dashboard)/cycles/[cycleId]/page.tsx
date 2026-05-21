@@ -310,8 +310,8 @@ export default function CycleDetailPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [teamTemplatePage, setTeamTemplatePage] = useState(1);
   const [routingTeamId, setRoutingTeamId] = useState<string | null>(null);
-  const [assignmentPage, setAssignmentPage] = useState(1);
-  const [reportPage, setReportPage] = useState(1);
+  const [assignmentPageByKey, setAssignmentPageByKey] = useState<Record<string, number>>({});
+  const [reportPageByKey, setReportPageByKey] = useState<Record<string, number>>({});
   const [assignmentsData, setAssignmentsData] = useState<AssignmentWithNames[] | null>(null);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [assignmentsFailed, setAssignmentsFailed] = useState(false);
@@ -335,7 +335,7 @@ export default function CycleDetailPage() {
   const { locked, reset, handleApiResponse, handleUnlocked } = useEncryptionUnlock();
   const { addToast } = useToast();
 
-  const fetchCycle = useCallback(async () => {
+  async function fetchCycle() {
     setLoading(true);
     try {
       const res = await fetch(`/api/cycles/${cycleId}`);
@@ -346,10 +346,10 @@ export default function CycleDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [cycleId]);
+  }
 
   const assignmentsFetchingRef = useRef(false);
-  const fetchAssignments = useCallback(async () => {
+  async function fetchAssignments() {
     if (assignmentsData || assignmentsFetchingRef.current) return;
     assignmentsFetchingRef.current = true;
     setAssignmentsLoading(true);
@@ -369,10 +369,10 @@ export default function CycleDetailPage() {
       assignmentsFetchingRef.current = false;
       setAssignmentsLoading(false);
     }
-  }, [cycleId, assignmentsData]);
+  }
 
   const reportFetchingRef = useRef(false);
-  const fetchReport = useCallback(async () => {
+  async function fetchReport() {
     if (reportFetchingRef.current) return;
     reportFetchingRef.current = true;
     setReportLoading(true);
@@ -387,14 +387,18 @@ export default function CycleDetailPage() {
       setReportLoading(false);
       reportFetchingRef.current = false;
     }
-  }, [cycleId, handleApiResponse]);
+  }
 
   useEffect(() => {
-    fetchCycle();
-  }, [fetchCycle]);
+    fetch(`/api/cycles/${cycleId}`)
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setCycle(json.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [cycleId]);
 
   const calibrationFetchingRef = useRef(false);
-  const fetchCalibration = useCallback(async () => {
+  async function fetchCalibration() {
     if (calibrationData || calibrationFetchingRef.current) return;
     calibrationFetchingRef.current = true;
     setCalibrationLoading(true);
@@ -409,13 +413,31 @@ export default function CycleDetailPage() {
       calibrationFetchingRef.current = false;
       setCalibrationLoading(false);
     }
-  }, [cycleId, calibrationData, handleApiResponse]);
+  }
 
   useEffect(() => {
-    if (activeTab === "assignments") fetchAssignments();
-    if (activeTab === "reports") fetchReport();
-    if (activeTab === "calibration") fetchCalibration();
-  }, [activeTab, fetchAssignments, fetchReport, fetchCalibration]);
+    if (activeTab === "assignments") {
+      fetch(`/api/cycles/${cycleId}/assignments`)
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then((json) => { if (json.success) setAssignmentsData(json.data); else setAssignmentsFailed(true); })
+        .catch(() => setAssignmentsFailed(true))
+        .finally(() => setAssignmentsLoading(false));
+    }
+    if (activeTab === "reports") {
+      fetch(`/api/reports/cycle/${cycleId}`)
+        .then((r) => r.json())
+        .then((json) => { if (!handleApiResponse(json) && json.success) setCycleReport(json.data); })
+        .catch(() => {})
+        .finally(() => setReportLoading(false));
+    }
+    if (activeTab === "calibration") {
+      fetch(`/api/cycles/${cycleId}/calibration`)
+        .then((r) => r.json())
+        .then((json) => { if (!handleApiResponse(json) && json.success) setCalibrationData(json.data); })
+        .catch(() => {})
+        .finally(() => setCalibrationLoading(false));
+    }
+  }, [activeTab, cycleId, handleApiResponse]);
 
   // ─── Filtered assignments ───
 
@@ -441,10 +463,14 @@ export default function CycleDetailPage() {
     });
   }, [assignments, statusFilter, directionFilter, teamFilter, searchQuery]);
 
-  // Reset assignment page when filters change
-  useEffect(() => {
-    setAssignmentPage(1);
-  }, [statusFilter, directionFilter, teamFilter, searchQuery]);
+  const assignmentFilterKey = useMemo(
+    () => `${statusFilter}:${directionFilter}:${teamFilter}:${searchQuery}`,
+    [statusFilter, directionFilter, teamFilter, searchQuery]
+  );
+  const assignmentPage = assignmentPageByKey[assignmentFilterKey] ?? 1;
+  function setAssignmentPage(page: number) {
+    setAssignmentPageByKey((prev) => ({ ...prev, [assignmentFilterKey]: page }));
+  }
 
   const assignmentTotalPages = Math.ceil(filteredAssignments.length / ASSIGNMENTS_PER_PAGE);
   const paginatedAssignments = useMemo(() => {
@@ -527,10 +553,14 @@ export default function CycleDetailPage() {
     return list;
   }, [cycleReport, reportTeamFilter, reportSearch, subjectTeamMap]);
 
-  // Reset report page when team filter or search changes
-  useEffect(() => {
-    setReportPage(1);
-  }, [reportTeamFilter, reportSearch]);
+  const reportFilterKey = useMemo(
+    () => `${reportTeamFilter}:${reportSearch}`,
+    [reportTeamFilter, reportSearch]
+  );
+  const reportPage = reportPageByKey[reportFilterKey] ?? 1;
+  function setReportPage(page: number) {
+    setReportPageByKey((prev) => ({ ...prev, [reportFilterKey]: page }));
+  }
 
   const reportTotalPages = Math.ceil(filteredReportSummaries.length / REPORTS_PER_PAGE);
   const paginatedReportSummaries = useMemo(() => {

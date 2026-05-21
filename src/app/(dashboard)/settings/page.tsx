@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -70,34 +70,27 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addToast } = useToast();
 
-  const fetchCompany = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/company");
-      const json = await res.json();
-      if (json.success) {
-        setCompany(json.data);
-        setCompanyName(json.data.name);
-        setCompanySlug(json.data.slug);
-        const saved = json.data.settings?.notifications;
-        setNotifications(saved ? { ...DEFAULT_NOTIFICATIONS, ...saved } : DEFAULT_NOTIFICATIONS);
-        const ollamaSaved = json.data.settings?.ollama;
-        if (ollamaSaved) {
-          setOllamaUrl(ollamaSaved.apiUrl ?? "");
-          setOllamaApiKey(""); // never expose encrypted key back
-          setOllamaModel(ollamaSaved.model ?? "");
-        }
-      }
-    } catch {
-      addToast("Failed to load company settings", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [addToast]);
-
   useEffect(() => {
-    fetchCompany();
-  }, [fetchCompany]);
+    fetch("/api/company")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) {
+          setCompany(json.data);
+          setCompanyName(json.data.name);
+          setCompanySlug(json.data.slug);
+          const saved = json.data.settings?.notifications;
+          setNotifications(saved ? { ...DEFAULT_NOTIFICATIONS, ...saved } : DEFAULT_NOTIFICATIONS);
+          const ollamaSaved = json.data.settings?.ollama;
+          if (ollamaSaved) {
+            setOllamaUrl(ollamaSaved.apiUrl ?? "");
+            setOllamaApiKey("");
+            setOllamaModel(ollamaSaved.model ?? "");
+          }
+        }
+      })
+      .catch(() => addToast("Failed to load company settings", "error"))
+      .finally(() => setLoading(false));
+  }, [addToast]);
 
   const validateSlug = (value: string): boolean => {
     if (value.length < 2) {

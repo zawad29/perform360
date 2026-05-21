@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -132,7 +132,7 @@ export default function PersonDetailPage() {
   const [newRole, setNewRole] = useState("");
   const { addToast } = useToast();
 
-  const fetchPerson = useCallback(async () => {
+  async function fetchPerson() {
     setLoading(true);
     setError(null);
     try {
@@ -146,11 +146,21 @@ export default function PersonDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [params.userId]);
+  }
 
   useEffect(() => {
-    fetchPerson();
-  }, [fetchPerson]);
+    fetch(`/api/users/${params.userId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.success) throw new Error(json.error || "Failed to load person");
+        setPerson(json.data);
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : "Failed to load person";
+        setError(msg);
+      })
+      .finally(() => setLoading(false));
+  }, [params.userId]);
 
   const handleChangeRole = async () => {
     if (!person || !newRole) return;

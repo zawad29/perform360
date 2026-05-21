@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -102,7 +102,7 @@ export default function PersonPerformancePage() {
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
 
-  const fetchProfile = useCallback(async () => {
+  async function fetchProfile() {
     setLoading(true);
     setError(null);
     setErrorCode(null);
@@ -120,11 +120,24 @@ export default function PersonPerformancePage() {
     } finally {
       setLoading(false);
     }
-  }, [params.userId]);
+  }
 
   useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+    fetch(`/api/reports/user/${params.userId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.success) {
+          setError(json.error || "Failed to load performance data");
+          setErrorCode(json.code || null);
+          return;
+        }
+        setProfile(json.data);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load performance data");
+      })
+      .finally(() => setLoading(false));
+  }, [params.userId]);
 
   if (error) {
     const isLocked = errorCode === "ENCRYPTION_LOCKED";

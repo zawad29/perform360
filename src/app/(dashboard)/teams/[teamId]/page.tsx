@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -179,7 +179,7 @@ export default function TeamDetailPage() {
   const [editLoading, setEditLoading] = useState(false);
   const { addToast } = useToast();
 
-  const fetchTeam = useCallback(async () => {
+  async function fetchTeam() {
     setLoading(true);
     setError(null);
     try {
@@ -193,11 +193,21 @@ export default function TeamDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [params.teamId]);
+  }
 
   useEffect(() => {
-    fetchTeam();
-  }, [fetchTeam]);
+    fetch(`/api/teams/${params.teamId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.success) throw new Error(json.error || "Failed to load team");
+        setTeam(json.data);
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : "Failed to load team";
+        setError(msg);
+      })
+      .finally(() => setLoading(false));
+  }, [params.teamId]);
 
   // Fetch company levels
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -44,27 +44,20 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addToast } = useToast();
 
-  const fetchProfile = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/profile");
-      const json = await res.json();
-      if (json.success) {
-        setProfile(json.data);
-        setName(json.data.name);
-      } else {
-        addToast("Failed to load profile", "error");
-      }
-    } catch {
-      addToast("Failed to load profile", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [addToast]);
-
   useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) {
+          setProfile(json.data);
+          setName(json.data.name);
+        } else {
+          addToast("Failed to load profile", "error");
+        }
+      })
+      .catch(() => addToast("Failed to load profile", "error"))
+      .finally(() => setLoading(false));
+  }, [addToast]);
 
   const handleSave = async () => {
     if (!name.trim()) {

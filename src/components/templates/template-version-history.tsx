@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,7 +45,7 @@ export function TemplateVersionHistory({ templateId, readOnly = false, onRestore
   const [viewing, setViewing] = useState<VersionEntry | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
 
-  const fetchVersions = useCallback(async () => {
+  async function fetchVersions() {
     setLoading(true);
     setError(null);
     try {
@@ -59,11 +59,21 @@ export function TemplateVersionHistory({ templateId, readOnly = false, onRestore
     } finally {
       setLoading(false);
     }
-  }, [templateId]);
+  }
 
   useEffect(() => {
-    fetchVersions();
-  }, [fetchVersions]);
+    fetch(`/api/templates/${templateId}/versions`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.success) throw new Error(json.error || "Failed to load versions");
+        setCurrentVersion(json.data.currentVersion);
+        setVersions(json.data.versions);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load versions");
+      })
+      .finally(() => setLoading(false));
+  }, [templateId]);
 
   async function handleRestore(version: VersionEntry) {
     if (!confirm(`Restore version ${version.version}? This becomes the new current version (a new history entry will be recorded).`)) {
