@@ -72,14 +72,14 @@ export function getMagicLinkEmail(url: string): { html: string; text: string } {
     "Sign In",
     `
     <p style="margin: 0 0 16px; font-size: 16px; color: #111111; line-height: 1.7; font-family: Georgia, 'Times New Roman', serif;">Hi,</p>
-    <p style="margin: 0 0 24px; font-size: 16px; color: #555555; line-height: 1.7; font-family: Georgia, 'Times New Roman', serif;">Click the button below to sign in to your Performs360 account. This link expires in 24 hours.</p>
+    <p style="margin: 0 0 24px; font-size: 16px; color: #555555; line-height: 1.7; font-family: Georgia, 'Times New Roman', serif;">Click the button below to sign in to your Performs360 account. This link expires in 5 minutes.</p>
     ${ctaButton(url, "Sign In to Performs360")}
     <p style="margin: 24px 0 4px; font-size: 12px; color: #888888; line-height: 1.5; font-family: 'Helvetica Neue', 'Arial Narrow', Arial, sans-serif;">If you didn't request this email, you can safely ignore it.</p>
     <p style="margin: 0; font-size: 12px; color: #888888; line-height: 1.5; font-family: 'Helvetica Neue', 'Arial Narrow', Arial, sans-serif; word-break: break-all;">Or copy this link: ${escapeHtml(url)}</p>
     `
   );
 
-  const text = `Sign in to Performs360\n\nClick the link below to sign in:\n${url}\n\nThis link expires in 24 hours.\n\nIf you didn't request this email, you can safely ignore it.`;
+  const text = `Sign in to Performs360\n\nClick the link below to sign in:\n${url}\n\nThis link expires in 5 minutes.\n\nIf you didn't request this email, you can safely ignore it.`;
 
   return { html, text };
 }

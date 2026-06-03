@@ -20,6 +20,11 @@ User enters email on /login
   → POST /api/auth/verify-and-signin
     → Rate limit check (5 requests / 15 min per IP)
     → Zod email validation
+    → Pre-check: look up app User by email
+      ├─ Not found       → 404 "No account found with this email."
+      ├─ Archived        → 403 "This account has been deactivated."
+      ├─ Not ADMIN/HR    → 403 "Access denied. Only admins and HR."
+      └─ Valid           → proceed to send magic link
     → signIn("nodemailer", { email, redirect: false })
       → NextAuth generates token, stores in VerificationToken table
       → sendVerificationRequest fires:
@@ -36,7 +41,7 @@ User clicks magic link in email
     → AuthUser.emailVerified set
     → Account created (if new)
     → Database Session created
-    → signIn callback fires:
+    → signIn callback fires (redundant guard):
       → Looks up app User by email
       → Checks: exists, not archived, role in [ADMIN, HR]
       → If not found: AccessDenied
@@ -49,8 +54,6 @@ User clicks magic link in email
 | Token | Expiry | Source |
 |-------|--------|--------|
 | Magic link | **5 minutes** | `src/lib/auth.ts:58` (`maxAge: 5 * 60`) |
-
-Note: The email template says "expires in 24 hours" — this is out of sync with the actual 5-minute expiry.
 
 ### Role Restriction (`signIn` Callback)
 
@@ -67,6 +70,30 @@ signIn({ user, account }) {
 ```
 
 Only `ADMIN` and `HR` roles can log into the dashboard. `EMPLOYEE` and `EXTERNAL` users get `AccessDenied`.
+
+### Pre-Send Guard (`verify-and-signin` Route)
+
+Before sending the magic link email, the `POST /api/auth/verify-and-signin` route runs a database lookup to avoid sending emails that will fail. Three distinct cases:
+
+| Condition | HTTP Status | Response |
+|-----------|-------------|----------|
+| No app `User` with this email | 404 | `"No account found with this email."` |
+| User is archived (`archivedAt` set) | 403 | `"This account has been deactivated."` |
+| User exists but role is not ADMIN or HR | 403 | `"Access denied. Only administrators and HR can access the dashboard."` |
+| All checks pass | 200 | Magic link email sent |
+
+The `signIn` callback in `auth.ts` retains the same role check as a redundant server-side guard.
+
+### First-User Onboarding
+
+On a fresh database (no `Company` record), visiting `/` redirects to `/onboarding`. The onboarding form creates:
+
+1. The `Company` (with placeholder encryption values)
+2. Default evaluation templates
+3. An `AuthUser` record (for NextAuth)
+4. An app `User` with `role: ADMIN`
+
+After onboarding, the admin signs in via `/login`, then sets up encryption keys at `/setup-encryption` (passphrase + recovery codes).
 
 ---
 
