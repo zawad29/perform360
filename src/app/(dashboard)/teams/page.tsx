@@ -102,7 +102,7 @@ export default function TeamsPage() {
   const { addToast } = useToast();
   const router = useRouter();
 
-  const fetchLevels = useCallback(async () => {
+  async function fetchLevels() {
     setLevelsLoading(true);
     try {
       const res = await fetch("/api/levels");
@@ -113,9 +113,15 @@ export default function TeamsPage() {
     } finally {
       setLevelsLoading(false);
     }
-  }, []);
+  }
 
-  useEffect(() => { fetchLevels(); }, [fetchLevels]);
+  useEffect(() => {
+    fetch("/api/levels")
+      .then((r) => r.json())
+      .then((json) => { if (json.success) setLevels(json.data); })
+      .catch(() => {})
+      .finally(() => setLevelsLoading(false));
+  }, []);
 
   const handleCreateLevel = async () => {
     if (!createLevelName.trim()) return;

@@ -31,7 +31,7 @@ export default function IndividualReportPage() {
   const [selectedTeam, setSelectedTeam] = useState("all");
   const { locked, reset, handleApiResponse, handleUnlocked } = useEncryptionUnlock();
 
-  const fetchReport = useCallback(async () => {
+  async function fetchReport() {
     setLoading(true);
     setError(null);
     try {
@@ -48,11 +48,22 @@ export default function IndividualReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [cycleId, userId, handleApiResponse]);
+  }
 
   useEffect(() => {
-    fetchReport();
-  }, [fetchReport]);
+    fetch(`/api/reports/cycle/${cycleId}/user/${userId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (handleApiResponse(json)) return;
+        if (!json.success) {
+          setError(json.error ?? "Failed to load report");
+          return;
+        }
+        setReport(json.data);
+      })
+      .catch(() => setError("Failed to load report"))
+      .finally(() => setLoading(false));
+  }, [cycleId, userId, handleApiResponse]);
 
   function handleExport() {
     window.open(`/api/reports/cycle/${cycleId}/export?userId=${userId}`, "_blank");

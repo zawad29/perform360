@@ -67,14 +67,7 @@ function CellInput(props: React.InputHTMLAttributes<HTMLInputElement> & { hasErr
 }
 
 export function CalibrationPanel({ cycleId, data, readOnly = false, onSaved }: CalibrationPanelProps) {
-  const [teamOffsets, setTeamOffsets] = useState<Map<string, TeamOffsetEdit>>(new Map());
-  const [memberEdits, setMemberEdits] = useState<Map<string, MemberEdit>>(new Map());
-  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set(data.teamSummaries.map((t) => t.teamId)));
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  // Initialize from existing data
-  useEffect(() => {
+  const [teamOffsets, setTeamOffsets] = useState<Map<string, TeamOffsetEdit>>(() => {
     const offsets = new Map<string, TeamOffsetEdit>();
     for (const ts of data.teamSummaries) {
       if (ts.calibrationOffset !== null) {
@@ -84,8 +77,9 @@ export function CalibrationPanel({ cycleId, data, readOnly = false, onSaved }: C
         });
       }
     }
-    setTeamOffsets(offsets);
-
+    return offsets;
+  });
+  const [memberEdits, setMemberEdits] = useState<Map<string, MemberEdit>>(() => {
     const edits = new Map<string, MemberEdit>();
     for (const s of data.subjects) {
       if (s.calibratedScore !== null && s.justification !== null) {
@@ -95,8 +89,11 @@ export function CalibrationPanel({ cycleId, data, readOnly = false, onSaved }: C
         });
       }
     }
-    setMemberEdits(edits);
-  }, [data]);
+    return edits;
+  });
+  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set(data.teamSummaries.map((t) => t.teamId)));
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const isDirty = teamOffsets.size > 0 || memberEdits.size > 0;
 

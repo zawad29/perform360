@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -104,7 +104,7 @@ export default function TemplateDetailPage() {
   const [activeDirection, setActiveDirection] = useState<Direction>("DOWNWARD");
   const [previewSubjectRole, setPreviewSubjectRole] = useState<SubjectRole>("MEMBER");
 
-  const fetchTemplate = useCallback(async () => {
+  async function fetchTemplate() {
     setLoading(true);
     setError(null);
     try {
@@ -117,11 +117,20 @@ export default function TemplateDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [params.templateId]);
+  }
 
   useEffect(() => {
-    fetchTemplate();
-  }, [fetchTemplate]);
+    fetch(`/api/templates/${params.templateId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.success) throw new Error(json.error || "Failed to load template");
+        setTemplate(json.data);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load template");
+      })
+      .finally(() => setLoading(false));
+  }, [params.templateId]);
 
   // Memos must run on every render (Rules of Hooks) — keep them above the
   // early returns. Safe defaults when template hasn't loaded yet.
@@ -142,7 +151,7 @@ export default function TemplateDetailPage() {
   );
   const createdLabel = useMemo(
     () => (template?.createdAt ? formatDate(template.createdAt) : ""),
-    [template?.createdAt]
+    [template]
   );
 
   async function handleDuplicate() {

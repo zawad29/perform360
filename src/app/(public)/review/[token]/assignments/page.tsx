@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useCallback } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,30 +28,24 @@ export default function ReviewAssignmentsPage({ params: paramsPromise }: { param
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const loadAssignments = useCallback(async function loadAssignments() {
-    setIsLoading(true);
-    try {
-      const res = await fetch(`/api/review/${params.token}/assignments`);
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        if (json.code === "NO_SESSION" || json.code === "SESSION_EXPIRED") {
-          router.replace(`/review/${params.token}`);
+  useEffect(() => {
+    let ok: boolean;
+    fetch(`/api/review/${params.token}/assignments`)
+      .then((r) => { ok = r.ok; return r.json(); })
+      .then((json) => {
+        if (!ok || !json.success) {
+          if (json.code === "NO_SESSION" || json.code === "SESSION_EXPIRED") {
+            router.replace(`/review/${params.token}`);
+            return;
+          }
+          setError(json.error || "Failed to load assignments");
           return;
         }
-        setError(json.error || "Failed to load assignments");
-        return;
-      }
-      setData(json.data);
-    } catch {
-      setError("Failed to load assignments");
-    } finally {
-      setIsLoading(false);
-    }
+        setData(json.data);
+      })
+      .catch(() => setError("Failed to load assignments"))
+      .finally(() => setIsLoading(false));
   }, [params.token, router]);
-
-  useEffect(() => {
-    loadAssignments();
-  }, [loadAssignments]);
 
   if (isLoading) {
     return (

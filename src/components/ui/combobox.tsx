@@ -46,17 +46,18 @@ export function Combobox({
   const listboxId = React.useId();
 
   // Cache the selected option so it survives option list changes during search
-  const [cachedOption, setCachedOption] = React.useState<ComboboxOption | null>(null);
   const liveMatch = options.find((o) => o.value === value);
-  const selectedOption = liveMatch ?? (value ? cachedOption : null);
-
+  const [cachedOption, setCachedOption] = React.useState<ComboboxOption | null>(null);
   React.useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (liveMatch) {
       setCachedOption(liveMatch);
     } else if (!value) {
       setCachedOption(null);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [liveMatch, value]);
+  const selectedOption = liveMatch ?? (value ? cachedOption : null);
 
   const filteredOptions = React.useMemo(() => {
     if (onSearchChange) return options;

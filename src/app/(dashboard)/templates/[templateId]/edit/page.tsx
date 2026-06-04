@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,52 +18,46 @@ export default function EditTemplatePage() {
   const [error, setError] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const fetchTemplate = useCallback(async () => {
-    setIsFetching(true);
-    setFetchError(null);
-    try {
-      const res = await fetch(`/api/templates/${params.templateId}`);
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Failed to load template");
-      if (json.data.isGlobal) {
-        setFetchError("Global templates cannot be edited");
-        return;
-      }
-      loadTemplate({
-        name: json.data.name,
-        description: json.data.description ?? "",
-        levelIds: json.data.levelIds ?? [],
-        weightPreset: json.data.weightPreset ?? null,
-        weightsMember: json.data.weightsMember ?? null,
-        weightsManager: json.data.weightsManager ?? null,
-        sections: json.data.sections.map((s: { id?: string; title: string; description?: string; directions?: string[]; questions: Array<{ id?: string; text: string; type: string; required: boolean; options?: string[]; scaleMin?: number; scaleMax?: number; scaleLabels?: string[] }> }, i: number) => ({
-          id: s.id ?? `section-${i}`,
-          title: s.title,
-          description: s.description,
-          directions: (s.directions ?? []) as never,
-          questions: s.questions.map((q, j: number) => ({
-            id: q.id || `q-${i}-${j}`,
-            text: q.text,
-            type: q.type as "rating_scale" | "text" | "multiple_choice",
-            required: q.required,
-            options: q.options,
-            scaleMin: q.scaleMin,
-            scaleMax: q.scaleMax,
-            scaleLabels: q.scaleLabels,
-          })),
-        })),
-      });
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : "Failed to load template");
-    } finally {
-      setIsFetching(false);
-    }
-  }, [params.templateId, loadTemplate]);
-
   useEffect(() => {
-    fetchTemplate();
+    fetch(`/api/templates/${params.templateId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.success) throw new Error(json.error || "Failed to load template");
+        if (json.data.isGlobal) {
+          setFetchError("Global templates cannot be edited");
+          return;
+        }
+        loadTemplate({
+          name: json.data.name,
+          description: json.data.description ?? "",
+          levelIds: json.data.levelIds ?? [],
+          weightPreset: json.data.weightPreset ?? null,
+          weightsMember: json.data.weightsMember ?? null,
+          weightsManager: json.data.weightsManager ?? null,
+          sections: json.data.sections.map((s: { id?: string; title: string; description?: string; directions?: string[]; questions: Array<{ id?: string; text: string; type: string; required: boolean; options?: string[]; scaleMin?: number; scaleMax?: number; scaleLabels?: string[] }> }, i: number) => ({
+            id: s.id ?? `section-${i}`,
+            title: s.title,
+            description: s.description,
+            directions: (s.directions ?? []) as never,
+            questions: s.questions.map((q, j: number) => ({
+              id: q.id || `q-${i}-${j}`,
+              text: q.text,
+              type: q.type as "rating_scale" | "text" | "multiple_choice",
+              required: q.required,
+              options: q.options,
+              scaleMin: q.scaleMin,
+              scaleMax: q.scaleMax,
+              scaleLabels: q.scaleLabels,
+            })),
+          })),
+        });
+      })
+      .catch((err) => {
+        setFetchError(err instanceof Error ? err.message : "Failed to load template");
+      })
+      .finally(() => setIsFetching(false));
     return () => reset();
-  }, [fetchTemplate, reset]);
+  }, [params.templateId, loadTemplate, reset]);
 
   async function handleSave() {
     if (!name.trim()) {
