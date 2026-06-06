@@ -30,7 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { SelectPerson } from "@/components/ui/select-person";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { UserPlus, MoreHorizontal, Mail, Trash2, AlertCircle, ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, ArrowRight, Archive, ArchiveRestore, Layers, Search, Pencil } from "lucide-react";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
@@ -164,7 +164,7 @@ export default function TeamDetailPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [userSearchQuery, setUserSearchQuery] = useState("");
-  const [userOptions, setUserOptions] = useState<ComboboxOption[]>([]);
+  const [users, setUsers] = useState<{ id: string; name: string; email: string; avatar: string | null }[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [addRole, setAddRole] = useState("MEMBER");
   const [addLevelId, setAddLevelId] = useState<string>("");
@@ -230,17 +230,7 @@ export default function TeamDetailPage() {
         const res = await fetch(`/api/users?${params}`, { signal: controller.signal });
         const json = await res.json();
         if (json.success) {
-          const existingIds = new Set(team?.members.map((m) => m.user.id) ?? []);
-          setUserOptions(
-            json.data.map((u: { id: string; name: string; email: string; avatar: string | null }) => ({
-              value: u.id,
-              label: u.name,
-              sublabel: u.email,
-              disabled: existingIds.has(u.id),
-              disabledReason: "Already in team",
-              icon: <Avatar name={u.name} src={u.avatar} size="sm" />,
-            }))
-          );
+          setUsers(json.data);
         }
       } catch (err) {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
@@ -681,16 +671,13 @@ export default function TeamDetailPage() {
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div>
-              <Combobox
-                id="member-select"
-                label="Select Person"
-                placeholder="Search by name or email..."
+              <SelectPerson
                 value={selectedUserId}
                 onChange={setSelectedUserId}
-                options={userOptions}
+                users={users}
+                disabledIds={new Set(team?.members.map((m) => m.user.id) ?? [])}
                 onSearchChange={setUserSearchQuery}
                 loading={usersLoading}
-                emptyMessage="No matching users found"
               />
             </div>
             <div className="space-y-1.5">
