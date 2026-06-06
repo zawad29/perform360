@@ -39,7 +39,6 @@ export default function NewTeamPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <Input
             id="name"
-            data-tour="team-name"
             label="Team Name"
             placeholder="e.g. Engineering"
             value={name}
@@ -61,7 +60,7 @@ export default function NewTeamPage() {
             />
           </div>
           <div className="flex items-center gap-3 pt-2">
-            <Button type="submit" data-tour="team-create" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading}>
               {isLoading ? "Creating..." : "Create Team"}
             </Button>
             <Button type="button" variant="ghost" onClick={() => router.back()}>

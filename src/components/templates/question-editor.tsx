@@ -78,7 +78,7 @@ export function QuestionEditor({ question, sectionId, onUpdate, onRemove }: Ques
         />
 
         {/* Type selector + required + settings toggle — single row */}
-        <div className="flex flex-wrap gap-3 items-center" data-tour="question-type">
+        <div className="flex flex-wrap gap-3 items-center">
           <QuestionTypeSelector
             value={question.type}
             onChange={(type) => {

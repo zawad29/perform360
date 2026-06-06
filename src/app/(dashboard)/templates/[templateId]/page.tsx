@@ -247,7 +247,7 @@ export default function TemplateDetailPage() {
       )}
 
       {/* Meta strip */}
-      <div data-tour="template-meta" className="flex items-center gap-x-3 gap-y-2 flex-wrap mb-5 text-[12px] text-gray-500">
+      <div className="flex items-center gap-x-3 gap-y-2 flex-wrap mb-5 text-[12px] text-gray-500">
         {template.isGlobal ? (
           <Badge variant="info" className="shrink-0">
             <Globe size={10} strokeWidth={2} className="mr-1" />
@@ -290,7 +290,7 @@ export default function TemplateDetailPage() {
           level routes templates to subjects in cycle assignment. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Direction × Section map */}
-        <Card data-tour="section-visibility-matrix" padding="sm" className="p-0 overflow-hidden">
+        <Card padding="sm" className="p-0 overflow-hidden">
           <div className="px-4 py-2.5 border-b border-gray-200">
             <p className="text-[12px] font-medium uppercase tracking-caps text-gray-700">
               Section visibility by direction
@@ -354,7 +354,7 @@ export default function TemplateDetailPage() {
         </Card>
 
         {/* Weights by role profile */}
-        <Card data-tour="weights-by-role" padding="sm" className="p-0 overflow-hidden">
+        <Card padding="sm" className="p-0 overflow-hidden">
           <div className="px-4 py-2.5 border-b border-gray-200">
             <p className="text-[12px] font-medium uppercase tracking-caps text-gray-700">
               Weights by role profile
@@ -404,7 +404,7 @@ export default function TemplateDetailPage() {
       {/* Two-column body: preview (main) + sections at a glance (sidebar) */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
         {/* Main: form preview */}
-        <Card data-tour="form-preview" padding="sm" className="overflow-hidden p-0">
+        <Card padding="sm" className="overflow-hidden p-0">
           <div className="px-4 py-3 border-b border-gray-200 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               <div>
@@ -486,7 +486,7 @@ export default function TemplateDetailPage() {
         </Card>
 
         {/* Sidebar: sections at a glance + version history */}
-        <aside data-tour="sections-sidebar" className="lg:sticky lg:top-4 space-y-4">
+        <aside className="lg:sticky lg:top-4 space-y-4">
           <Card padding="sm" className="p-0 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-200">
               <p className="text-[12px] font-medium uppercase tracking-caps text-gray-700">Sections</p>

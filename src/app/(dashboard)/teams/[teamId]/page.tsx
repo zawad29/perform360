@@ -444,7 +444,7 @@ export default function TeamDetailPage() {
               <Archive size={16} strokeWidth={1.5} className="mr-1.5" />
               Archive
             </Button>
-            <Button data-tour="add-member" onClick={() => setShowAddDialog(true)}>
+            <Button onClick={() => setShowAddDialog(true)}>
               <UserPlus size={16} strokeWidth={1.5} className="mr-1.5" />
               Add Member
             </Button>
@@ -511,7 +511,7 @@ export default function TeamDetailPage() {
       </div>
 
       {/* Members List */}
-      <Card data-tour="members-list">
+      <Card>
         <CardHeader>
           <CardTitle>Members</CardTitle>
         </CardHeader>
@@ -680,7 +680,7 @@ export default function TeamDetailPage() {
             <DialogDescription>Add an existing user to this team</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            <div data-tour="member-search">
+            <div>
               <Combobox
                 id="member-select"
                 label="Select Person"
@@ -693,7 +693,7 @@ export default function TeamDetailPage() {
                 emptyMessage="No matching users found"
               />
             </div>
-            <div className="space-y-1.5" data-tour="member-role">
+            <div className="space-y-1.5">
               <label className="block text-[13px] font-medium text-gray-700">Team Role</label>
               <Select value={addRole} onValueChange={(v) => { setAddRole(v); if (v !== "IMPERSONATOR") setAddImpersonatorDirs([]); if (v === "IMPERSONATOR" || v === "EXTERNAL") setAddLevelId(""); }}>
                 <SelectTrigger>
@@ -708,7 +708,7 @@ export default function TeamDetailPage() {
               </Select>
             </div>
             {addRole === "IMPERSONATOR" && (
-              <div className="space-y-1.5" data-tour="impersonator-directions">
+              <div className="space-y-1.5">
                 <label className="block text-[13px] font-medium text-gray-700">Directions to Cover</label>
                 <p className="text-[12px] text-gray-500 -mt-0.5 mb-1">
                   Replaces all managers/members for these directions — not a specific person
@@ -736,7 +736,7 @@ export default function TeamDetailPage() {
               </div>
             )}
             {levels.length > 0 && addRole !== "IMPERSONATOR" && addRole !== "EXTERNAL" && (
-              <div data-tour="member-level">
+              <div>
                 <AddLevelPicker
                   levels={levels}
                   selectedId={addLevelId}

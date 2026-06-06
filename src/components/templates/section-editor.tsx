@@ -89,7 +89,6 @@ export function SectionEditor({
 
         <input
           type="text"
-          data-tour="section-title"
           value={section.title}
           onChange={(e) => onUpdateSection({ title: e.target.value })}
           aria-label="Section title"
@@ -141,7 +140,7 @@ export function SectionEditor({
 
       {/* Direction tags */}
       {expanded && showDirections && (
-        <div className="mt-3 ml-8" data-tour="section-directions">
+        <div className="mt-3 ml-8">
           <div className="flex items-center gap-2 mb-1.5">
             <p className="text-[11px] font-medium uppercase tracking-caps text-gray-500">
               Shown for
@@ -197,7 +196,6 @@ export function SectionEditor({
 
           <button
             type="button"
-            data-tour="add-question"
             onClick={onAddQuestion}
             className="w-full py-2.5 border-2 border-dashed border-gray-900 text-[13px] font-medium uppercase tracking-caps text-gray-900 hover:text-gray-600 hover:border-gray-600 flex items-center justify-center gap-1.5"
           >

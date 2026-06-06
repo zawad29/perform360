@@ -164,7 +164,7 @@ export function StepTeams({
         <p className="text-[13px] text-gray-900">{fetchError}</p>
       )}
 
-      <div className="space-y-4" data-tour="cycle-groups">
+      <div className="space-y-4">
         {groups.map((group, index) => {
           const gaps = computeGroupGaps(group, teams, templates);
           const externalWarningTeams = computeExternalDirectionWarnings(group, teams, templates);
@@ -204,7 +204,7 @@ export function StepTeams({
                 )}
               </div>
 
-              <div data-tour="group-teams">
+              <div>
                 <MultiCombobox
                   label="Teams"
                   placeholder="Select teams..."
@@ -217,7 +217,7 @@ export function StepTeams({
                 />
               </div>
 
-              <div data-tour="group-templates">
+              <div>
                 <MultiCombobox
                   label="Templates"
                   placeholder="Select one or more templates..."
@@ -266,7 +266,7 @@ export function StepTeams({
 
               {/* Routing matrix per team — visible once both teams + templates are picked AND coverage passes */}
               {groupReady && gaps.length === 0 && groupTeams.length > 0 && (
-                <div className="space-y-3" data-tour="routing-matrix">
+                <div className="space-y-3">
                   {groupTeams.map((team) => (
                     <RoutingMatrix
                       key={team.id}
@@ -285,7 +285,7 @@ export function StepTeams({
               )}
 
               {gaps.length > 0 && (
-                <div data-tour="coverage-gap-alert" className="border border-gray-900 bg-white p-3">
+                <div className="border border-gray-900 bg-white p-3">
                   <div className="flex items-start gap-2 mb-2">
                     <AlertTriangle
                       size={14}

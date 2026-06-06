@@ -69,7 +69,7 @@ export function TemplateMetaStrips({
 
   return (
     <div className="space-y-2">
-      <div data-tour="template-levels">
+      <div>
         <Strip
           label="Levels"
           summary={levelSummary}
@@ -82,7 +82,7 @@ export function TemplateMetaStrips({
         <TemplateLevels selected={levelIds} onChange={onLevelsChange} />
       )}
 
-      <div data-tour="template-weights">
+      <div>
         <Strip
           label="Weights"
           summary={weightSummary}

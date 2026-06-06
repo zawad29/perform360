@@ -108,7 +108,6 @@ export function TemplateBuilder() {
           <div className="bg-white border border-gray-900 p-6 space-y-4">
             <Input
               id="template-name"
-              data-tour="template-name"
               label="Template Name"
               placeholder="e.g. Standard 360° Review"
               value={name}
@@ -141,7 +140,7 @@ export function TemplateBuilder() {
           />
 
           {/* Direction routing opt-in */}
-          <label data-tour="direction-routing" className="flex items-start gap-2 cursor-pointer bg-white border border-gray-200 px-4 py-3">
+          <label className="flex items-start gap-2 cursor-pointer bg-white border border-gray-200 px-4 py-3">
             <input
               type="checkbox"
               checked={useDirectionRouting}
@@ -184,7 +183,6 @@ export function TemplateBuilder() {
           {/* Add section button */}
           <button
             type="button"
-            data-tour="add-section"
             onClick={addSection}
             className="w-full py-4 border-2 border-dashed border-gray-900 text-[14px] font-medium uppercase tracking-caps text-gray-900 hover:text-gray-600 hover:border-gray-600 flex items-center justify-center gap-1.5"
           >

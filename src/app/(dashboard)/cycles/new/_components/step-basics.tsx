@@ -33,7 +33,6 @@ export function StepBasics({
 
       <Input
         id="name"
-        data-tour="cycle-name"
         label="Cycle Name"
         placeholder="e.g. Q1 2026 Performance Review"
         value={name}
@@ -42,7 +41,7 @@ export function StepBasics({
         autoFocus
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-tour="cycle-dates">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <DatePicker
           id="startDate"
           label="Start Date"
