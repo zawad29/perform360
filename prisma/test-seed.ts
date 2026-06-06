@@ -3,7 +3,7 @@
  * every feature and edge case in Performs360:
  *
  *  - Company with encryption set up
- *  - Users across all roles (ADMIN, HR, MEMBER, EXTERNAL)
+ *  - Users across org roles (ADMIN, HR, MEMBER)
  *  - Seniority levels (SE L-1, SE L-2, SA L-2, SA L-3, D-1, D-2, PM L-1, PM L-2)
  *  - Teams covering: single manager, co-managed, manager-only, member-only,
  *    external evaluators, cross-team members, leveled members
@@ -189,9 +189,9 @@ async function main() {
     { email: "david.liu@techcorp.com", name: "David Liu", role: UserRole.MEMBER },
     { email: "sophie.martin@techcorp.com", name: "Sophie Martin", role: UserRole.MEMBER },
 
-    // External evaluators
-    { email: "board.advisor@external.com", name: "Board Advisor", role: UserRole.EXTERNAL },
-    { email: "client.stakeholder@external.com", name: "Lisa Park (Client)", role: UserRole.EXTERNAL },
+    // External evaluators — org role is MEMBER; team role is EXTERNAL
+    { email: "board.advisor@external.com", name: "Board Advisor", role: UserRole.MEMBER },
+    { email: "client.stakeholder@external.com", name: "Lisa Park (Client)", role: UserRole.MEMBER },
   ];
 
   const users: Record<string, string> = {};
@@ -1234,7 +1234,7 @@ async function main() {
   console.log("Company:", COMPANY_NAME);
   console.log("Slug:", COMPANY_SLUG);
   console.log("Encryption passphrase:", PASSPHRASE);
-  console.log(`Users: ${userDefs.length} (1 ADMIN, 1 HR, ${userDefs.filter((u) => u.role === UserRole.MEMBER).length} MEMBER, ${userDefs.filter((u) => u.role === UserRole.EXTERNAL).length} EXTERNAL)`);
+  console.log(`Users: ${userDefs.length} (1 ADMIN, 1 HR, ${userDefs.filter((u) => u.role === UserRole.MEMBER).length} MEMBER)`);
   console.log(`Levels: ${levelNames.length} (${levelNames.join(", ")})`);
   console.log(`Teams: ${teamDefs.length}`);
   console.log("Cycles:");
@@ -1243,7 +1243,7 @@ async function main() {
   console.log(`  3. Q2 2026 — DRAFT, multi-template per team`);
   console.log(`Audit logs: ${auditEntries.length}`);
   console.log("\nCoverage:");
-  console.log("  - All user roles (ADMIN, HR, MEMBER, EXTERNAL)");
+  console.log("  - All org roles (ADMIN, HR, MEMBER)");
   console.log("  - All team member roles (MANAGER, MEMBER, EXTERNAL)");
   console.log("  - Co-managed team (Finance: 2 managers)");
   console.log("  - Cross-team members (Alex in 2 teams, Sarah in 2 teams, Priya in 2 teams)");
