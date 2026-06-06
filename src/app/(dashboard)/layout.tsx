@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/top-nav";
 import { ToastProvider } from "@/components/ui/toast";
-import { GuideButton } from "@/components/help/GuideButton";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -54,7 +53,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
               {children}
             </div>
           </main>
-          <GuideButton />
         </div>
       </div>
     </ToastProvider>
