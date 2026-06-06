@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { Menu, X, LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { usePermissions } from "@/hooks/use-permissions";
-import { navigation, bottomNav, externalNav } from "./nav-items";
+import { navigation, bottomNav } from "./nav-items";
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
@@ -103,23 +103,6 @@ export function MobileNav() {
                     <Icon size={18} strokeWidth={1.5} />
                     <span>{item.name}</span>
                   </Link>
-                );
-              })}
-              {externalNav.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <a
-                    key={item.name}
-                    href={item.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setOpen(false)}
-                    aria-label={item.name}
-                    className="flex items-center gap-3 px-3 py-2.5 text-[14px] font-medium uppercase tracking-caps text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                  >
-                    <Icon size={18} strokeWidth={1.5} />
-                    <span>{item.name}</span>
-                  </a>
                 );
               })}
               <button

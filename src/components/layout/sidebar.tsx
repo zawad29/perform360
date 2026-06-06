@@ -13,7 +13,7 @@ import {
 import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { usePermissions } from "@/hooks/use-permissions";
-import { navigation, bottomNav, externalNav } from "./nav-items";
+import { navigation, bottomNav } from "./nav-items";
 
 interface SidebarProps {
   companyName?: string;
@@ -114,26 +114,6 @@ export function Sidebar({ companyName }: SidebarProps) {
         {canManageSettings && bottomNav.map((item) => (
           <NavLink key={item.name} {...item} />
         ))}
-        {externalNav.map((item) => {
-          const Icon = item.icon;
-          const link = (
-            <a
-              key={item.name}
-              href={item.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={collapsed ? item.name : undefined}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 text-[14px] font-medium uppercase tracking-caps text-gray-500 hover:text-gray-900 hover:bg-gray-50",
-                collapsed && "justify-center px-2"
-              )}
-            >
-              <Icon size={20} strokeWidth={1.5} />
-              {!collapsed && <span>{item.name}</span>}
-            </a>
-          );
-          return collapsed ? <Tooltip key={item.name} label={item.name}>{link}</Tooltip> : link;
-        })}
         {collapsed ? (
           <Tooltip label="GitHub"><GitHubLink collapsed /></Tooltip>
         ) : (

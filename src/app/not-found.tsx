@@ -33,9 +33,6 @@ export default function NotFound() {
             <Button asChild className="bg-accent text-white hover:bg-accent/90">
               <Link href="/">Go Home</Link>
             </Button>
-            <Button variant="secondary" asChild>
-              <Link href="/guide">View Guide</Link>
-            </Button>
           </div>
         </div>
       </div>

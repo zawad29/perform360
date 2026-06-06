@@ -129,15 +129,6 @@ export default function LoginPage() {
         </p>
       </Card>
 
-      <p className="text-callout text-gray-500">
-        New to 360° reviews?{" "}
-        <Link
-          href="/guide"
-          className="text-gray-900 underline underline-offset-2 font-medium"
-        >
-          Read the guide
-        </Link>
-      </p>
     </div>
   );
 }

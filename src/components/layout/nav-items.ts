@@ -5,7 +5,6 @@ import {
   FileText,
   UserCircle,
   Settings,
-  BookOpen,
 } from "lucide-react";
 
 export const navigation = [
@@ -20,6 +19,8 @@ export const bottomNav = [
   { name: "Settings", href: "/settings", icon: Settings },
 ] as const;
 
-export const externalNav = [
-  { name: "Guide", href: "/guide", icon: BookOpen },
-] as const;
+export const externalNav = [] as const satisfies readonly {
+  name: string;
+  href: string;
+  icon: typeof Settings;
+}[];
