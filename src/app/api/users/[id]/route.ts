@@ -127,7 +127,7 @@ export async function GET(
 }
 
 const updateUserSchema = z.object({
-  role: z.enum(["ADMIN", "HR", "MEMBER", "EXTERNAL"]).optional(),
+  role: z.enum(["ADMIN", "HR", "MEMBER"]).optional(),
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
 });

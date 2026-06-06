@@ -31,7 +31,6 @@ const roleBadgeMap: Record<string, { variant: "info" | "success" | "warning" | "
   ADMIN: { variant: "info", label: "Admin" },
   HR: { variant: "success", label: "HR" },
   MEMBER: { variant: "default", label: "Member" },
-  EXTERNAL: { variant: "warning", label: "External" },
 };
 
 const cycleStatusBadge: Record<string, { variant: "success" | "info" | "outline" | "default"; label: string }> = {

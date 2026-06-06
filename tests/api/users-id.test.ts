@@ -81,26 +81,6 @@ describe("PATCH /api/users/[id]", () => {
     );
   });
 
-  it("updates user role to EXTERNAL", async () => {
-    mockAuth(fixtures.admin);
-    vi.mocked(prisma.user.findFirst)
-      .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
-      .mockResolvedValueOnce({ id: validCuid, role: "MEMBER", companyId: fixtures.admin.companyId } as any);
-    vi.mocked(prisma.user.update).mockResolvedValue({ id: validCuid, role: "EXTERNAL" } as any);
-
-    const req = createMockRequest(`http://localhost:3000/api/users/${validCuid}`, {
-      method: "PATCH",
-      body: { role: "EXTERNAL" },
-    });
-    const res = await callWith(PATCH, req, validCuid);
-    const { status } = await parseResponse(res);
-
-    expect(status).toBe(200);
-    expect(writeAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "role_change" })
-    );
-  });
-
   it("prevents HR from assigning ADMIN role", async () => {
     mockAuth(fixtures.hr);
     const req = createMockRequest(`http://localhost:3000/api/users/${validCuid}`, {

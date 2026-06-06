@@ -88,7 +88,6 @@ const roleBadgeMap: Record<string, { variant: "info" | "success" | "warning" | "
   ADMIN: { variant: "info", label: "Admin" },
   HR: { variant: "success", label: "HR" },
   MEMBER: { variant: "default", label: "Member" },
-  EXTERNAL: { variant: "warning", label: "External" },
 };
 
 const teamRoleBadge: Record<string, { variant: "info" | "success" | "warning"; label: string }> = {
@@ -469,7 +468,6 @@ export default function PersonDetailPage() {
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="HR">HR</SelectItem>
                   <SelectItem value="MEMBER">Member</SelectItem>
-                  <SelectItem value="EXTERNAL">External</SelectItem>
                 </SelectContent>
               </Select>
             </div>
