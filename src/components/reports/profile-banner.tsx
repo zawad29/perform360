@@ -22,7 +22,7 @@ function confidenceLevel(rate: number): { label: string; icon: React.ReactNode }
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Admin",
   HR: "HR",
-  EMPLOYEE: "Employee",
+  MEMBER: "Member",
   EXTERNAL: "External",
 };
 

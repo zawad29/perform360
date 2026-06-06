@@ -29,9 +29,9 @@ describe("GET /api/users/[id]", () => {
         name: "Target User",
         email: "target@test.com",
         avatar: null,
-        role: "EMPLOYEE",
+        role: "MEMBER",
         createdAt: new Date(),
-        teamMemberships: [{ id: "tm1", role: "EMPLOYEE", team: { id: "t1", name: "Eng" } }],
+        teamMemberships: [{ id: "tm1", role: "MEMBER", team: { id: "t1", name: "Eng" } }],
       } as any);
     vi.mocked(prisma.evaluationAssignment.findMany)
       .mockResolvedValueOnce([]) // asSubject
@@ -65,7 +65,7 @@ describe("PATCH /api/users/[id]", () => {
     mockAuth(fixtures.admin);
     vi.mocked(prisma.user.findFirst)
       .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
-      .mockResolvedValueOnce({ id: validCuid, role: "EMPLOYEE", companyId: fixtures.admin.companyId } as any);
+      .mockResolvedValueOnce({ id: validCuid, role: "MEMBER", companyId: fixtures.admin.companyId } as any);
     vi.mocked(prisma.user.update).mockResolvedValue({ id: validCuid, role: "HR" } as any);
 
     const req = createMockRequest(`http://localhost:3000/api/users/${validCuid}`, {
@@ -85,7 +85,7 @@ describe("PATCH /api/users/[id]", () => {
     mockAuth(fixtures.admin);
     vi.mocked(prisma.user.findFirst)
       .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
-      .mockResolvedValueOnce({ id: validCuid, role: "EMPLOYEE", companyId: fixtures.admin.companyId } as any);
+      .mockResolvedValueOnce({ id: validCuid, role: "MEMBER", companyId: fixtures.admin.companyId } as any);
     vi.mocked(prisma.user.update).mockResolvedValue({ id: validCuid, role: "EXTERNAL" } as any);
 
     const req = createMockRequest(`http://localhost:3000/api/users/${validCuid}`, {
@@ -121,7 +121,7 @@ describe("PATCH /api/users/[id]", () => {
 
     const req = createMockRequest(`http://localhost:3000/api/users/${adminId}`, {
       method: "PATCH",
-      body: { role: "EMPLOYEE" },
+      body: { role: "MEMBER" },
     });
     const res = await callWith(PATCH, req, adminId);
     const { status, body } = await parseResponse(res);
@@ -151,7 +151,7 @@ describe("DELETE /api/users/[id]", () => {
     mockAuth(fixtures.admin);
     vi.mocked(prisma.user.findFirst)
       .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
-      .mockResolvedValueOnce({ id: validCuid, role: "EMPLOYEE", email: "target@test.com", companyId: fixtures.admin.companyId } as any);
+      .mockResolvedValueOnce({ id: validCuid, role: "MEMBER", email: "target@test.com", companyId: fixtures.admin.companyId } as any);
     vi.mocked(prisma.user.update).mockResolvedValue({} as any);
 
     const req = createMockRequest(`http://localhost:3000/api/users/${validCuid}`, { method: "DELETE" });
@@ -172,7 +172,7 @@ describe("DELETE /api/users/[id]", () => {
     mockAuth(fixtures.admin);
     vi.mocked(prisma.user.findFirst)
       .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
-      .mockResolvedValueOnce({ id: validCuid, role: "EMPLOYEE", email: "target@test.com", companyId: fixtures.admin.companyId } as any);
+      .mockResolvedValueOnce({ id: validCuid, role: "MEMBER", email: "target@test.com", companyId: fixtures.admin.companyId } as any);
     vi.mocked(prisma.user.update).mockResolvedValue({} as any);
 
     const req = createMockRequest(`http://localhost:3000/api/users/${validCuid}`, { method: "DELETE" });
@@ -190,7 +190,7 @@ describe("DELETE /api/users/[id]", () => {
     mockAuth(fixtures.admin);
     vi.mocked(prisma.user.findFirst)
       .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
-      .mockResolvedValueOnce({ id: validCuid, role: "EMPLOYEE", email: "target@test.com", authUserId: null, companyId: fixtures.admin.companyId } as any);
+      .mockResolvedValueOnce({ id: validCuid, role: "MEMBER", email: "target@test.com", authUserId: null, companyId: fixtures.admin.companyId } as any);
 
     const req = createMockRequest(`http://localhost:3000/api/users/${validCuid}?hard=true`, { method: "DELETE" });
     const res = await callWith(DELETE, req, validCuid);
@@ -205,7 +205,7 @@ describe("DELETE /api/users/[id]", () => {
     mockAuth(fixtures.admin);
     vi.mocked(prisma.user.findFirst)
       .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
-      .mockResolvedValueOnce({ id: validCuid, role: "EMPLOYEE", email: "target@test.com", authUserId: null, companyId: fixtures.admin.companyId } as any);
+      .mockResolvedValueOnce({ id: validCuid, role: "MEMBER", email: "target@test.com", authUserId: null, companyId: fixtures.admin.companyId } as any);
 
     const req = createMockRequest(`http://localhost:3000/api/users/${validCuid}?hard=true`, { method: "DELETE" });
     await callWith(DELETE, req, validCuid);
@@ -223,7 +223,7 @@ describe("DELETE /api/users/[id]", () => {
     mockAuth(fixtures.admin);
     vi.mocked(prisma.user.findFirst)
       .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
-      .mockResolvedValueOnce({ id: validCuid, role: "EMPLOYEE", email: "target@test.com", authUserId, companyId: fixtures.admin.companyId } as any);
+      .mockResolvedValueOnce({ id: validCuid, role: "MEMBER", email: "target@test.com", authUserId, companyId: fixtures.admin.companyId } as any);
     // After hard delete, count remaining users with same authUserId
     vi.mocked(prisma.user.count).mockResolvedValue(0);
 
@@ -239,7 +239,7 @@ describe("DELETE /api/users/[id]", () => {
     mockAuth(fixtures.admin);
     vi.mocked(prisma.user.findFirst)
       .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
-      .mockResolvedValueOnce({ id: validCuid, role: "EMPLOYEE", email: "target@test.com", authUserId, companyId: fixtures.admin.companyId } as any);
+      .mockResolvedValueOnce({ id: validCuid, role: "MEMBER", email: "target@test.com", authUserId, companyId: fixtures.admin.companyId } as any);
     // 1 remaining user with same authUserId
     vi.mocked(prisma.user.count).mockResolvedValue(1);
 

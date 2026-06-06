@@ -45,7 +45,7 @@ describe("API /api/cycles/[id]/calibration", () => {
       expect(status).toBe(401);
     });
 
-    it("returns 403 for EMPLOYEE role", async () => {
+    it("returns 403 for MEMBER role", async () => {
       mockAuth(fixtures.employee);
       vi.mocked(getDataKeyFromRequest).mockReturnValue(fakeDataKey);
       const req = createMockRequest(`http://localhost:3000/api/cycles/${CYCLE_ID}/calibration`);
@@ -330,7 +330,7 @@ describe("API /api/cycles/[id]/calibration", () => {
       expect(status).toBe(401);
     });
 
-    it("returns 403 for EMPLOYEE role", async () => {
+    it("returns 403 for MEMBER role", async () => {
       mockAuth(fixtures.employee);
       const req = createMockRequest(`http://localhost:3000/api/cycles/${CYCLE_ID}/calibration`, {
         method: "PUT",
@@ -574,7 +574,7 @@ describe("API /api/cycles/[id]/calibration", () => {
       expect(status).toBe(401);
     });
 
-    it("returns 403 for EMPLOYEE role", async () => {
+    it("returns 403 for MEMBER role", async () => {
       mockAuth(fixtures.employee);
       const res = await DELETE(deleteUrl(), { params: Promise.resolve({ id: CYCLE_ID, subjectId: USER_1 }) });
       const { status } = await parseResponse(res);

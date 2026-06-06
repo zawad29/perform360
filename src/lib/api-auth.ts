@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "./auth";
 import { prisma } from "./prisma";
 
-type UserRole = "ADMIN" | "HR" | "EMPLOYEE" | "EXTERNAL";
+type UserRole = "ADMIN" | "HR" | "MEMBER" | "EXTERNAL";
 
 interface AuthResult {
   userId: string;

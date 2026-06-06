@@ -25,6 +25,6 @@ export interface TeamMemberWithUser {
     email: string;
     name: string;
     avatar: string | null;
-    role: "ADMIN" | "HR" | "EMPLOYEE" | "EXTERNAL";
+    role: "ADMIN" | "HR" | "MEMBER" | "EXTERNAL";
   };
 }

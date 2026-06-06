@@ -11,7 +11,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const inviteSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email address"),
-  role: z.enum(["ADMIN", "HR", "EMPLOYEE", "EXTERNAL"]),
+  role: z.enum(["ADMIN", "HR", "MEMBER", "EXTERNAL"]),
 });
 
 export async function POST(request: NextRequest) {
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ADMIN/HR get an AuthUser record (they can log in).
-    // EMPLOYEE/EXTERNAL only exist in the Users table (OTP-based access).
+    // MEMBER/EXTERNAL only exist in the Users table (OTP-based access).
     const needsAuth = validated.role === "ADMIN" || validated.role === "HR";
 
     const result = await prisma.$transaction(async (tx) => {
@@ -88,10 +88,10 @@ export async function POST(request: NextRequest) {
       metadata: { email: validated.email, role: validated.role },
     });
 
-    // Employees only receive evaluation links — no account welcome email.
+    // Members only receive evaluation links — no account welcome email.
     // ADMIN and HR users get a welcome email with login URL.
     let emailSent = false;
-    if (validated.role !== "EMPLOYEE" && validated.role !== "EXTERNAL") {
+    if (validated.role !== "MEMBER" && validated.role !== "EXTERNAL") {
       const company = await prisma.company.findUnique({
         where: { id: authResult.companyId },
         select: { name: true },

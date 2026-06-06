@@ -36,7 +36,7 @@ describe("api-auth", () => {
       vi.mocked(prisma.user.findFirst).mockResolvedValue({
         id: "u1",
         email: "user@test.com",
-        role: "EMPLOYEE",
+        role: "MEMBER",
         companyId: "c1",
       } as any);
 
@@ -44,7 +44,7 @@ describe("api-auth", () => {
       expect(result).toEqual({
         userId: "u1",
         email: "user@test.com",
-        role: "EMPLOYEE",
+        role: "MEMBER",
         companyId: "c1",
       });
       expect(prisma.user.findFirst).toHaveBeenCalledWith({
@@ -89,7 +89,7 @@ describe("api-auth", () => {
       vi.mocked(prisma.user.findFirst).mockResolvedValue({
         id: "u2",
         email: "member@test.com",
-        role: "EMPLOYEE",
+        role: "MEMBER",
         companyId: "c1",
       } as any);
 
@@ -124,12 +124,12 @@ describe("api-auth", () => {
       expect(result).not.toBeInstanceOf(NextResponse);
     });
 
-    it("rejects EMPLOYEE", async () => {
+    it("rejects MEMBER", async () => {
       vi.mocked(auth).mockResolvedValue({
         user: { email: "m@test.com", companyId: "c1" },
       } as any);
       vi.mocked(prisma.user.findFirst).mockResolvedValue({
-        id: "u3", email: "m@test.com", role: "EMPLOYEE", companyId: "c1",
+        id: "u3", email: "m@test.com", role: "MEMBER", companyId: "c1",
       } as any);
 
       const result = await requireAdminOrHR();

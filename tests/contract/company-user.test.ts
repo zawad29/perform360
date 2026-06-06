@@ -48,7 +48,7 @@ describe("Contract: User", () => {
     const user = await factories.user(company.id, { email: "alice@test.com", name: "Alice" });
 
     expect(user.companyId).toBe(company.id);
-    expect(user.role).toBe("EMPLOYEE");
+    expect(user.role).toBe("MEMBER");
   });
 
   it("enforces unique email+companyId constraint", async () => {
@@ -73,7 +73,7 @@ describe("Contract: User", () => {
   it("validates UserRole enum values", async () => {
     const company = await factories.company();
 
-    for (const role of ["ADMIN", "HR", "EMPLOYEE"] as const) {
+    for (const role of ["ADMIN", "HR", "MEMBER"] as const) {
       const user = await factories.user(company.id, {
         role,
         email: `${role.toLowerCase()}@test.com`,
@@ -82,10 +82,10 @@ describe("Contract: User", () => {
     }
   });
 
-  it("defaults role to EMPLOYEE", async () => {
+  it("defaults role to MEMBER", async () => {
     const company = await factories.company();
     const user = await factories.user(company.id);
-    expect(user.role).toBe("EMPLOYEE");
+    expect(user.role).toBe("MEMBER");
   });
 
   it("sets createdAt automatically", async () => {

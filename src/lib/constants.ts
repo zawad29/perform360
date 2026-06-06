@@ -14,7 +14,7 @@ export const OTP_CONFIG = {
 export const ROLES = {
   ADMIN: "ADMIN",
   HR: "HR",
-  EMPLOYEE: "EMPLOYEE",
+  MEMBER: "MEMBER",
   EXTERNAL: "EXTERNAL",
 } as const;
 

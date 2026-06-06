@@ -53,11 +53,11 @@ describe("usePermissions", () => {
     expect(p.canManageEncryption).toBe(false);
   });
 
-  it("EMPLOYEE has no management permissions", () => {
-    mockRole("EMPLOYEE");
+  it("MEMBER has no management permissions", () => {
+    mockRole("MEMBER");
     const p = usePermissions();
 
-    expect(p.role).toBe("EMPLOYEE");
+    expect(p.role).toBe("MEMBER");
     expect(p.isEmployee).toBe(true);
     expect(p.isAdminOrHR).toBe(false);
     expect(p.canViewReports).toBe(false);

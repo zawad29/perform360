@@ -18,7 +18,7 @@ describe("API /api/users", () => {
       expect(status).toBe(401);
     });
 
-    it("returns 403 for EMPLOYEE role", async () => {
+    it("returns 403 for MEMBER role", async () => {
       mockAuth(fixtures.employee);
       const req = createMockRequest("http://localhost:3000/api/users");
       const res = await GET(req as any);
@@ -37,8 +37,8 @@ describe("API /api/users", () => {
     it("returns paginated users for ADMIN", async () => {
       mockAuth(fixtures.admin);
       const mockUsers = [
-        { id: "u1", name: "Alice", email: "alice@test.com", role: "EMPLOYEE", teamMemberships: [] },
-        { id: "u2", name: "Bob", email: "bob@test.com", role: "EMPLOYEE", teamMemberships: [] },
+        { id: "u1", name: "Alice", email: "alice@test.com", role: "MEMBER", teamMemberships: [] },
+        { id: "u2", name: "Bob", email: "bob@test.com", role: "MEMBER", teamMemberships: [] },
       ];
       vi.mocked(prisma.user.findMany).mockResolvedValue(mockUsers as any);
       vi.mocked(prisma.user.count).mockResolvedValue(2);

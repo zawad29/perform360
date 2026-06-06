@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
               data: {
                 email,
                 name,
-                role: isExternal ? "EXTERNAL" : "EMPLOYEE",
+                role: isExternal ? "EXTERNAL" : "MEMBER",
                 companyId,
                 authUserId: authUser.id,
               },

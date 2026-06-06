@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Logo } from "@/components/ui/logo";
-import Link from "next/link";
 import { ArrowRight, Loader2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

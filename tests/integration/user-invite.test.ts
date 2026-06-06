@@ -54,7 +54,7 @@ describe("Integration: User Invite Workflow", () => {
     expect(sendEmail).toHaveBeenCalled();
   });
 
-  it("ADMIN invites an EMPLOYEE — no welcome email sent", async () => {
+  it("ADMIN invites a MEMBER — no welcome email sent", async () => {
     mockAuth(fixtures.admin);
     vi.mocked(prisma.user.findFirst).mockResolvedValueOnce(
       { id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any
@@ -68,7 +68,7 @@ describe("Integration: User Invite Workflow", () => {
               id: "user-emp",
               email: "emp@test.com",
               name: "Employee",
-              role: "EMPLOYEE",
+              role: "MEMBER",
               companyId: fixtures.admin.companyId,
             }),
           },
@@ -79,7 +79,7 @@ describe("Integration: User Invite Workflow", () => {
 
     const req = createMockRequest("http://localhost:3000/api/users/invite", {
       method: "POST",
-      body: { name: "Employee", email: "emp@test.com", role: "EMPLOYEE" },
+      body: { name: "Employee", email: "emp@test.com", role: "MEMBER" },
     });
     const res = await POST(req as any);
     const { status, body } = await parseResponse(res);
@@ -135,7 +135,7 @@ describe("Integration: User Invite Workflow", () => {
 
     const req = createMockRequest("http://localhost:3000/api/users/invite", {
       method: "POST",
-      body: { name: "Dupe", email: "dup@test.com", role: "EMPLOYEE" },
+      body: { name: "Dupe", email: "dup@test.com", role: "MEMBER" },
     });
     const res = await POST(req as any);
     const { status, body } = await parseResponse(res);
@@ -192,12 +192,12 @@ describe("Integration: User Invite Workflow", () => {
     expect(status).toBe(201);
   });
 
-  it("EMPLOYEE cannot invite users", async () => {
+  it("MEMBER cannot invite users", async () => {
     mockAuth(fixtures.employee);
 
     const req = createMockRequest("http://localhost:3000/api/users/invite", {
       method: "POST",
-      body: { name: "User", email: "user@test.com", role: "EMPLOYEE" },
+      body: { name: "User", email: "user@test.com", role: "MEMBER" },
     });
     const res = await POST(req as any);
     const { status } = await parseResponse(res);

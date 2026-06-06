@@ -53,14 +53,13 @@ interface User {
 const roleBadgeMap: Record<string, { variant: "info" | "success" | "warning" | "default"; label: string }> = {
   ADMIN: { variant: "info", label: "Admin" },
   HR: { variant: "success", label: "HR" },
-  EMPLOYEE: { variant: "default", label: "Employee" },
-  EXTERNAL: { variant: "warning", label: "External" },
+  MEMBER: { variant: "default", label: "Member" },
 };
 
 const ROLE_FILTERS = [
   { value: "ALL", label: "All" },
-  { value: "HR_ADMIN", label: "HR & Admin" },
-  { value: "MEMBER_EXTERNAL", label: "Member & External" },
+  { value: "HR_ADMIN", label: "Admin & HR" },
+  { value: "MEMBER", label: "Member" },
 ] as const;
 
 export default function PeoplePage() {
@@ -81,7 +80,7 @@ export default function PeoplePage() {
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("EMPLOYEE");
+  const [inviteRole, setInviteRole] = useState("MEMBER");
   const [inviteLoading, setInviteLoading] = useState(false);
   const { addToast } = useToast();
 
@@ -134,7 +133,7 @@ export default function PeoplePage() {
       setShowInviteDialog(false);
       setInviteName("");
       setInviteEmail("");
-      setInviteRole("EMPLOYEE");
+      setInviteRole("MEMBER");
       setPage(1);
       fetchUsers();
     } catch (err) {
@@ -406,8 +405,7 @@ export default function PeoplePage() {
                 <SelectContent>
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="HR">HR</SelectItem>
-                  <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                  <SelectItem value="EXTERNAL">External</SelectItem>
+                  <SelectItem value="MEMBER">Member</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -487,8 +485,7 @@ export default function PeoplePage() {
                 <SelectContent>
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="HR">HR</SelectItem>
-                  <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                  <SelectItem value="EXTERNAL">External</SelectItem>
+                  <SelectItem value="MEMBER">Member</SelectItem>
                 </SelectContent>
               </Select>
             </div>

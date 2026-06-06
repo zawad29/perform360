@@ -42,7 +42,7 @@ describe("withRBAC", () => {
     vi.mocked(requireAuth).mockResolvedValue({
       userId: "u1",
       email: "emp@test.com",
-      role: "EMPLOYEE",
+      role: "MEMBER",
       companyId: "co-1",
     });
 
@@ -110,9 +110,9 @@ describe("withAdminOrHR", () => {
     expect(res.status).toBe(200);
   });
 
-  it("rejects EMPLOYEE role", async () => {
+  it("rejects MEMBER role", async () => {
     vi.mocked(requireAuth).mockResolvedValue({
-      userId: "u1", email: "e@t.com", role: "EMPLOYEE", companyId: "co-1",
+      userId: "u1", email: "e@t.com", role: "MEMBER", companyId: "co-1",
     });
     const handler = vi.fn();
     const wrapped = withAdminOrHR(handler);

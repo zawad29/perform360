@@ -23,9 +23,9 @@ export async function GET(request: NextRequest) {
     ...(includeArchived ? {} : { archivedAt: null }),
     ...(roleFilter === "HR_ADMIN"
       ? { role: { in: ["HR", "ADMIN"] } }
-      : roleFilter === "MEMBER_EXTERNAL"
-        ? { role: { in: ["EMPLOYEE", "EXTERNAL"] } }
-        : roleFilter === "EMPLOYEE" || roleFilter === "EXTERNAL"
+      : roleFilter === "MEMBER"
+        ? { role: { in: ["MEMBER"] } }
+        : roleFilter === "MEMBER" || roleFilter === "EXTERNAL"
           ? { role: roleFilter }
           : {}),
     ...(search

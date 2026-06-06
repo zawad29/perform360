@@ -30,7 +30,7 @@ import type { PersonPerformanceProfile } from "@/types/report";
 const roleBadgeMap: Record<string, { variant: "info" | "success" | "warning" | "default"; label: string }> = {
   ADMIN: { variant: "info", label: "Admin" },
   HR: { variant: "success", label: "HR" },
-  EMPLOYEE: { variant: "default", label: "Employee" },
+  MEMBER: { variant: "default", label: "Member" },
   EXTERNAL: { variant: "warning", label: "External" },
 };
 

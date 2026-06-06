@@ -87,7 +87,7 @@ interface PersonDetail {
 const roleBadgeMap: Record<string, { variant: "info" | "success" | "warning" | "default"; label: string }> = {
   ADMIN: { variant: "info", label: "Admin" },
   HR: { variant: "success", label: "HR" },
-  EMPLOYEE: { variant: "default", label: "Employee" },
+  MEMBER: { variant: "default", label: "Member" },
   EXTERNAL: { variant: "warning", label: "External" },
 };
 
@@ -468,7 +468,7 @@ export default function PersonDetailPage() {
                 <SelectContent>
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="HR">HR</SelectItem>
-                  <SelectItem value="EMPLOYEE">Employee</SelectItem>
+                  <SelectItem value="MEMBER">Member</SelectItem>
                   <SelectItem value="EXTERNAL">External</SelectItem>
                 </SelectContent>
               </Select>

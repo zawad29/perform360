@@ -3,7 +3,7 @@
  * every feature and edge case in Performs360:
  *
  *  - Company with encryption set up
- *  - Users across all roles (ADMIN, HR, EMPLOYEE, EXTERNAL)
+ *  - Users across all roles (ADMIN, HR, MEMBER, EXTERNAL)
  *  - Seniority levels (SE L-1, SE L-2, SA L-2, SA L-3, D-1, D-2, PM L-1, PM L-2)
  *  - Teams covering: single manager, co-managed, manager-only, member-only,
  *    external evaluators, cross-team members, leveled members
@@ -166,28 +166,28 @@ async function main() {
     { email: "maria.santos@techcorp.com", name: "Maria Santos", role: UserRole.HR },
 
     // Engineering managers
-    { email: "sarah.chen@techcorp.com", name: "Sarah Chen", role: UserRole.EMPLOYEE },
-    { email: "alex.rivera@techcorp.com", name: "Alex Rivera", role: UserRole.EMPLOYEE },
-    { email: "priya.sharma@techcorp.com", name: "Priya Sharma", role: UserRole.EMPLOYEE },
-    { email: "dan.kim@techcorp.com", name: "Dan Kim", role: UserRole.EMPLOYEE },
+    { email: "sarah.chen@techcorp.com", name: "Sarah Chen", role: UserRole.MEMBER },
+    { email: "alex.rivera@techcorp.com", name: "Alex Rivera", role: UserRole.MEMBER },
+    { email: "priya.sharma@techcorp.com", name: "Priya Sharma", role: UserRole.MEMBER },
+    { email: "dan.kim@techcorp.com", name: "Dan Kim", role: UserRole.MEMBER },
 
     // Engineers
-    { email: "jordan.lee@techcorp.com", name: "Jordan Lee", role: UserRole.EMPLOYEE },
-    { email: "maya.patel@techcorp.com", name: "Maya Patel", role: UserRole.EMPLOYEE },
-    { email: "chris.wu@techcorp.com", name: "Chris Wu", role: UserRole.EMPLOYEE },
-    { email: "tom.zhang@techcorp.com", name: "Tom Zhang", role: UserRole.EMPLOYEE },
-    { email: "nina.costa@techcorp.com", name: "Nina Costa", role: UserRole.EMPLOYEE },
-    { email: "sam.ali@techcorp.com", name: "Sam Ali", role: UserRole.EMPLOYEE },
+    { email: "jordan.lee@techcorp.com", name: "Jordan Lee", role: UserRole.MEMBER },
+    { email: "maya.patel@techcorp.com", name: "Maya Patel", role: UserRole.MEMBER },
+    { email: "chris.wu@techcorp.com", name: "Chris Wu", role: UserRole.MEMBER },
+    { email: "tom.zhang@techcorp.com", name: "Tom Zhang", role: UserRole.MEMBER },
+    { email: "nina.costa@techcorp.com", name: "Nina Costa", role: UserRole.MEMBER },
+    { email: "sam.ali@techcorp.com", name: "Sam Ali", role: UserRole.MEMBER },
 
     // Finance & HR members
-    { email: "robert.hayes@techcorp.com", name: "Robert Hayes", role: UserRole.EMPLOYEE },
-    { email: "lisa.park@techcorp.com", name: "Lisa Park", role: UserRole.EMPLOYEE },
-    { email: "mark.jensen@techcorp.com", name: "Mark Jensen", role: UserRole.EMPLOYEE },
-    { email: "emily.tran@techcorp.com", name: "Emily Tran", role: UserRole.EMPLOYEE },
-    { email: "kevin.brown@techcorp.com", name: "Kevin Brown", role: UserRole.EMPLOYEE },
-    { email: "rachel.adams@techcorp.com", name: "Rachel Adams", role: UserRole.EMPLOYEE },
-    { email: "david.liu@techcorp.com", name: "David Liu", role: UserRole.EMPLOYEE },
-    { email: "sophie.martin@techcorp.com", name: "Sophie Martin", role: UserRole.EMPLOYEE },
+    { email: "robert.hayes@techcorp.com", name: "Robert Hayes", role: UserRole.MEMBER },
+    { email: "lisa.park@techcorp.com", name: "Lisa Park", role: UserRole.MEMBER },
+    { email: "mark.jensen@techcorp.com", name: "Mark Jensen", role: UserRole.MEMBER },
+    { email: "emily.tran@techcorp.com", name: "Emily Tran", role: UserRole.MEMBER },
+    { email: "kevin.brown@techcorp.com", name: "Kevin Brown", role: UserRole.MEMBER },
+    { email: "rachel.adams@techcorp.com", name: "Rachel Adams", role: UserRole.MEMBER },
+    { email: "david.liu@techcorp.com", name: "David Liu", role: UserRole.MEMBER },
+    { email: "sophie.martin@techcorp.com", name: "Sophie Martin", role: UserRole.MEMBER },
 
     // External evaluators
     { email: "board.advisor@external.com", name: "Board Advisor", role: UserRole.EXTERNAL },
@@ -1204,7 +1204,7 @@ async function main() {
   const auditEntries = [
     { action: "company_created", target: `company:${company.id}`, userId: users["james.carter@techcorp.com"], metadata: { name: COMPANY_NAME } },
     { action: "encryption_setup", target: `company:${company.id}`, userId: users["james.carter@techcorp.com"], metadata: { keyVersion: 1 } },
-    { action: "user_invite", target: `user:${users["sarah.chen@techcorp.com"]}`, userId: users["james.carter@techcorp.com"], metadata: { email: "sarah.chen@techcorp.com", role: "EMPLOYEE" } },
+    { action: "user_invite", target: `user:${users["sarah.chen@techcorp.com"]}`, userId: users["james.carter@techcorp.com"], metadata: { email: "sarah.chen@techcorp.com", role: "MEMBER" } },
     { action: "cycle_activate", target: `cycle:${cycle1.id}`, userId: users["maria.santos@techcorp.com"], metadata: { cycleName: "Q4 2025 Performance Review" } },
     { action: "cycle_close", target: `cycle:${cycle1.id}`, userId: users["maria.santos@techcorp.com"], metadata: { cycleName: "Q4 2025 Performance Review", completionRate: 100 } },
     { action: "calibration_adjust", target: `user:${users["jordan.lee@techcorp.com"]}`, userId: users["maria.santos@techcorp.com"], metadata: { rawScore: 4.2, calibratedScore: 4.0, cycleId: cycle1.id } },
@@ -1212,7 +1212,7 @@ async function main() {
     { action: "cycle_activate", target: `cycle:${cycle2.id}`, userId: users["maria.santos@techcorp.com"], metadata: { cycleName: "Q1 2026 Performance Review" } },
     { action: "level_create", target: `level:${levels["SE L-1"]}`, userId: users["james.carter@techcorp.com"], metadata: { name: "SE L-1" } },
     { action: "level_create", target: `level:${levels["SE L-2"]}`, userId: users["james.carter@techcorp.com"], metadata: { name: "SE L-2" } },
-    { action: "role_change", target: `user:${users["maria.santos@techcorp.com"]}`, userId: users["james.carter@techcorp.com"], metadata: { from: "EMPLOYEE", to: "HR" } },
+    { action: "role_change", target: `user:${users["maria.santos@techcorp.com"]}`, userId: users["james.carter@techcorp.com"], metadata: { from: "MEMBER", to: "HR" } },
   ];
 
   for (const entry of auditEntries) {
@@ -1234,7 +1234,7 @@ async function main() {
   console.log("Company:", COMPANY_NAME);
   console.log("Slug:", COMPANY_SLUG);
   console.log("Encryption passphrase:", PASSPHRASE);
-  console.log(`Users: ${userDefs.length} (1 ADMIN, 1 HR, ${userDefs.filter((u) => u.role === UserRole.EMPLOYEE).length} EMPLOYEE, ${userDefs.filter((u) => u.role === UserRole.EXTERNAL).length} EXTERNAL)`);
+  console.log(`Users: ${userDefs.length} (1 ADMIN, 1 HR, ${userDefs.filter((u) => u.role === UserRole.MEMBER).length} MEMBER, ${userDefs.filter((u) => u.role === UserRole.EXTERNAL).length} EXTERNAL)`);
   console.log(`Levels: ${levelNames.length} (${levelNames.join(", ")})`);
   console.log(`Teams: ${teamDefs.length}`);
   console.log("Cycles:");
@@ -1243,7 +1243,7 @@ async function main() {
   console.log(`  3. Q2 2026 — DRAFT, multi-template per team`);
   console.log(`Audit logs: ${auditEntries.length}`);
   console.log("\nCoverage:");
-  console.log("  - All user roles (ADMIN, HR, EMPLOYEE, EXTERNAL)");
+  console.log("  - All user roles (ADMIN, HR, MEMBER, EXTERNAL)");
   console.log("  - All team member roles (MANAGER, MEMBER, EXTERNAL)");
   console.log("  - Co-managed team (Finance: 2 managers)");
   console.log("  - Cross-team members (Alex in 2 teams, Sarah in 2 teams, Priya in 2 teams)");

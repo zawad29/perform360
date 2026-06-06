@@ -177,7 +177,7 @@ model Company {
 enum UserRole {
   ADMIN
   HR
-  EMPLOYEE
+  MEMBER
   EXTERNAL
 }
 
@@ -186,7 +186,7 @@ model User {
   email      String
   name       String
   avatar     String?
-  role       UserRole  @default(EMPLOYEE)
+  role       UserRole  @default(MEMBER)
   companyId  String
   company    Company   @relation(fields: [companyId], references: [id])
   authUserId String? // Links to AuthUser for NextAuth session resolution
