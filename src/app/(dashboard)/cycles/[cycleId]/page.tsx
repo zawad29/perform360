@@ -691,7 +691,7 @@ export default function CycleDetailPage() {
       if (json.success) {
         setShowActivateDialog(false);
         addToast(
-          `Cycle activated — invitation emails are being sent to reviewers`,
+          `Cycle activated. If you haven't already, run "npm run worker" to send invitation emails.`,
           "success"
         );
         setAssignmentsData(null);

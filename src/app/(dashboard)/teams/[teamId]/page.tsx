@@ -613,6 +613,9 @@ export default function TeamDetailPage() {
             {editRole === "IMPERSONATOR" && (
               <div className="space-y-1.5">
                 <label className="block text-[13px] font-medium text-gray-700">Directions to Cover</label>
+                <p className="text-[12px] text-gray-500 -mt-0.5 mb-1">
+                  Replaces all managers/members for these directions — not a specific person
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {IMPERSONATOR_DIRECTION_OPTIONS.map((opt) => (
                     <label key={opt.value} className="flex items-center gap-1.5 text-[13px] text-gray-700 cursor-pointer">
@@ -707,6 +710,9 @@ export default function TeamDetailPage() {
             {addRole === "IMPERSONATOR" && (
               <div className="space-y-1.5" data-tour="impersonator-directions">
                 <label className="block text-[13px] font-medium text-gray-700">Directions to Cover</label>
+                <p className="text-[12px] text-gray-500 -mt-0.5 mb-1">
+                  Replaces all managers/members for these directions — not a specific person
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {IMPERSONATOR_DIRECTION_OPTIONS.map((opt) => (
                     <label key={opt.value} className="flex items-center gap-1.5 text-[13px] text-gray-700 cursor-pointer">
