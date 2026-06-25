@@ -21,7 +21,7 @@ const STEPS = [
 interface CoverageGapMember {
   userId: string;
   name: string;
-  levelName: string | null;
+  designationName: string | null;
 }
 
 interface CoverageGap {
@@ -89,16 +89,16 @@ export default function NewCyclePage() {
     for (const g of groups) {
       if (g.teamIds.length === 0 || g.templateIds.length === 0) continue;
       const groupTemplates = templates.filter((t) => g.templateIds.includes(t.id));
-      const hasWildcard = groupTemplates.some((t) => t.levelIds.length === 0);
+      const hasWildcard = groupTemplates.some((t) => t.designationIds.length === 0);
       if (hasWildcard) continue;
-      const coveredLevelIds = new Set(groupTemplates.flatMap((t) => t.levelIds));
+      const coveredDesignationIds = new Set(groupTemplates.flatMap((t) => t.designationIds));
       for (const teamId of g.teamIds) {
         const team = teams.find((t) => t.id === teamId);
         if (!team) continue;
         const hasGap = team.members.some(
           (m) =>
             isCycleSubjectRole(m.role) &&
-            (m.levelId === null || !coveredLevelIds.has(m.levelId))
+            (m.designationId === null || !coveredDesignationIds.has(m.designationId))
         );
         if (hasGap) return true;
       }
@@ -249,8 +249,8 @@ export default function NewCyclePage() {
               Coverage gap — these members have no matching template
             </p>
             <p className="text-[12px] text-gray-500 mb-3">
-              Add a template that covers their level, or use a template with no
-              level filter.
+              Add a template that covers their designation, or use a template with no
+              designation filter.
             </p>
             <div className="space-y-3">
               {coverageGaps.map((gap) => (
@@ -266,7 +266,7 @@ export default function NewCyclePage() {
                       >
                         • {m.name}{" "}
                         <span className="text-gray-400">
-                          ({m.levelName ?? "no level"})
+                          ({m.designationName ?? "no designation"})
                         </span>
                       </li>
                     ))}

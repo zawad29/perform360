@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
             user: {
               select: { id: true, name: true, email: true, avatar: true, role: true },
             },
-            level: { select: { id: true, name: true } },
+            designation: { select: { id: true, name: true } },
           },
         },
         _count: {

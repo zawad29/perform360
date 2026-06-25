@@ -16,7 +16,7 @@ interface VersionEntry {
   version: number;
   name: string;
   description: string | null;
-  levelIds: string[];
+  designationIds: string[];
   weightPreset: WeightPreset | null;
   weightsMember: DirectionWeights | null;
   weightsManager: DirectionWeights | null;

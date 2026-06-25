@@ -17,9 +17,9 @@ export interface TeamMemberWithUser {
   userId: string;
   teamId: string;
   role: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
-  levelId: string | null;
+  designationId: string | null;
   impersonatorDirections: Direction[];
-  level: { id: string; name: string } | null;
+  designation: { id: string; name: string } | null;
   user: {
     id: string;
     email: string;

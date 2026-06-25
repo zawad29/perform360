@@ -14,7 +14,7 @@ vi.mock("@/lib/assignments", () => ({
     data: {
       pairs: teamTemplates.map((tt: { teamId: string; templateIds: string[] }) => ({
         teamId: tt.teamId,
-        templates: tt.templateIds.map((id) => ({ id, levelIds: [], sections: [] })),
+        templates: tt.templateIds.map((id) => ({ id, designationIds: [], sections: [] })),
       })),
       templateMap: new Map(),
       gaps: [],
@@ -185,7 +185,7 @@ describe("API /api/cycles", () => {
         { id: "t1", name: "Eng", members: [] },
       ] as any);
       vi.mocked(prisma.evaluationTemplate.findMany).mockResolvedValue([
-        { id: "tpl1", levelIds: [], sections: [] },
+        { id: "tpl1", designationIds: [], sections: [] },
       ] as any);
 
       const mockCycle = { id: "cycle-new", name: "Q1 Review", status: "DRAFT" };

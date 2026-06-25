@@ -467,7 +467,7 @@ export async function buildIndividualReport(
         teamMemberships: {
           include: {
             team: { select: { id: true, name: true } },
-            level: { select: { name: true } },
+            designation: { select: { name: true } },
           },
         },
       },
@@ -478,11 +478,11 @@ export async function buildIndividualReport(
 
   const subjectContext: SubjectContext = {
     role: subject.role,
-    level: subject.teamMemberships[0]?.level?.name ?? null,
+    designation: subject.teamMemberships[0]?.designation?.name ?? null,
     teams: subject.teamMemberships.map((tm) => ({
       id: tm.team.id,
       name: tm.team.name,
-      level: tm.level?.name ?? null,
+      designation: tm.designation?.name ?? null,
     })),
   };
 

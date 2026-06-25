@@ -26,7 +26,7 @@ interface GeneratedAssignment {
 interface TeamMemberData {
   userId: string;
   role: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
-  levelId: string | null;
+  designationId: string | null;
   impersonatorDirections?: readonly Direction[] | readonly string[];
 }
 
@@ -124,7 +124,7 @@ export function generateAssignmentsFromTeams(
             break;
         }
         for (const subject of subjects) {
-          const resolved = resolveAssignmentForm(templates, subject.levelId, direction);
+          const resolved = resolveAssignmentForm(templates, subject.designationId, direction);
           if (resolved) addAssignment(subject.userId, imp.userId, direction, resolved.templateId);
         }
       }
@@ -134,7 +134,7 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("SELF")) {
       for (const m of team.members) {
         if (m.role === "EXTERNAL" || m.role === "IMPERSONATOR") continue;
-        const resolved = resolveAssignmentForm(templates, m.levelId, "SELF");
+        const resolved = resolveAssignmentForm(templates, m.designationId, "SELF");
         if (resolved) selfEvalPairs.add(`${m.userId}:${resolved.templateId}`);
       }
     }
@@ -143,7 +143,7 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("DOWNWARD")) {
       for (const mgr of managers) {
         for (const member of members) {
-          const resolved = resolveAssignmentForm(templates, member.levelId, "DOWNWARD");
+          const resolved = resolveAssignmentForm(templates, member.designationId, "DOWNWARD");
           if (resolved) addAssignment(member.userId, mgr.userId, "DOWNWARD", resolved.templateId);
         }
       }
@@ -153,7 +153,7 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("UPWARD")) {
       for (const member of members) {
         for (const mgr of managers) {
-          const resolved = resolveAssignmentForm(templates, mgr.levelId, "UPWARD");
+          const resolved = resolveAssignmentForm(templates, mgr.designationId, "UPWARD");
           if (resolved) addAssignment(mgr.userId, member.userId, "UPWARD", resolved.templateId);
         }
       }
@@ -164,14 +164,14 @@ export function generateAssignmentsFromTeams(
       for (const reviewer of members) {
         for (const subject of members) {
           if (reviewer.userId === subject.userId) continue;
-          const resolved = resolveAssignmentForm(templates, subject.levelId, "LATERAL");
+          const resolved = resolveAssignmentForm(templates, subject.designationId, "LATERAL");
           if (resolved) addAssignment(subject.userId, reviewer.userId, "LATERAL", resolved.templateId);
         }
       }
       for (const reviewer of managers) {
         for (const subject of managers) {
           if (reviewer.userId === subject.userId) continue;
-          const resolved = resolveAssignmentForm(templates, subject.levelId, "LATERAL");
+          const resolved = resolveAssignmentForm(templates, subject.designationId, "LATERAL");
           if (resolved) addAssignment(subject.userId, reviewer.userId, "LATERAL", resolved.templateId);
         }
       }
@@ -181,11 +181,11 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("EXTERNAL")) {
       for (const ext of externals) {
         for (const member of members) {
-          const resolved = resolveAssignmentForm(templates, member.levelId, "EXTERNAL");
+          const resolved = resolveAssignmentForm(templates, member.designationId, "EXTERNAL");
           if (resolved) addAssignment(member.userId, ext.userId, "EXTERNAL", resolved.templateId);
         }
         for (const mgr of managers) {
-          const resolved = resolveAssignmentForm(templates, mgr.levelId, "EXTERNAL");
+          const resolved = resolveAssignmentForm(templates, mgr.designationId, "EXTERNAL");
           if (resolved) addAssignment(mgr.userId, ext.userId, "EXTERNAL", resolved.templateId);
         }
       }
@@ -203,7 +203,7 @@ export function generateAssignmentsFromTeams(
 export interface CoverageGap {
   teamId: string;
   teamName: string;
-  members: { userId: string; name: string; levelName: string | null }[];
+  members: { userId: string; name: string; designationName: string | null }[];
 }
 
 export interface ValidatedTeamTemplates {
@@ -214,8 +214,8 @@ export interface ValidatedTeamTemplates {
 }
 
 /**
- * Validate that every team-member's level is covered by at least one assigned
- * template (templates with empty levelIds satisfy any level), and load the
+ * Validate that every team-member's designation is covered by at least one assigned
+ * template (templates with empty designationIds satisfy any designation), and load the
  * template metadata needed to generate assignments.
  *
  * Used by both POST /api/cycles and PATCH /api/cycles/[id].
@@ -245,9 +245,9 @@ export async function validateTeamTemplateCoverage(
           select: {
             userId: true,
             role: true,
-            levelId: true,
+            designationId: true,
             user: { select: { id: true, name: true } },
-            level: { select: { id: true, name: true } },
+            designation: { select: { id: true, name: true } },
           },
         },
       },
@@ -258,7 +258,7 @@ export async function validateTeamTemplateCoverage(
         OR: [{ companyId }, { isGlobal: true }],
         isArchived: false,
       },
-      select: { id: true, levelIds: true, sections: true },
+      select: { id: true, designationIds: true, sections: true },
     }),
   ]);
 
@@ -274,7 +274,7 @@ export async function validateTeamTemplateCoverage(
       t.id,
       {
         id: t.id,
-        levelIds: t.levelIds,
+        designationIds: t.designationIds,
         sections: t.sections as unknown as SectionShape[],
       },
     ])
@@ -289,18 +289,18 @@ export async function validateTeamTemplateCoverage(
       .map((id) => templateMap.get(id))
       .filter((x): x is TemplateMeta => Boolean(x));
 
-    const hasWildcard = assigned.some((t) => t.levelIds.length === 0);
+    const hasWildcard = assigned.some((t) => t.designationIds.length === 0);
     if (hasWildcard) continue;
 
-    const coveredLevels = new Set(assigned.flatMap((t) => t.levelIds));
+    const coveredDesignations = new Set(assigned.flatMap((t) => t.designationIds));
     const missing: CoverageGap["members"] = [];
     for (const m of team.members) {
       if (!isCycleSubjectRole(m.role)) continue;
-      if (m.levelId === null || !coveredLevels.has(m.levelId)) {
+      if (m.designationId === null || !coveredDesignations.has(m.designationId)) {
         missing.push({
           userId: m.userId,
           name: m.user?.name ?? "Unknown",
-          levelName: m.level?.name ?? null,
+          designationName: m.designation?.name ?? null,
         });
       }
     }
@@ -391,7 +391,7 @@ export async function createAssignmentsForCycle(
         select: {
           userId: true,
           role: true,
-          levelId: true,
+          designationId: true,
           impersonatorDirections: true,
         },
       },

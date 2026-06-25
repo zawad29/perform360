@@ -11,7 +11,7 @@ const csvRowSchema = z.object({
   email: z.string(),
   team: z.string().min(1),
   role: z.string().min(1),
-  level: z.string().optional(),
+  designation: z.string().optional(),
 });
 
 const importSchema = z.object({
@@ -115,22 +115,22 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 3. Find-or-create levels from CSV
-        const levelMap = new Map<string, string>(); // levelName -> levelId
-        const uniqueLevelNames = Array.from(
-          new Set(validRows.map((r) => r.level?.trim()).filter((l): l is string => !!l))
+        // 3. Find-or-create designations from CSV
+        const designationMap = new Map<string, string>(); // designationName -> designationId
+        const uniqueDesignationNames = Array.from(
+          new Set(validRows.map((r) => r.designation?.trim()).filter((l): l is string => !!l))
         );
-        for (const levelName of uniqueLevelNames) {
-          const existing = await tx.level.findUnique({
-            where: { companyId_name: { companyId, name: levelName } },
+        for (const designationName of uniqueDesignationNames) {
+          const existing = await tx.designation.findUnique({
+            where: { companyId_name: { companyId, name: designationName } },
           });
           if (existing) {
-            levelMap.set(levelName, existing.id);
+            designationMap.set(designationName, existing.id);
           } else {
-            const created = await tx.level.create({
-              data: { name: levelName, companyId },
+            const created = await tx.designation.create({
+              data: { name: designationName, companyId },
             });
-            levelMap.set(levelName, created.id);
+            designationMap.set(designationName, created.id);
           }
         }
 
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
         for (const row of validRows) {
           const email = row.email.trim().toLowerCase();
           const teamName = row.team.trim();
-          const levelName = row.level?.trim();
+          const designationName = row.designation?.trim();
           const userId = userMap.get(email);
           const teamId = teamMap.get(teamName);
 
@@ -150,16 +150,16 @@ export async function POST(request: NextRequest) {
             external: "EXTERNAL",
           } as const;
           const role = ROLE_MAP[row.role.toLowerCase() as keyof typeof ROLE_MAP] ?? ("MEMBER" as const);
-          const levelId = levelName ? (levelMap.get(levelName) ?? null) : null;
+          const designationId = designationName ? (designationMap.get(designationName) ?? null) : null;
 
           const existingMembership = await tx.teamMember.findUnique({
             where: { userId_teamId: { userId, teamId } },
           });
           if (existingMembership) {
-            // Update level or role if different
+            // Update designation or role if different
             const updates: Record<string, string | null> = {};
-            if (levelId && existingMembership.levelId !== levelId) {
-              updates.levelId = levelId;
+            if (designationId && existingMembership.designationId !== designationId) {
+              updates.designationId = designationId;
             }
             if (Object.keys(updates).length > 0) {
               await tx.teamMember.update({
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
             }
             stats.membershipsExisted++;
           } else {
-            await tx.teamMember.create({ data: { userId, teamId, role, levelId } });
+            await tx.teamMember.create({ data: { userId, teamId, role, designationId } });
             stats.membershipsCreated++;
           }
         }

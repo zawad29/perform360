@@ -61,10 +61,10 @@ function computeGroupGaps(
   if (group.teamIds.length === 0 || group.templateIds.length === 0) return [];
 
   const groupTemplates = templates.filter((t) => group.templateIds.includes(t.id));
-  const hasWildcard = groupTemplates.some((t) => t.levelIds.length === 0);
+  const hasWildcard = groupTemplates.some((t) => t.designationIds.length === 0);
   if (hasWildcard) return [];
 
-  const coveredLevelIds = new Set(groupTemplates.flatMap((t) => t.levelIds));
+  const coveredDesignationIds = new Set(groupTemplates.flatMap((t) => t.designationIds));
 
   const gaps: CoverageGapTeam[] = [];
   for (const teamId of group.teamIds) {
@@ -73,11 +73,11 @@ function computeGroupGaps(
 
     const uncovered = team.members
       .filter((m) => isCycleSubjectRole(m.role))
-      .filter((m) => m.levelId === null || !coveredLevelIds.has(m.levelId))
+      .filter((m) => m.designationId === null || !coveredDesignationIds.has(m.designationId))
       .map((m) => ({
         userId: m.userId,
         name: m.user.name,
-        levelName: m.level?.name ?? null,
+        designationName: m.designation?.name ?? null,
       }));
 
     if (uncovered.length > 0) {
@@ -113,12 +113,12 @@ export function StepTeams({
         value: t.id,
         label: t.name,
         sublabel: t.isGlobal
-          ? t.levelIds.length === 0
-            ? "Global · all levels"
-            : `Global · ${t.levelIds.length} ${t.levelIds.length === 1 ? "level" : "levels"}`
-          : t.levelIds.length === 0
-            ? "All levels"
-            : `${t.levelIds.length} ${t.levelIds.length === 1 ? "level" : "levels"}`,
+          ? t.designationIds.length === 0
+            ? "Global · all designations"
+            : `Global · ${t.designationIds.length} ${t.designationIds.length === 1 ? "designation" : "designations"}`
+          : t.designationIds.length === 0
+            ? "All designations"
+            : `${t.designationIds.length} ${t.designationIds.length === 1 ? "designation" : "designations"}`,
       })),
     [templates]
   );
@@ -176,7 +176,7 @@ export function StepTeams({
               id: t.id,
               name: t.name,
               description: t.description ?? null,
-              levelIds: t.levelIds,
+              designationIds: t.designationIds,
               sections: t.sections,
               weightsMember: t.weightsMember,
               weightsManager: t.weightsManager,
@@ -274,8 +274,8 @@ export function StepTeams({
                       members={team.members.map((m) => ({
                         userId: m.userId,
                         name: m.user.name,
-                        levelId: m.levelId,
-                        levelName: m.level?.name ?? null,
+                        designationId: m.designationId,
+                        designationName: m.designation?.name ?? null,
                         role: m.role,
                       }))}
                       templates={groupTemplates}
@@ -297,8 +297,8 @@ export function StepTeams({
                         Coverage gap — these members have no matching template
                       </p>
                       <p className="text-[11px] text-gray-500 mt-0.5">
-                        Add a template that covers their level, or include one
-                        with no level filter (acts as a wildcard).
+                        Add a template that covers their designation, or include one
+                        with no designation filter (acts as a wildcard).
                       </p>
                     </div>
                   </div>
@@ -316,7 +316,7 @@ export function StepTeams({
                             >
                               • {m.name}{" "}
                               <span className="text-gray-400">
-                                ({m.levelName ?? "no level"})
+                                ({m.designationName ?? "no designation"})
                               </span>
                             </li>
                           ))}

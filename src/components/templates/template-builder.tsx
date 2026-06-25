@@ -26,7 +26,7 @@ export function TemplateBuilder() {
   const {
     name,
     description,
-    levelIds,
+    designationIds,
     weightPreset,
     weightsMember,
     weightsManager,
@@ -34,7 +34,7 @@ export function TemplateBuilder() {
     useDirectionRouting,
     setName,
     setDescription,
-    setLevelIds,
+    setDesignationIds,
     setWeights,
     setUseDirectionRouting,
     addSection,
@@ -129,10 +129,10 @@ export function TemplateBuilder() {
             </div>
           </div>
 
-          {/* Optional config: Levels + Weights as collapsible strips */}
+          {/* Optional config: Designations + Weights as collapsible strips */}
           <TemplateMetaStrips
-            levelIds={levelIds}
-            onLevelsChange={setLevelIds}
+            designationIds={designationIds}
+            onDesignationsChange={setDesignationIds}
             preset={weightPreset}
             member={weightsMember}
             manager={weightsManager}

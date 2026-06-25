@@ -16,21 +16,21 @@ describe("validateTeamTemplateCoverage", () => {
           {
             userId: "member-1",
             role: "MEMBER",
-            levelId: "level-1",
+            designationId: "level-1",
             user: { id: "member-1", name: "Member One" },
             level: { id: "level-1", name: "L1" },
           },
           {
             userId: "external-1",
             role: "EXTERNAL",
-            levelId: null,
+            designationId: null,
             user: { id: "external-1", name: "External One" },
             level: null,
           },
           {
             userId: "imp-1",
             role: "IMPERSONATOR",
-            levelId: null,
+            designationId: null,
             user: { id: "imp-1", name: "Impersonator One" },
             level: null,
           },
@@ -40,7 +40,7 @@ describe("validateTeamTemplateCoverage", () => {
     vi.mocked(prisma.evaluationTemplate.findMany).mockResolvedValue([
       {
         id: "tpl-1",
-        levelIds: ["level-1"],
+        designationIds: ["level-1"],
         sections: [],
       },
     ] as any);
@@ -63,14 +63,14 @@ describe("validateTeamTemplateCoverage", () => {
           {
             userId: "external-1",
             role: "EXTERNAL",
-            levelId: null,
+            designationId: null,
             user: { id: "external-1", name: "External One" },
             level: null,
           },
           {
             userId: "imp-1",
             role: "IMPERSONATOR",
-            levelId: null,
+            designationId: null,
             user: { id: "imp-1", name: "Impersonator One" },
             level: null,
           },
@@ -80,7 +80,7 @@ describe("validateTeamTemplateCoverage", () => {
     vi.mocked(prisma.evaluationTemplate.findMany).mockResolvedValue([
       {
         id: "tpl-1",
-        levelIds: ["level-1"],
+        designationIds: ["level-1"],
         sections: [],
       },
     ] as any);

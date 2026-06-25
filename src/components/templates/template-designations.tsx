@@ -3,27 +3,27 @@
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 
-interface LevelOption {
+interface DesignationOption {
   id: string;
   name: string;
 }
 
-interface TemplateLevelsProps {
+interface TemplateDesignationsProps {
   selected: string[];
-  onChange: (levelIds: string[]) => void;
+  onChange: (designationIds: string[]) => void;
 }
 
-export function TemplateLevels({ selected, onChange }: TemplateLevelsProps) {
-  const [levels, setLevels] = useState<LevelOption[]>([]);
+export function TemplateDesignations({ selected, onChange }: TemplateDesignationsProps) {
+  const [designations, setDesignations] = useState<DesignationOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const res = await fetch("/api/levels");
+        const res = await fetch("/api/designations");
         const json = await res.json();
-        if (!cancelled && json.success) setLevels(json.data);
+        if (!cancelled && json.success) setDesignations(json.data);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -42,22 +42,22 @@ export function TemplateLevels({ selected, onChange }: TemplateLevelsProps) {
     }
   }
 
-  const allLevels = selected.length === 0;
+  const allDesignations = selected.length === 0;
 
   return (
     <div className="bg-white border border-gray-900 p-6">
       <h3 className="text-[14px] font-medium uppercase tracking-caps text-gray-900">
-        Applies To Levels
+        Applies To Designations
       </h3>
       <p className="text-[12px] text-gray-500 mt-0.5 mb-3">
-        Select which career levels use this template. None selected = applies to all levels.
+        Select which career designations use this template. None selected = applies to all designations.
       </p>
 
       {loading ? (
-        <p className="text-[12px] text-gray-400">Loading levels…</p>
-      ) : levels.length === 0 ? (
+        <p className="text-[12px] text-gray-400">Loading designations…</p>
+      ) : designations.length === 0 ? (
         <p className="text-[12px] text-gray-400">
-          No levels defined. Members without a level always match templates with no level filter.
+          No designations defined. Members without a designation always match templates with no designation filter.
         </p>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -65,21 +65,21 @@ export function TemplateLevels({ selected, onChange }: TemplateLevelsProps) {
             type="button"
             onClick={() => onChange([])}
             className={`inline-flex items-center gap-1.5 border px-3 py-1.5 text-[12px] ${
-              allLevels
+              allDesignations
                 ? "border-gray-900 bg-gray-900 text-white"
                 : "border-gray-200 bg-white text-gray-700 hover:border-gray-400"
             }`}
           >
-            {allLevels && <Check size={12} strokeWidth={2.5} />}
-            All levels
+            {allDesignations && <Check size={12} strokeWidth={2.5} />}
+            All designations
           </button>
-          {levels.map((lvl) => {
-            const isSelected = selected.includes(lvl.id);
+          {designations.map((designation) => {
+            const isSelected = selected.includes(designation.id);
             return (
               <button
-                key={lvl.id}
+                key={designation.id}
                 type="button"
-                onClick={() => toggle(lvl.id)}
+                onClick={() => toggle(designation.id)}
                 className={`inline-flex items-center gap-1.5 border px-3 py-1.5 text-[12px] ${
                   isSelected
                     ? "border-gray-900 bg-gray-900 text-white"
@@ -87,7 +87,7 @@ export function TemplateLevels({ selected, onChange }: TemplateLevelsProps) {
                 }`}
               >
                 {isSelected && <Check size={12} strokeWidth={2.5} />}
-                {lvl.name}
+                {designation.name}
               </button>
             );
           })}

@@ -24,7 +24,7 @@ interface TemplateSection {
 interface TemplateBuilderState {
   name: string;
   description: string;
-  levelIds: string[];
+  designationIds: string[];
   weightPreset: WeightPreset | null;
   weightsMember: DirectionWeights | null;
   weightsManager: DirectionWeights | null;
@@ -36,7 +36,7 @@ interface TemplateBuilderState {
 
   setName: (name: string) => void;
   setDescription: (description: string) => void;
-  setLevelIds: (ids: string[]) => void;
+  setDesignationIds: (ids: string[]) => void;
   setWeights: (next: {
     preset: WeightPreset | null;
     member: DirectionWeights | null;
@@ -63,7 +63,7 @@ interface TemplateBuilderState {
   loadTemplate: (data: {
     name: string;
     description: string;
-    levelIds: string[];
+    designationIds: string[];
     weightPreset: WeightPreset | null;
     weightsMember: DirectionWeights | null;
     weightsManager: DirectionWeights | null;
@@ -78,7 +78,7 @@ function generateId(): string {
 export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
   name: "",
   description: "",
-  levelIds: [],
+  designationIds: [],
   weightPreset: null,
   weightsMember: null,
   weightsManager: null,
@@ -90,7 +90,7 @@ export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
 
   setName: (name) => set({ name, isDirty: true }),
   setDescription: (description) => set({ description, isDirty: true }),
-  setLevelIds: (levelIds) => set({ levelIds, isDirty: true }),
+  setDesignationIds: (designationIds) => set({ designationIds, isDirty: true }),
   setWeights: ({ preset, member, manager }) =>
     set({
       weightPreset: preset,
@@ -218,7 +218,7 @@ export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
     set({
       name: "",
       description: "",
-      levelIds: [],
+      designationIds: [],
       weightPreset: null,
       weightsMember: null,
       weightsManager: null,
@@ -233,7 +233,7 @@ export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
     set({
       name: data.name,
       description: data.description,
-      levelIds: data.levelIds,
+      designationIds: data.designationIds,
       weightPreset: data.weightPreset,
       weightsMember: data.weightsMember,
       weightsManager: data.weightsManager,

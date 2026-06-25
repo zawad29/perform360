@@ -11,7 +11,7 @@ import { Prisma, WeightPreset } from "@prisma/client";
 const createTemplateSchema = z.object({
   name: z.string().min(1, "Template name is required"),
   description: z.string().optional(),
-  levelIds: z.array(z.string()).default([]),
+  designationIds: z.array(z.string()).default([]),
   weightPreset: z.nativeEnum(WeightPreset).nullable().optional(),
   weightsMember: directionWeightsSchema.nullable().optional(),
   weightsManager: directionWeightsSchema.nullable().optional(),
@@ -83,14 +83,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createTemplateSchema.parse(body);
 
-    // Verify levelIds belong to company (when provided)
-    if (validated.levelIds.length > 0) {
-      const levels = await prisma.level.findMany({
-        where: { id: { in: validated.levelIds }, companyId: authResult.companyId },
+    // Verify designationIds belong to company (when provided)
+    if (validated.designationIds.length > 0) {
+      const designations = await prisma.designation.findMany({
+        where: { id: { in: validated.designationIds }, companyId: authResult.companyId },
         select: { id: true },
       });
-      if (levels.length !== validated.levelIds.length) {
-        return errorResponse("One or more levels not found", "NOT_FOUND", 404);
+      if (designations.length !== validated.designationIds.length) {
+        return errorResponse("One or more designations not found", "NOT_FOUND", 404);
       }
     }
 
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         data: {
           name: validated.name,
           description: validated.description,
-          levelIds: validated.levelIds,
+          designationIds: validated.designationIds,
           weightPreset: validated.weightPreset ?? null,
           weightsMember,
           weightsManager,
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
           version: 1,
           name: created.name,
           description: created.description,
-          levelIds: created.levelIds,
+          designationIds: created.designationIds,
           weightPreset: created.weightPreset,
           weightsMember,
           weightsManager,

@@ -10,7 +10,7 @@ import { Direction } from "@prisma/client";
 const addMemberSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
   role: z.enum(["MANAGER", "MEMBER", "EXTERNAL", "IMPERSONATOR"]),
-  levelId: z.string().optional().nullable(),
+  designationId: z.string().optional().nullable(),
   impersonatorDirections: z
     .array(z.nativeEnum(Direction))
     .optional()
@@ -37,8 +37,8 @@ export async function POST(
     const body = await request.json();
     const validated = addMemberSchema.parse(body);
 
-    // Parallel validation: team, user, existing membership, and optional level
-    const [team, user, existingMembership, level] = await Promise.all([
+    // Parallel validation: team, user, existing membership, and optional designation
+    const [team, user, existingMembership, designation] = await Promise.all([
       prisma.team.findFirst({
         where: { id, companyId: authResult.companyId },
         select: { id: true },
@@ -51,9 +51,9 @@ export async function POST(
         where: { userId_teamId: { userId: validated.userId, teamId: id } },
         select: { id: true },
       }),
-      validated.levelId
-        ? prisma.level.findFirst({
-            where: { id: validated.levelId, companyId: authResult.companyId },
+      validated.designationId
+        ? prisma.designation.findFirst({
+            where: { id: validated.designationId, companyId: authResult.companyId },
             select: { id: true },
           })
         : Promise.resolve(null),
@@ -83,10 +83,10 @@ export async function POST(
       }, { status: 409 });
     }
 
-    if (validated.levelId && !level) {
+    if (validated.designationId && !designation) {
       return NextResponse.json({
         success: false,
-        error: "Level not found",
+        error: "Designation not found",
         code: "NOT_FOUND",
       }, { status: 404 });
     }
@@ -96,14 +96,14 @@ export async function POST(
         userId: validated.userId,
         teamId: id,
         role: validated.role,
-        levelId: validated.levelId ?? null,
+        designationId: validated.designationId ?? null,
         impersonatorDirections: validated.role === "IMPERSONATOR" ? validated.impersonatorDirections : [],
       },
       include: {
         user: {
           select: { id: true, name: true, email: true, avatar: true, role: true },
         },
-        level: { select: { id: true, name: true } },
+        designation: { select: { id: true, name: true } },
       },
     });
 

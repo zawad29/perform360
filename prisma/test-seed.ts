@@ -8,7 +8,7 @@
  *  - Teams covering: single manager, co-managed, manager-only, member-only,
  *    external evaluators, cross-team members, leveled members
  *  - Company-specific evaluation templates demonstrating template-owned
- *    levelIds, weightsMember/weightsManager, and per-section directions
+ *    designationIds, weightsMember/weightsManager, and per-section directions
  *  - 3 evaluation cycles:
  *    1. CLOSED cycle with full assignments, submitted responses (encrypted), and calibrations
  *    2. ACTIVE cycle with multiple level-filtered templates per team (level-resolved routing)
@@ -110,7 +110,7 @@ async function main() {
 
     await prisma.teamMember.deleteMany({ where: { team: { companyId } } });
     await prisma.team.deleteMany({ where: { companyId } });
-    await prisma.level.deleteMany({ where: { companyId } });
+    await prisma.designation.deleteMany({ where: { companyId } });
     await prisma.auditLog.deleteMany({ where: { companyId } });
     await prisma.recoveryCode.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.evaluationTemplate.deleteMany({ where: { companyId } });
@@ -138,16 +138,16 @@ async function main() {
   });
   console.log(`  Company: ${company.name} (${company.id})\n`);
 
-  // ── 2. Create Levels ──
-  console.log("2. Creating seniority levels...");
-  const levelNames = ["SE L-1", "SE L-2", "SA L-2", "SA L-3", "D-1", "D-2", "PM L-1", "PM L-2"];
-  const levels: Record<string, string> = {};
-  for (const name of levelNames) {
-    const level = await prisma.level.create({
+  // ── 2. Create Designations ──
+  console.log("2. Creating seniority designations...");
+  const designationNames = ["SE L-1", "SE L-2", "SA L-2", "SA L-3", "D-1", "D-2", "PM L-1", "PM L-2"];
+  const designations: Record<string, string> = {};
+  for (const name of designationNames) {
+    const designation = await prisma.designation.create({
       data: { name, companyId: company.id },
     });
-    levels[name] = level.id;
-    console.log(`  Level: ${name} (${level.id})`);
+    designations[name] = designation.id;
+    console.log(`  Designation: ${name} (${designation.id})`);
   }
   console.log();
 
@@ -208,13 +208,13 @@ async function main() {
   }
   console.log(`  Created ${userDefs.length} users\n`);
 
-  // ── 4. Create Teams with Members & Levels ──
+  // ── 4. Create Teams with Members & Designations ──
   console.log("4. Creating teams...");
 
   interface MemberDef {
     email: string;
     role: TeamMemberRole;
-    level?: string;
+    designation?: string;
   }
 
   interface TeamDef {
@@ -242,19 +242,19 @@ async function main() {
       description: "EM evaluates all solution architects",
       members: [
         { email: "sarah.chen@techcorp.com", role: TeamMemberRole.MANAGER },
-        { email: "alex.rivera@techcorp.com", role: TeamMemberRole.MEMBER, level: "SA L-3" },
-        { email: "priya.sharma@techcorp.com", role: TeamMemberRole.MEMBER, level: "SA L-3" },
-        { email: "dan.kim@techcorp.com", role: TeamMemberRole.MEMBER, level: "SA L-2" },
+        { email: "alex.rivera@techcorp.com", role: TeamMemberRole.MEMBER, designation: "SA L-3" },
+        { email: "priya.sharma@techcorp.com", role: TeamMemberRole.MEMBER, designation: "SA L-3" },
+        { email: "dan.kim@techcorp.com", role: TeamMemberRole.MEMBER, designation: "SA L-2" },
       ],
     },
     {
       name: "Platform Team",
-      description: "Backend platform services — mixed levels, external stakeholder",
+      description: "Backend platform services — mixed designations, external stakeholder",
       members: [
-        { email: "alex.rivera@techcorp.com", role: TeamMemberRole.MANAGER, level: "SA L-3" },
-        { email: "jordan.lee@techcorp.com", role: TeamMemberRole.MEMBER, level: "SE L-2" },
-        { email: "maya.patel@techcorp.com", role: TeamMemberRole.MEMBER, level: "SE L-1" },
-        { email: "chris.wu@techcorp.com", role: TeamMemberRole.MEMBER, level: "SE L-1" },
+        { email: "alex.rivera@techcorp.com", role: TeamMemberRole.MANAGER, designation: "SA L-3" },
+        { email: "jordan.lee@techcorp.com", role: TeamMemberRole.MEMBER, designation: "SE L-2" },
+        { email: "maya.patel@techcorp.com", role: TeamMemberRole.MEMBER, designation: "SE L-1" },
+        { email: "chris.wu@techcorp.com", role: TeamMemberRole.MEMBER, designation: "SE L-1" },
         { email: "client.stakeholder@external.com", role: TeamMemberRole.EXTERNAL },
       ],
     },
@@ -262,17 +262,17 @@ async function main() {
       name: "Frontend Team",
       description: "UI/UX engineering",
       members: [
-        { email: "priya.sharma@techcorp.com", role: TeamMemberRole.MANAGER, level: "SA L-3" },
-        { email: "tom.zhang@techcorp.com", role: TeamMemberRole.MEMBER, level: "SE L-2" },
-        { email: "nina.costa@techcorp.com", role: TeamMemberRole.MEMBER, level: "SE L-1" },
+        { email: "priya.sharma@techcorp.com", role: TeamMemberRole.MANAGER, designation: "SA L-3" },
+        { email: "tom.zhang@techcorp.com", role: TeamMemberRole.MEMBER, designation: "SE L-2" },
+        { email: "nina.costa@techcorp.com", role: TeamMemberRole.MEMBER, designation: "SE L-1" },
       ],
     },
     {
       name: "DevOps Team",
       description: "Infrastructure and CI/CD",
       members: [
-        { email: "dan.kim@techcorp.com", role: TeamMemberRole.MANAGER, level: "SA L-2" },
-        { email: "sam.ali@techcorp.com", role: TeamMemberRole.MEMBER, level: "SE L-1" },
+        { email: "dan.kim@techcorp.com", role: TeamMemberRole.MANAGER, designation: "SA L-2" },
+        { email: "sam.ali@techcorp.com", role: TeamMemberRole.MEMBER, designation: "SE L-1" },
       ],
     },
     {
@@ -315,7 +315,7 @@ async function main() {
           create: def.members.map((m) => ({
             userId: users[m.email],
             role: m.role,
-            levelId: m.level ? levels[m.level] : null,
+            designationId: m.designation ? designations[m.designation] : null,
           })),
         },
       },
@@ -327,7 +327,7 @@ async function main() {
 
   // ── 5. Create Company-Specific Templates ──
   // Two TechCorp engineering templates demonstrating template-owned features:
-  //   - levelIds (level filter)
+  //   - designationIds (designation filter)
   //   - weightPreset / weightsMember / weightsManager (direction weights)
   //   - per-section directions tag
   console.log("5. Creating company-specific templates...");
@@ -338,7 +338,7 @@ async function main() {
       isGlobal: false,
       companyId: company.id,
       createdBy: "james.carter@techcorp.com",
-      levelIds: [levels["SE L-2"], levels["SA L-2"], levels["SA L-3"]],
+      designationIds: [designations["SE L-2"], designations["SA L-2"], designations["SA L-3"]],
       weightPreset: "supervisor_focus",
       weightsMember: WEIGHT_PRESETS.supervisor_focus.member as unknown as Prisma.InputJsonValue,
       weightsManager: WEIGHT_PRESETS.supervisor_focus.manager as unknown as Prisma.InputJsonValue,
@@ -391,7 +391,7 @@ async function main() {
       isGlobal: false,
       companyId: company.id,
       createdBy: "james.carter@techcorp.com",
-      levelIds: [levels["SE L-1"]],
+      designationIds: [designations["SE L-1"]],
       weightPreset: "peer_focus",
       weightsMember: WEIGHT_PRESETS.peer_focus.member as unknown as Prisma.InputJsonValue,
       weightsManager: WEIGHT_PRESETS.peer_focus.manager as unknown as Prisma.InputJsonValue,
@@ -426,7 +426,7 @@ async function main() {
 
   // ── 5b. The "everything-everywhere" template ──
   // Covers every axis the routing model exposes:
-  //   - levelIds = []               → wildcard, applies to all levels
+  //   - designationIds = []          → wildcard, applies to all designations
   //   - custom weights              → both Member and Manager profiles set,
   //                                   diverged values (not the same column)
   //   - section.directions          → five sections, one per direction key,
@@ -442,7 +442,7 @@ async function main() {
       isGlobal: false,
       companyId: company.id,
       createdBy: "james.carter@techcorp.com",
-      levelIds: [],
+      designationIds: [],
       weightPreset: "custom",
       weightsMember: {
         downward: 35,
@@ -1018,7 +1018,7 @@ async function main() {
   // Platform Team template routing (matches the cycleTeam template attachments above):
   //   subject SE L-1   → tplJunior
   //   subject SE L-2   → tplTC       (senior track)
-  //   subject SA L-3   → tplMgr      (manager template — most specific levelIds match)
+  //   subject SA L-3   → tplMgr      (manager template — most specific designationIds match)
   //   external reviews → tpl360      (wildcard)
   const c2Assignments: AssignmentDef[] = [
     // Platform Team — Alex (SA L-3, manager) → members
@@ -1210,8 +1210,8 @@ async function main() {
     { action: "calibration_adjust", target: `user:${users["jordan.lee@techcorp.com"]}`, userId: users["maria.santos@techcorp.com"], metadata: { rawScore: 4.2, calibratedScore: 4.0, cycleId: cycle1.id } },
     { action: "decryption", target: `cycle:${cycle1.id}`, userId: users["james.carter@techcorp.com"], metadata: { purpose: "report_generation" } },
     { action: "cycle_activate", target: `cycle:${cycle2.id}`, userId: users["maria.santos@techcorp.com"], metadata: { cycleName: "Q1 2026 Performance Review" } },
-    { action: "level_create", target: `level:${levels["SE L-1"]}`, userId: users["james.carter@techcorp.com"], metadata: { name: "SE L-1" } },
-    { action: "level_create", target: `level:${levels["SE L-2"]}`, userId: users["james.carter@techcorp.com"], metadata: { name: "SE L-2" } },
+    { action: "designation_create", target: `designation:${designations["SE L-1"]}`, userId: users["james.carter@techcorp.com"], metadata: { name: "SE L-1" } },
+    { action: "designation_create", target: `designation:${designations["SE L-2"]}`, userId: users["james.carter@techcorp.com"], metadata: { name: "SE L-2" } },
     { action: "role_change", target: `user:${users["maria.santos@techcorp.com"]}`, userId: users["james.carter@techcorp.com"], metadata: { from: "MEMBER", to: "HR" } },
   ];
 
@@ -1235,7 +1235,7 @@ async function main() {
   console.log("Slug:", COMPANY_SLUG);
   console.log("Encryption passphrase:", PASSPHRASE);
   console.log(`Users: ${userDefs.length} (1 ADMIN, 1 HR, ${userDefs.filter((u) => u.role === UserRole.MEMBER).length} MEMBER)`);
-  console.log(`Levels: ${levelNames.length} (${levelNames.join(", ")})`);
+  console.log(`Designations: ${designationNames.length} (${designationNames.join(", ")})`);
   console.log(`Teams: ${teamDefs.length}`);
   console.log("Cycles:");
   console.log(`  1. Q4 2025 — CLOSED, ${c1Assignments.length} assignments (all submitted), ${calibrations.length} calibrations`);
@@ -1251,7 +1251,7 @@ async function main() {
   console.log("  - Seniority levels on engineering teams");
   console.log("  - Single-template-per-team cycles");
   console.log("  - Multi-template-per-team cycles with level-resolved routing");
-  console.log("  - Template-owned levelIds (TechCorp Senior + Junior tracks)");
+  console.log("  - Template-owned designationIds (TechCorp Senior + Junior tracks)");
   console.log("  - Template-owned direction weights (supervisor_focus, peer_focus)");
   console.log("  - Per-section direction tags (Junior peer-collab, Senior growth)");
   console.log("  - All five directions (DOWNWARD, UPWARD, LATERAL, SELF, EXTERNAL)");

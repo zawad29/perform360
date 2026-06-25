@@ -102,16 +102,16 @@ export async function GET(
     const results = await Promise.allSettled(
       cycles.map(async (cycle) => {
         const report = await buildIndividualReport(cycle.id, userId, companyId, dataKey);
-        // Distinct levels held during this cycle, gathered from the teams the
-        // subject was on at report-build time (subjectContext.teams). The level
-        // captured here is "current" per team — close enough to surface
-        // re-leveling across cycles when the same person appears with different
-        // levels in different cycles' reports.
-        const levels = Array.from(
+        // Distinct designations held during this cycle, gathered from the teams
+        // the subject was on at report-build time (subjectContext.teams). The
+        // designation captured here is "current" per team — close enough to
+        // surface re-leveling across cycles when the same person appears with
+        // different designations in different cycles' reports.
+        const designations = Array.from(
           new Set(
             report.subjectContext.teams
-              .map((t) => t.level)
-              .filter((l): l is string => !!l)
+              .map((t) => t.designation)
+              .filter((d): d is string => !!d)
           )
         );
         return {
@@ -127,7 +127,7 @@ export async function GET(
           scoresByDirection: report.scoresByDirection,
           responseRate: report.responseRate,
           reviewerBreakdown: report.reviewerBreakdown,
-          levels,
+          designations,
         } satisfies PersonCycleSummary;
       })
     );

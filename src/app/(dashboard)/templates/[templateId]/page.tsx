@@ -45,7 +45,7 @@ interface Template {
   description: string | null;
   isGlobal: boolean;
   version: number;
-  levelIds: string[];
+  designationIds: string[];
   weightPreset: WeightPreset | null;
   weightsMember: DirectionWeights | null;
   weightsManager: DirectionWeights | null;
@@ -165,7 +165,7 @@ export default function TemplateDetailPage() {
         body: JSON.stringify({
           name: `${template.name} (Copy)`,
           description: template.description,
-          levelIds: template.levelIds,
+          designationIds: template.designationIds,
           weightPreset: template.weightPreset,
           weightsMember: template.weightsMember,
           weightsManager: template.weightsManager,
@@ -279,9 +279,9 @@ export default function TemplateDetailPage() {
         <span aria-hidden="true" className="text-gray-300">·</span>
         <span className="inline-flex items-center gap-1.5">
           <Layers size={12} strokeWidth={1.5} className="text-gray-400" />
-          {template.levelIds.length === 0
-            ? "All levels"
-            : `${template.levelIds.length} ${template.levelIds.length === 1 ? "level" : "levels"}`}
+          {template.designationIds.length === 0
+            ? "All designations"
+            : `${template.designationIds.length} ${template.designationIds.length === 1 ? "designation" : "designations"}`}
         </span>
       </div>
 

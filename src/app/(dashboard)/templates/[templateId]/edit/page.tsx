@@ -30,7 +30,7 @@ export default function EditTemplatePage() {
         loadTemplate({
           name: json.data.name,
           description: json.data.description ?? "",
-          levelIds: json.data.levelIds ?? [],
+          designationIds: json.data.designationIds ?? [],
           weightPreset: json.data.weightPreset ?? null,
           weightsMember: json.data.weightsMember ?? null,
           weightsManager: json.data.weightsManager ?? null,
@@ -84,7 +84,7 @@ export default function EditTemplatePage() {
         body: JSON.stringify({
           name: state.name,
           description: state.description,
-          levelIds: state.levelIds,
+          designationIds: state.designationIds,
           weightPreset: state.weightPreset,
           weightsMember: state.weightsMember,
           weightsManager: state.weightsManager,

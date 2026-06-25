@@ -4,8 +4,8 @@ import { requireAdminOrHR, isAuthError } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
 
-const updateLevelSchema = z.object({
-  name: z.string().min(1, "Level name is required").max(50),
+const updateDesignationSchema = z.object({
+  name: z.string().min(1, "Designation name is required").max(50),
 });
 
 export async function PATCH(
@@ -20,22 +20,22 @@ export async function PATCH(
 
   const { id } = await params;
 
-  const level = await prisma.level.findFirst({
+  const designation = await prisma.designation.findFirst({
     where: { id, companyId: authResult.companyId },
   });
 
-  if (!level) {
+  if (!designation) {
     return NextResponse.json(
-      { success: false, error: "Level not found" },
+      { success: false, error: "Designation not found" },
       { status: 404 }
     );
   }
 
   try {
     const body = await request.json();
-    const validated = updateLevelSchema.parse(body);
+    const validated = updateDesignationSchema.parse(body);
 
-    const duplicate = await prisma.level.findFirst({
+    const duplicate = await prisma.designation.findFirst({
       where: {
         companyId: authResult.companyId,
         name: validated.name,
@@ -45,12 +45,12 @@ export async function PATCH(
 
     if (duplicate) {
       return NextResponse.json(
-        { success: false, error: "A level with this name already exists" },
+        { success: false, error: "A designation with this name already exists" },
         { status: 409 }
       );
     }
 
-    const updated = await prisma.level.update({
+    const updated = await prisma.designation.update({
       where: { id },
       data: { name: validated.name },
       include: {
@@ -85,43 +85,43 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const level = await prisma.level.findFirst({
+  const designation = await prisma.designation.findFirst({
     where: { id, companyId: authResult.companyId },
     include: { _count: { select: { teamMembers: true } } },
   });
 
-  if (!level) {
+  if (!designation) {
     return NextResponse.json(
-      { success: false, error: "Level not found" },
+      { success: false, error: "Designation not found" },
       { status: 404 }
     );
   }
 
-  if (level._count.teamMembers > 0) {
+  if (designation._count.teamMembers > 0) {
     return NextResponse.json(
       {
         success: false,
-        error: `Cannot delete — ${level._count.teamMembers} team member(s) are assigned this level. Unassign them first.`,
+        error: `Cannot delete — ${designation._count.teamMembers} team member(s) are assigned this designation. Unassign them first.`,
       },
       { status: 409 }
     );
   }
 
-  // Block deletion if any template uses this level
+  // Block deletion if any template uses this designation
   const templateUsage = await prisma.evaluationTemplate.count({
-    where: { companyId: authResult.companyId, levelIds: { has: id } },
+    where: { companyId: authResult.companyId, designationIds: { has: id } },
   });
   if (templateUsage > 0) {
     return NextResponse.json(
       {
         success: false,
-        error: `Cannot delete — ${templateUsage} template(s) restrict to this level. Remove the level from those templates first.`,
+        error: `Cannot delete — ${templateUsage} template(s) restrict to this designation. Remove the designation from those templates first.`,
       },
       { status: 409 }
     );
   }
 
-  await prisma.level.delete({ where: { id } });
+  await prisma.designation.delete({ where: { id } });
 
   return NextResponse.json({ success: true });
 }

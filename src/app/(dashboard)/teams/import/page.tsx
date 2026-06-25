@@ -23,7 +23,7 @@ import {
 import Link from "next/link";
 import type { CsvRow, ParsedRow, ImportResult } from "@/types/import";
 
-const SAMPLE_CSV = `Name,Email,Team,Role,Level
+const SAMPLE_CSV = `Name,Email,Team,Role,Designation
 James Carter,james.carter@techcorp.com,Executive / Leadership Team,Manager,C-Suite
 Sarah Chen,sarah.chen@techcorp.com,Executive / Leadership Team,Member,VP
 Robert Hayes,robert.hayes@techcorp.com,Executive / Leadership Team,Member,VP
@@ -83,7 +83,7 @@ function parseCsv(text: string): { rows: ParsedRow[]; error?: string } {
   const emailIdx = header.indexOf("email");
   const teamIdx = header.indexOf("team");
   const roleIdx = header.indexOf("role");
-  const levelIdx = header.indexOf("level");
+  const designationIdx = header.indexOf("designation");
 
   if (nameIdx === -1 || emailIdx === -1 || teamIdx === -1 || roleIdx === -1) {
     return {
@@ -104,8 +104,8 @@ function parseCsv(text: string): { rows: ParsedRow[]; error?: string } {
       team: cols[teamIdx] ?? "",
       role: cols[roleIdx] ?? "",
     };
-    if (levelIdx !== -1 && cols[levelIdx]) {
-      row.level = cols[levelIdx];
+    if (designationIdx !== -1 && cols[designationIdx]) {
+      row.designation = cols[designationIdx];
     }
     rawRows.push(row);
   }
@@ -349,7 +349,7 @@ export default function TeamsImportPage() {
         email: r.email,
         team: r.team,
         role: r.role,
-        ...(r.level ? { level: r.level } : {}),
+        ...(r.designation ? { designation: r.designation } : {}),
       }));
 
       const res = await fetch("/api/import/teams", {
@@ -418,7 +418,7 @@ export default function TeamsImportPage() {
               Drop your CSV here or click to browse
             </p>
             <p className="text-[12px] text-gray-400">
-              Columns: Name, Email, Team, Role (optional: Level)
+              Columns: Name, Email, Team, Role (optional: Designation)
             </p>
             <input
               ref={fileInputRef}
@@ -461,7 +461,7 @@ export default function TeamsImportPage() {
                     <th className="text-left py-2 px-3 text-gray-500 font-medium">Email</th>
                     <th className="text-left py-2 px-3 text-gray-500 font-medium">Team</th>
                     <th className="text-left py-2 px-3 text-gray-500 font-medium">Role</th>
-                    <th className="text-left py-2 px-3 text-gray-500 font-medium">Level</th>
+                    <th className="text-left py-2 px-3 text-gray-500 font-medium">Designation</th>
                   </tr>
                 </thead>
                 <tbody className="text-gray-600">
@@ -470,20 +470,20 @@ export default function TeamsImportPage() {
                     ["Alex Rivera", "alex@co.com", "Engineering", "Member", "Mid"],
                     ["Chris Wu", "chris@co.com", "Engineering", "External", "Junior"],
                     ["Lisa Park", "lisa@co.com", "Finance", "Manager", "VP"],
-                  ].map(([name, email, team, role, level], i) => (
+                  ].map(([name, email, team, role, designation], i) => (
                     <tr key={i} className="border-b border-gray-50 last:border-0">
                       <td className="py-1.5 px-3 font-medium text-gray-900">{name}</td>
                       <td className="py-1.5 px-3">{email}</td>
                       <td className="py-1.5 px-3">{team}</td>
                       <td className="py-1.5 px-3">{role}</td>
-                      <td className="py-1.5 px-3">{level}</td>
+                      <td className="py-1.5 px-3">{designation}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <p className="mt-2 text-[11px] text-gray-400">
-              Role: &quot;Manager&quot;, &quot;Member&quot;, or &quot;External&quot;. Level is optional (e.g. Junior, Mid, Senior).
+              Role: &quot;Manager&quot;, &quot;Member&quot;, or &quot;External&quot;. Designation is optional (e.g. Junior, Mid, Senior).
             </p>
           </div>
         </Card>

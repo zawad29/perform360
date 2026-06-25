@@ -81,7 +81,7 @@ interface CycleTeamTemplateEntry {
   id: string;
   name: string;
   description: string | null;
-  levelIds: string[];
+  designationIds: string[];
   weightPreset: string | null;
   weightsMember: DirectionWeights | null;
   weightsManager: DirectionWeights | null;
@@ -92,8 +92,8 @@ interface CycleTeamMember {
   userId: string;
   name: string;
   role: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
-  levelId: string | null;
-  levelName: string | null;
+  designationId: string | null;
+  designationName: string | null;
 }
 
 interface TeamTemplate {
@@ -949,9 +949,9 @@ export default function CycleDetailPage() {
                             tt.templates.map((tpl) => (
                               <Badge key={tpl.id} variant="outline" className="shrink-0">
                                 {tpl.name}
-                                {tpl.levelIds.length > 0 && (
+                                {tpl.designationIds.length > 0 && (
                                   <span className="ml-1 text-[10px] text-gray-400">
-                                    ({tpl.levelIds.length} {tpl.levelIds.length === 1 ? "level" : "levels"})
+                                    ({tpl.designationIds.length} {tpl.designationIds.length === 1 ? "designation" : "designations"})
                                   </span>
                                 )}
                               </Badge>
@@ -1005,7 +1005,7 @@ export default function CycleDetailPage() {
               id: tpl.id,
               name: tpl.name,
               description: tpl.description ?? null,
-              levelIds: tpl.levelIds,
+              designationIds: tpl.designationIds,
               sections: tpl.sections,
               weightsMember: tpl.weightsMember,
               weightsManager: tpl.weightsManager,
@@ -1038,8 +1038,8 @@ export default function CycleDetailPage() {
                   members={activeTeam.members.map((m) => ({
                     userId: m.userId,
                     name: m.name,
-                    levelId: m.levelId,
-                    levelName: m.levelName,
+                    designationId: m.designationId,
+                    designationName: m.designationName,
                     role: m.role,
                   }))}
                   templates={matrixTemplates}

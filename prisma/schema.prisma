@@ -94,8 +94,8 @@ model EvaluationTemplate {
   // `EvaluationTemplateVersion` so admins can view and restore prior versions.
   version Int @default(1)
 
-  // Template-wide level filter. Empty array = applies to all levels.
-  levelIds String[] @default([])
+  // Template-wide designation filter. Empty array = applies to all designations.
+  designationIds String[] @default([])
 
   // Direction weights (optional). null = equal/default at scoring time.
   // Shape: { downward, upward, lateral, self, external } as decimals 0.0–1.0
@@ -131,7 +131,7 @@ model EvaluationTemplateVersion {
   version        Int
   name           String
   description    String?
-  levelIds       String[]           @default([])
+  designationIds String[]           @default([])
   weightPreset   WeightPreset?
   weightsMember  Json?
   weightsManager Json?
@@ -171,7 +171,7 @@ model Company {
   templates     EvaluationTemplate[]
   recoveryCodes RecoveryCode[]
   auditLogs     AuditLog[]
-  levels        Level[]
+  designations  Designation[]
 }
 
 enum UserRole {
@@ -236,18 +236,18 @@ model TeamMember {
   userId                 String
   teamId                 String
   role                   TeamMemberRole
-  levelId                String?
+  designationId          String?
   impersonatorDirections Direction[]    @default([])
 
-  user  User   @relation(fields: [userId], references: [id])
-  team  Team   @relation(fields: [teamId], references: [id])
-  level Level? @relation(fields: [levelId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  user        User        @relation(fields: [userId], references: [id])
+  team        Team        @relation(fields: [teamId], references: [id])
+  designation Designation? @relation(fields: [designationId], references: [id], onUpdate: Cascade, onDelete: SetNull)
 
   @@unique([userId, teamId])
   @@index([userId])
 }
 
-model Level {
+model Designation {
   id        String   @id @default(cuid())
   name      String
   companyId String

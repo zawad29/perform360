@@ -53,7 +53,7 @@ async function main() {
             version: nextVersion,
             name: updatedRow.name,
             description: updatedRow.description,
-            levelIds: updatedRow.levelIds,
+            designationIds: updatedRow.designationIds,
             weightPreset: updatedRow.weightPreset,
             weightsMember:
               updatedRow.weightsMember === null

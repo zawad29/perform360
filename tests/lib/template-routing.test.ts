@@ -9,17 +9,17 @@ import {
 
 const wildcard: TemplateMeta = {
   id: "wild",
-  levelIds: [],
+  designationIds: [],
   sections: [{ id: "s1", title: "S1", questions: [] }],
 };
 const senior: TemplateMeta = {
   id: "senior",
-  levelIds: ["L-2", "L-3"],
+  designationIds: ["L-2", "L-3"],
   sections: [{ id: "s1", title: "S1", questions: [] }],
 };
 const junior: TemplateMeta = {
   id: "junior",
-  levelIds: ["L-1"],
+  designationIds: ["L-1"],
   sections: [{ id: "s1", title: "S1", questions: [] }],
 };
 
@@ -43,7 +43,7 @@ describe("resolveTemplateForSubject", () => {
   it("returns ties when multiple specific templates cover the level", () => {
     const otherSenior: TemplateMeta = {
       id: "senior2",
-      levelIds: ["L-3"],
+      designationIds: ["L-3"],
       sections: [{ id: "s1", title: "S1", questions: [] }],
     };
     const result = resolveTemplateForSubject([senior, otherSenior], "L-3");
@@ -96,7 +96,7 @@ describe("resolveAssignmentForm", () => {
   it("returns null when level matches but no section renders for the direction", () => {
     const tpl: TemplateMeta = {
       id: "t",
-      levelIds: ["L-1"],
+      designationIds: ["L-1"],
       sections: [{ id: "s", title: "S", directions: ["LATERAL"], questions: [] }],
     };
     expect(resolveAssignmentForm([tpl], "L-1", "DOWNWARD")).toBeNull();
@@ -109,12 +109,12 @@ describe("resolveAssignmentForm", () => {
   it("falls through to a tied template when the first has no matching section", () => {
     const a: TemplateMeta = {
       id: "a",
-      levelIds: ["L-1"],
+      designationIds: ["L-1"],
       sections: [{ id: "s", title: "S", directions: ["LATERAL"], questions: [] }],
     };
     const b: TemplateMeta = {
       id: "b",
-      levelIds: ["L-1"],
+      designationIds: ["L-1"],
       sections: [{ id: "s", title: "S", questions: [] }],
     };
     expect(resolveAssignmentForm([a, b], "L-1", "DOWNWARD")).toEqual({ templateId: "b" });

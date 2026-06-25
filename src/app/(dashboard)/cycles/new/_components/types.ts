@@ -1,8 +1,8 @@
 export interface TeamMemberOption {
   id: string;
   userId: string;
-  levelId: string | null;
-  level: { id: string; name: string } | null;
+  designationId: string | null;
+  designation: { id: string; name: string } | null;
   user: { id: string; name: string };
   role: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
 }
@@ -28,7 +28,7 @@ export interface TemplateOption {
   name: string;
   description?: string | null;
   isGlobal: boolean;
-  levelIds: string[];
+  designationIds: string[];
   // Surfaced from /api/templates so the wizard can render the routing matrix
   // and full preview without an extra fetch round-trip.
   sections: TemplateOptionSection[];
@@ -44,7 +44,7 @@ export interface AssignmentGroup {
 export interface CoverageGapMember {
   userId: string;
   name: string;
-  levelName: string | null;
+  designationName: string | null;
 }
 
 export interface CoverageGapTeam {

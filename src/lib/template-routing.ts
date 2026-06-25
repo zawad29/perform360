@@ -13,7 +13,7 @@ export interface SectionShape {
 
 export interface TemplateMeta {
   id: string;
-  levelIds: string[];
+  designationIds: string[];
   sections: SectionShape[];
 }
 
@@ -25,23 +25,23 @@ export interface ResolvedTemplate {
 }
 
 /**
- * Pick the template that should score a subject given their level.
- * Tiebreak: specific (non-empty `levelIds`) beats wildcard (empty `levelIds`).
- * Returns null when no template covers the subject's level.
+ * Pick the template that should score a subject given their designation.
+ * Tiebreak: specific (non-empty `designationIds`) beats wildcard (empty `designationIds`).
+ * Returns null when no template covers the subject's designation.
  */
 export function resolveTemplateForSubject(
   teamTemplates: TemplateMeta[],
-  subjectLevelId: string | null
+  subjectDesignationId: string | null
 ): ResolvedTemplate | null {
-  const levelMatches = teamTemplates.filter(
+  const designationMatches = teamTemplates.filter(
     (t) =>
-      t.levelIds.length === 0 ||
-      (subjectLevelId !== null && t.levelIds.includes(subjectLevelId))
+      t.designationIds.length === 0 ||
+      (subjectDesignationId !== null && t.designationIds.includes(subjectDesignationId))
   );
-  if (levelMatches.length === 0) return null;
+  if (designationMatches.length === 0) return null;
 
-  const specific = levelMatches.filter((t) => t.levelIds.length > 0);
-  const candidates = specific.length > 0 ? specific : levelMatches;
+  const specific = designationMatches.filter((t) => t.designationIds.length > 0);
+  const candidates = specific.length > 0 ? specific : designationMatches;
 
   return {
     template: candidates[0],
@@ -64,16 +64,16 @@ export function filterSectionsForDirection<T extends { directions?: Direction[] 
 }
 
 /**
- * Compose: pick the template by level, then verify at least one section
+ * Compose: pick the template by designation, then verify at least one section
  * renders for this direction. Used by assignment generation — returns null
  * to skip an assignment that has no rendered content.
  */
 export function resolveAssignmentForm(
   teamTemplates: TemplateMeta[],
-  subjectLevelId: string | null,
+  subjectDesignationId: string | null,
   direction: Direction
 ): { templateId: string } | null {
-  const resolved = resolveTemplateForSubject(teamTemplates, subjectLevelId);
+  const resolved = resolveTemplateForSubject(teamTemplates, subjectDesignationId);
   if (!resolved) return null;
 
   // Walk the candidate set: prefer the first that has a matching section.

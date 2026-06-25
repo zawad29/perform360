@@ -93,7 +93,7 @@ function renderSubjectContext(doc: PDFKit.PDFDocument, report: IndividualReport)
   const teamNames = ctx.teams.map((t) => t.name).join(", ");
   const parts: string[] = [];
   if (ctx.role) parts.push(ctx.role);
-  if (ctx.level) parts.push(`Level ${ctx.level}`);
+  if (ctx.designation) parts.push(`Designation ${ctx.designation}`);
   if (teamNames) parts.push(teamNames);
   if (parts.length === 0) return;
   doc

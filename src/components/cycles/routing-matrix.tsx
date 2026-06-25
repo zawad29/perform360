@@ -12,8 +12,8 @@ import { RoutingPreviewModal } from "./routing-preview-modal";
 interface MatrixMember {
   userId: string;
   name: string;
-  levelId: string | null;
-  levelName: string | null;
+  designationId: string | null;
+  designationName: string | null;
   role: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
 }
 
@@ -44,7 +44,7 @@ const COLUMN_LABEL: Record<MatrixMember["role"], string> = {
 };
 
 interface CellKey {
-  levelId: string | null;
+  designationId: string | null;
   role: MatrixMember["role"];
 }
 
@@ -62,26 +62,26 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
     [members]
   );
 
-  // Row set: the union of distinct levels that appear on the team. Add a
-  // synthetic "no level" row when at least one member has levelId === null.
+  // Row set: the union of distinct designations that appear on the team. Add a
+  // synthetic "no designation" row when at least one member has designationId === null.
   const rows = useMemo(() => {
     const seen = new Map<string | null, string | null>();
-    let hasNullLevel = false;
+    let hasNullDesignation = false;
     for (const m of evaluable) {
-      if (m.levelId === null) {
-        hasNullLevel = true;
-      } else if (!seen.has(m.levelId)) {
-        seen.set(m.levelId, m.levelName);
+      if (m.designationId === null) {
+        hasNullDesignation = true;
+      } else if (!seen.has(m.designationId)) {
+        seen.set(m.designationId, m.designationName);
       }
     }
-    const result = Array.from(seen.entries()).map(([levelId, levelName]) => ({
-      levelId,
-      levelName: levelName ?? "Unnamed level",
+    const result = Array.from(seen.entries()).map(([designationId, designationName]) => ({
+      designationId,
+      designationName: designationName ?? "Unnamed designation",
     }));
-    // Sort by level name for stable display.
-    result.sort((a, b) => (a.levelName ?? "").localeCompare(b.levelName ?? ""));
-    if (hasNullLevel) {
-      result.push({ levelId: null, levelName: "(no level)" });
+    // Sort by designation name for stable display.
+    result.sort((a, b) => (a.designationName ?? "").localeCompare(b.designationName ?? ""));
+    if (hasNullDesignation) {
+      result.push({ designationId: null, designationName: "(no designation)" });
     }
     return result;
   }, [evaluable]);
@@ -92,12 +92,12 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
     [evaluable]
   );
 
-  function membersIn(levelId: string | null, role: MatrixMember["role"]): MatrixMember[] {
-    return evaluable.filter((m) => m.levelId === levelId && m.role === role);
+  function membersIn(designationId: string | null, role: MatrixMember["role"]): MatrixMember[] {
+    return evaluable.filter((m) => m.designationId === designationId && m.role === role);
   }
 
   function cellKey(c: CellKey): string {
-    return `${c.levelId ?? "null"}::${c.role}`;
+    return `${c.designationId ?? "null"}::${c.role}`;
   }
 
   function toggleExpand(c: CellKey) {
@@ -133,7 +133,7 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
           Routing for {teamName}
         </p>
         <p className="text-[11px] text-gray-400">
-          Template picked by subject&apos;s level · weights by team role
+          Template picked by subject&apos;s designation · weights by team role
         </p>
       </div>
 
@@ -142,7 +142,7 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
           <thead>
             <tr className="bg-gray-50/60 border-b border-gray-100">
               <th className="text-left px-3 py-2 font-medium text-gray-500 uppercase tracking-caps">
-                Level
+                Designation
               </th>
               {cols.map((role) => (
                 <th
@@ -156,12 +156,12 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.levelId ?? "null"} className="border-b border-gray-50 last:border-0 align-top">
+              <tr key={row.designationId ?? "null"} className="border-b border-gray-50 last:border-0 align-top">
                 <td className="px-3 py-2 text-gray-900 font-medium whitespace-nowrap">
-                  {row.levelName}
+                  {row.designationName}
                 </td>
                 {cols.map((role) => {
-                  const cellMembers = membersIn(row.levelId, role);
+                  const cellMembers = membersIn(row.designationId, role);
                   if (cellMembers.length === 0) {
                     return (
                       <td key={role} className="px-3 py-2 text-gray-300">
@@ -169,7 +169,7 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
                       </td>
                     );
                   }
-                  const resolved = resolveTemplateForSubject(templates, row.levelId);
+                  const resolved = resolveTemplateForSubject(templates, row.designationId);
                   if (!resolved) {
                     return (
                       <td key={role} className="px-3 py-2">
@@ -184,13 +184,13 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
                   const tieNames = resolved.tiedWith
                     .map((t) => templates.find((x) => x.id === t.id)?.name)
                     .filter(Boolean) as string[];
-                  const k = cellKey({ levelId: row.levelId, role });
+                  const k = cellKey({ designationId: row.designationId, role });
                   const isExpanded = expanded.has(k);
                   return (
                     <td key={role} className="px-3 py-2">
                       <button
                         type="button"
-                        onClick={() => toggleExpand({ levelId: row.levelId, role })}
+                        onClick={() => toggleExpand({ designationId: row.designationId, role })}
                         className="inline-flex items-center gap-1.5 hover:bg-gray-50 -ml-1 px-1 py-0.5"
                       >
                         {isExpanded ? (
@@ -241,7 +241,7 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
           onClose={() => setPreviewSubject(null)}
           template={previewSubject.template}
           subjectName={previewSubject.member.name}
-          subjectLabel={`${COLUMN_LABEL[previewSubject.member.role] ?? previewSubject.member.role} · ${previewSubject.member.levelName ?? "no level"}`}
+          subjectLabel={`${COLUMN_LABEL[previewSubject.member.role] ?? previewSubject.member.role} · ${previewSubject.member.designationName ?? "no designation"}`}
           subjectRole={previewSubject.member.role === "MANAGER" ? "MANAGER" : "MEMBER"}
           weightsMember={previewSubject.template.weightsMember}
           weightsManager={previewSubject.template.weightsManager}

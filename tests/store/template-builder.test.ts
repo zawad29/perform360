@@ -278,7 +278,7 @@ describe("useTemplateBuilder store", () => {
       useTemplateBuilder.getState().loadTemplate({
         name: "Loaded Template",
         description: "A loaded template",
-        levelIds: [],
+        designationIds: [],
         weightPreset: null,
         weightsMember: null,
         weightsManager: null,
@@ -335,7 +335,7 @@ describe("useTemplateBuilder store", () => {
       store.loadTemplate({
         name: "T",
         description: "",
-        levelIds: [],
+        designationIds: [],
         weightPreset: null,
         weightsMember: null,
         weightsManager: null,
@@ -371,7 +371,7 @@ describe("useTemplateBuilder store", () => {
       useTemplateBuilder.getState().loadTemplate({
         name: "T",
         description: "",
-        levelIds: [],
+        designationIds: [],
         weightPreset: null,
         weightsMember: null,
         weightsManager: null,
@@ -391,7 +391,7 @@ describe("useTemplateBuilder store", () => {
       useTemplateBuilder.getState().loadTemplate({
         name: "T",
         description: "",
-        levelIds: [],
+        designationIds: [],
         weightPreset: null,
         weightsMember: null,
         weightsManager: null,

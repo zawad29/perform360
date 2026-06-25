@@ -8,7 +8,7 @@ import { validateCuidParam } from "@/lib/validation";
 import { Direction } from "@prisma/client";
 
 const updateMemberSchema = z.object({
-  levelId: z.string().nullable().optional(),
+  designationId: z.string().nullable().optional(),
   role: z.enum(["MANAGER", "MEMBER", "EXTERNAL", "IMPERSONATOR"]).optional(),
   impersonatorDirections: z
     .array(z.nativeEnum(Direction))
@@ -118,24 +118,24 @@ export async function PATCH(
     const validated = updateMemberSchema.parse(body);
 
     const updateData: {
-      levelId?: string | null;
+      designationId?: string | null;
       role?: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
       impersonatorDirections?: Direction[];
     } = {};
 
-    if (validated.levelId !== undefined) {
-      if (validated.levelId) {
-        const level = await prisma.level.findFirst({
-          where: { id: validated.levelId, companyId: authResult.companyId },
+    if (validated.designationId !== undefined) {
+      if (validated.designationId) {
+        const designation = await prisma.designation.findFirst({
+          where: { id: validated.designationId, companyId: authResult.companyId },
         });
-        if (!level) {
+        if (!designation) {
           return NextResponse.json(
-            { success: false, error: "Level not found", code: "NOT_FOUND" },
+            { success: false, error: "Designation not found", code: "NOT_FOUND" },
             { status: 404 }
           );
         }
       }
-      updateData.levelId = validated.levelId;
+      updateData.designationId = validated.designationId;
     }
 
     if (validated.role) {
@@ -154,7 +154,7 @@ export async function PATCH(
       data: updateData,
       include: {
         user: { select: { id: true, name: true, email: true, avatar: true, role: true } },
-        level: { select: { id: true, name: true } },
+        designation: { select: { id: true, name: true } },
       },
     });
 

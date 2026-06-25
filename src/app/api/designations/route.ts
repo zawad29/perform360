@@ -4,8 +4,8 @@ import { requireAdminOrHR, isAuthError } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
 
-const createLevelSchema = z.object({
-  name: z.string().min(1, "Level name is required").max(50),
+const createDesignationSchema = z.object({
+  name: z.string().min(1, "Designation name is required").max(50),
 });
 
 export async function GET(request: NextRequest) {
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const authResult = await requireAdminOrHR();
   if (isAuthError(authResult)) return authResult;
 
-  const levels = await prisma.level.findMany({
+  const designations = await prisma.designation.findMany({
     where: { companyId: authResult.companyId },
     orderBy: { createdAt: "asc" },
     include: {
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ success: true, data: levels });
+  return NextResponse.json({ success: true, data: designations });
 }
 
 export async function POST(request: NextRequest) {
@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const validated = createLevelSchema.parse(body);
+    const validated = createDesignationSchema.parse(body);
 
-    const existing = await prisma.level.findUnique({
+    const existing = await prisma.designation.findUnique({
       where: {
         companyId_name: {
           companyId: authResult.companyId,
@@ -48,12 +48,12 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       return NextResponse.json(
-        { success: false, error: "A level with this name already exists" },
+        { success: false, error: "A designation with this name already exists" },
         { status: 409 }
       );
     }
 
-    const level = await prisma.level.create({
+    const designation = await prisma.designation.create({
       data: {
         name: validated.name,
         companyId: authResult.companyId,
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, data: level }, { status: 201 });
+    return NextResponse.json({ success: true, data: designation }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

@@ -47,7 +47,7 @@ async function main() {
         name: tpl.name,
         description: tpl.description,
         sections: JSON.parse(JSON.stringify(sections)) as Prisma.InputJsonValue,
-        levelIds: [],
+        designationIds: [],
         weightPreset: ov.weightPreset ?? null,
         weightsMember: ov.weightsMember ?? Prisma.JsonNull,
         weightsManager: ov.weightsManager ?? Prisma.JsonNull,

@@ -2,7 +2,7 @@ import type { Direction } from "@prisma/client";
 
 interface TemplateMeta {
   id: string;
-  levelIds: string[];
+  designationIds: string[];
   sections: { id: string; title: string; directions: Direction[]; questions: unknown[] }[];
 }
 
@@ -19,7 +19,7 @@ export function buildTemplatesMap(
     out.set(teamId, [
       {
         id: tplId,
-        levelIds: [],
+        designationIds: [],
         sections: [
           { id: `${tplId}-s1`, title: "All", directions: [], questions: [] },
         ],

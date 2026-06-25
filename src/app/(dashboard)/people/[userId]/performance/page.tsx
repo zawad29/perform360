@@ -302,7 +302,7 @@ export default function PersonPerformancePage() {
                 <tr className="border-b border-gray-900">
                   <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Cycle</th>
                   <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Period</th>
-                  <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Level</th>
+                  <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Designation</th>
                   <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Score</th>
                   <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Response Rate</th>
                   <th className="px-4 py-2.5 text-[12px] font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -323,13 +323,13 @@ export default function PersonPerformancePage() {
                         {startDate} – {endDate}
                       </td>
                       <td className="px-4 py-3 text-[13px] text-gray-700">
-                        {cycle.levels.length === 0 ? (
+                        {cycle.designations.length === 0 ? (
                           <span className="text-gray-400">—</span>
                         ) : (
                           <div className="flex flex-wrap gap-1">
-                            {cycle.levels.map((lvl) => (
-                              <Badge key={lvl} variant="outline" className="text-[11px]">
-                                {lvl}
+                            {cycle.designations.map((desig) => (
+                              <Badge key={desig} variant="outline" className="text-[11px]">
+                                {desig}
                               </Badge>
                             ))}
                           </div>

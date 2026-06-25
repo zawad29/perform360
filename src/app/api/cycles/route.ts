@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     if (gaps.length > 0) {
       return errorResponse(
-        "Some members are not covered by any assigned template. Add a template that includes their level, or use a template with no level filter.",
+        "Some members are not covered by any assigned template. Add a template that includes their designation, or use a template with no designation filter.",
         "COVERAGE_GAP",
         400,
         { gaps }

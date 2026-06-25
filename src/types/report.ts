@@ -20,8 +20,8 @@ export interface TeamBreakdown {
 
 export interface SubjectContext {
   role: string;
-  level: string | null;
-  teams: { id: string; name: string; level: string | null }[];
+  designation: string | null;
+  teams: { id: string; name: string; designation: string | null }[];
 }
 
 export interface ResponseRate {
@@ -188,9 +188,9 @@ export interface PersonCycleSummary {
   scoresByDirection: DirectionScores;
   responseRate: ResponseRate;
   reviewerBreakdown: ReviewerBreakdownItem[];
-  // Distinct level names this person held across teams during this cycle.
-  // Empty when they had no level assigned. Surfaces re-leveling over time.
-  levels: string[];
+  // Distinct designation names this person held across teams during this cycle.
+  // Empty when they had no designation assigned. Surfaces re-leveling over time.
+  designations: string[];
 }
 
 export interface PersonPerformanceProfile {

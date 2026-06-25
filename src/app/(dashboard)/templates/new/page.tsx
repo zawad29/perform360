@@ -38,7 +38,7 @@ export default function NewTemplatePage() {
       const {
         name: templateName,
         description,
-        levelIds,
+        designationIds,
         weightPreset,
         weightsMember,
         weightsManager,
@@ -50,7 +50,7 @@ export default function NewTemplatePage() {
         body: JSON.stringify({
           name: templateName,
           description,
-          levelIds,
+          designationIds,
           weightPreset,
           weightsMember,
           weightsManager,

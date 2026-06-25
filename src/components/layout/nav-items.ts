@@ -14,7 +14,7 @@ export const navigation = [
   { name: "Templates", href: "/templates", icon: FileText },
   { name: "Teams", href: "/teams", icon: Users },
   { name: "People", href: "/people", icon: UserCircle },
-  { name: "Levels", href: "/levels", icon: Layers },
+  { name: "Designations", href: "/designations", icon: Layers },
 ] as const;
 
 export const bottomNav = [

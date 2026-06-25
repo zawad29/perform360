@@ -2,18 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { TemplateLevels } from "./template-levels";
+import { TemplateDesignations } from "./template-designations";
 import { TemplateWeights } from "./template-weights";
 import { WEIGHT_PRESETS, type DirectionWeights, type WeightPreset } from "@/lib/directions";
 
-interface LevelOption {
+interface DesignationOption {
   id: string;
   name: string;
 }
 
 interface TemplateMetaStripsProps {
-  levelIds: string[];
-  onLevelsChange: (ids: string[]) => void;
+  designationIds: string[];
+  onDesignationsChange: (ids: string[]) => void;
   preset: WeightPreset | null;
   member: DirectionWeights | null;
   manager: DirectionWeights | null;
@@ -25,24 +25,24 @@ interface TemplateMetaStripsProps {
 }
 
 export function TemplateMetaStrips({
-  levelIds,
-  onLevelsChange,
+  designationIds,
+  onDesignationsChange,
   preset,
   member,
   manager,
   onWeightsChange,
 }: TemplateMetaStripsProps) {
-  const [openLevels, setOpenLevels] = useState(false);
+  const [openDesignations, setOpenDesignations] = useState(false);
   const [openWeights, setOpenWeights] = useState(false);
-  const [levels, setLevels] = useState<LevelOption[]>([]);
+  const [designations, setDesignations] = useState<DesignationOption[]>([]);
 
-  // Just enough info to render the strip summary; <TemplateLevels /> fetches its own list when opened.
+  // Just enough info to render the strip summary; <TemplateDesignations /> fetches its own list when opened.
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/levels")
+    fetch("/api/designations")
       .then((res) => res.json())
       .then((json) => {
-        if (!cancelled && json.success) setLevels(json.data as LevelOption[]);
+        if (!cancelled && json.success) setDesignations(json.data as DesignationOption[]);
       })
       .catch(() => {
         /* fall back to id-count summary */
@@ -52,15 +52,15 @@ export function TemplateMetaStrips({
     };
   }, []);
 
-  const levelSummary = (() => {
-    if (levelIds.length === 0) return "All levels";
-    if (levels.length === 0) {
-      return `${levelIds.length} ${levelIds.length === 1 ? "level" : "levels"}`;
+  const designationSummary = (() => {
+    if (designationIds.length === 0) return "All designations";
+    if (designations.length === 0) {
+      return `${designationIds.length} ${designationIds.length === 1 ? "designation" : "designations"}`;
     }
-    const names = levelIds
-      .map((id) => levels.find((l) => l.id === id)?.name)
+    const names = designationIds
+      .map((id) => designations.find((d) => d.id === id)?.name)
       .filter(Boolean) as string[];
-    if (names.length === 0) return `${levelIds.length} levels`;
+    if (names.length === 0) return `${designationIds.length} designations`;
     if (names.length <= 2) return names.join(", ");
     return `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
   })();
@@ -71,15 +71,15 @@ export function TemplateMetaStrips({
     <div className="space-y-2">
       <div>
         <Strip
-          label="Levels"
-          summary={levelSummary}
-          open={openLevels}
-          onToggle={() => setOpenLevels((v) => !v)}
-          actionLabel={openLevels ? "Done" : "Change"}
+          label="Designations"
+          summary={designationSummary}
+          open={openDesignations}
+          onToggle={() => setOpenDesignations((v) => !v)}
+          actionLabel={openDesignations ? "Done" : "Change"}
         />
       </div>
-      {openLevels && (
-        <TemplateLevels selected={levelIds} onChange={onLevelsChange} />
+      {openDesignations && (
+        <TemplateDesignations selected={designationIds} onChange={onDesignationsChange} />
       )}
 
       <div>

@@ -18,8 +18,8 @@ interface RoutingPreviewModalProps {
   open: boolean;
   onClose: () => void;
   template: TemplateMeta & { name: string; description?: string | null };
-  // When previewing a real subject — name + role/level label.
-  // When previewing an abstract role × level cell — leave subjectName undefined.
+  // When previewing a real subject — name + role/designation label.
+  // When previewing an abstract role × designation cell — leave subjectName undefined.
   subjectName?: string;
   subjectLabel: string; // e.g. "MEMBER · SE L-1"
   // The subject's role drives which weight column applies.

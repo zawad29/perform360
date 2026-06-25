@@ -11,7 +11,7 @@ import { Prisma, WeightPreset } from "@prisma/client";
 const updateTemplateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
-  levelIds: z.array(z.string()).optional(),
+  designationIds: z.array(z.string()).optional(),
   weightPreset: z.nativeEnum(WeightPreset).nullable().optional(),
   weightsMember: directionWeightsSchema.nullable().optional(),
   weightsManager: directionWeightsSchema.nullable().optional(),
@@ -77,20 +77,20 @@ export async function PATCH(
       return errorResponse("Template not found or cannot be edited", "NOT_FOUND", 404);
     }
 
-    if (validated.levelIds && validated.levelIds.length > 0) {
-      const levels = await prisma.level.findMany({
-        where: { id: { in: validated.levelIds }, companyId: authResult.companyId },
+    if (validated.designationIds && validated.designationIds.length > 0) {
+      const designations = await prisma.designation.findMany({
+        where: { id: { in: validated.designationIds }, companyId: authResult.companyId },
         select: { id: true },
       });
-      if (levels.length !== validated.levelIds.length) {
-        return errorResponse("One or more levels not found", "NOT_FOUND", 404);
+      if (designations.length !== validated.designationIds.length) {
+        return errorResponse("One or more designations not found", "NOT_FOUND", 404);
       }
     }
 
     const updateData: Prisma.EvaluationTemplateUpdateInput = {};
     if (validated.name) updateData.name = validated.name;
     if (validated.description !== undefined) updateData.description = validated.description;
-    if (validated.levelIds) updateData.levelIds = validated.levelIds;
+    if (validated.designationIds) updateData.designationIds = validated.designationIds;
     if (validated.weightPreset !== undefined) updateData.weightPreset = validated.weightPreset;
     if (validated.weightsMember !== undefined) {
       updateData.weightsMember = validated.weightsMember ?? Prisma.JsonNull;
@@ -116,7 +116,7 @@ export async function PATCH(
           version: nextVersion,
           name: updated.name,
           description: updated.description,
-          levelIds: updated.levelIds,
+          designationIds: updated.designationIds,
           weightPreset: updated.weightPreset,
           weightsMember:
             updated.weightsMember === null

@@ -4,7 +4,7 @@ export interface CsvRow {
   email: string;
   team: string;
   role: string;
-  level?: string;
+  designation?: string;
 }
 
 /** A row enriched with validation status for the preview table */

@@ -49,18 +49,18 @@ export function ProfileBanner({
               <Shield size={10} strokeWidth={1.5} className="mr-1" />
               {ROLE_LABELS[context.role] ?? context.role}
             </Badge>
-            {context.level && (
+            {context.designation && (
               <Badge variant="outline" className="text-[11px] border-gray-900">
                 <Layers size={10} strokeWidth={1.5} className="mr-1" />
-                {context.level}
+                {context.designation}
               </Badge>
             )}
             {context.teams.map((t) => (
               <Badge key={t.id} variant="outline" className="text-[11px] border-gray-900">
                 <Users size={10} strokeWidth={1.5} className="mr-1" />
                 {t.name}
-                {t.level && t.level !== context.level && (
-                  <span className="ml-1 text-gray-500">({t.level})</span>
+                {t.designation && t.designation !== context.designation && (
+                  <span className="ml-1 text-gray-500">({t.designation})</span>
                 )}
               </Badge>
             ))}

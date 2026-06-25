@@ -16,8 +16,8 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
     const teams = [{
       id: "t1",
       members: [
-        { userId: "mgr-1", role: "MANAGER" as const, levelId: null },
-        { userId: "mgr-2", role: "MANAGER" as const, levelId: null },
+        { userId: "mgr-1", role: "MANAGER" as const, designationId: null },
+        { userId: "mgr-2", role: "MANAGER" as const, designationId: null },
       ],
     }];
     const templateMap = buildTemplatesMap({ "t1": "tpl-1" });
@@ -44,9 +44,9 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
     const teams = [{
       id: "t1",
       members: [
-        { userId: "mem-1", role: "MEMBER" as const, levelId: null },
-        { userId: "mem-2", role: "MEMBER" as const, levelId: null },
-        { userId: "mem-3", role: "MEMBER" as const, levelId: null },
+        { userId: "mem-1", role: "MEMBER" as const, designationId: null },
+        { userId: "mem-2", role: "MEMBER" as const, designationId: null },
+        { userId: "mem-3", role: "MEMBER" as const, designationId: null },
       ],
     }];
     const templateMap = buildTemplatesMap({ "t1": "tpl-1" });
@@ -68,8 +68,8 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
     const teams = [{
       id: "t1",
       members: [
-        { userId: "ext-1", role: "EXTERNAL" as const, levelId: null },
-        { userId: "ext-2", role: "EXTERNAL" as const, levelId: null },
+        { userId: "ext-1", role: "EXTERNAL" as const, designationId: null },
+        { userId: "ext-2", role: "EXTERNAL" as const, designationId: null },
       ],
     }];
     const templateMap = buildTemplatesMap({ "t1": "tpl-1" });
@@ -85,7 +85,7 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
     const teams = [{
       id: "t1",
       members: [
-        { userId: "mem-1", role: "MEMBER" as const, levelId: null },
+        { userId: "mem-1", role: "MEMBER" as const, designationId: null },
       ],
     }];
     const templateMap = buildTemplatesMap({ "t1": "tpl-1" });
@@ -100,11 +100,11 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
     const teams = [{
       id: "t1",
       members: [
-        { userId: "mgr-1", role: "MANAGER" as const, levelId: null },
-        { userId: "mgr-2", role: "MANAGER" as const, levelId: null },
-        { userId: "mgr-3", role: "MANAGER" as const, levelId: null },
-        { userId: "mem-1", role: "MEMBER" as const, levelId: null },
-        { userId: "mem-2", role: "MEMBER" as const, levelId: null },
+        { userId: "mgr-1", role: "MANAGER" as const, designationId: null },
+        { userId: "mgr-2", role: "MANAGER" as const, designationId: null },
+        { userId: "mgr-3", role: "MANAGER" as const, designationId: null },
+        { userId: "mem-1", role: "MEMBER" as const, designationId: null },
+        { userId: "mem-2", role: "MEMBER" as const, designationId: null },
       ],
     }];
     const templateMap = buildTemplatesMap({ "t1": "tpl-1" });
@@ -125,9 +125,9 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
 
   it("user in 3+ teams with different templates (no dedup)", () => {
     const teams = [
-      { id: "t1", members: [{ userId: "user-1", role: "MEMBER" as const, levelId: null }, { userId: "user-2", role: "MEMBER" as const, levelId: null }] },
-      { id: "t2", members: [{ userId: "user-1", role: "MEMBER" as const, levelId: null }, { userId: "user-3", role: "MEMBER" as const, levelId: null }] },
-      { id: "t3", members: [{ userId: "user-1", role: "MEMBER" as const, levelId: null }, { userId: "user-4", role: "MEMBER" as const, levelId: null }] },
+      { id: "t1", members: [{ userId: "user-1", role: "MEMBER" as const, designationId: null }, { userId: "user-2", role: "MEMBER" as const, designationId: null }] },
+      { id: "t2", members: [{ userId: "user-1", role: "MEMBER" as const, designationId: null }, { userId: "user-3", role: "MEMBER" as const, designationId: null }] },
+      { id: "t3", members: [{ userId: "user-1", role: "MEMBER" as const, designationId: null }, { userId: "user-4", role: "MEMBER" as const, designationId: null }] },
     ];
     const templateMap = buildTemplatesMap({
       t1: "tpl-1",
@@ -150,9 +150,9 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
 
   it("user in 3+ teams with same template (dedup)", () => {
     const teams = [
-      { id: "t1", members: [{ userId: "user-1", role: "MEMBER" as const, levelId: null }, { userId: "user-2", role: "MEMBER" as const, levelId: null }] },
-      { id: "t2", members: [{ userId: "user-1", role: "MEMBER" as const, levelId: null }, { userId: "user-2", role: "MEMBER" as const, levelId: null }] },
-      { id: "t3", members: [{ userId: "user-1", role: "MEMBER" as const, levelId: null }, { userId: "user-2", role: "MEMBER" as const, levelId: null }] },
+      { id: "t1", members: [{ userId: "user-1", role: "MEMBER" as const, designationId: null }, { userId: "user-2", role: "MEMBER" as const, designationId: null }] },
+      { id: "t2", members: [{ userId: "user-1", role: "MEMBER" as const, designationId: null }, { userId: "user-2", role: "MEMBER" as const, designationId: null }] },
+      { id: "t3", members: [{ userId: "user-1", role: "MEMBER" as const, designationId: null }, { userId: "user-2", role: "MEMBER" as const, designationId: null }] },
     ];
     const templateMap = buildTemplatesMap({
       t1: "tpl-1",
@@ -175,7 +175,7 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
     const members = Array.from({ length: n }, (_, i) => ({
       userId: `mem-${i}`,
       role: "MEMBER" as const,
-      levelId: null,
+      designationId: null,
     }));
     const teams = [{ id: "t1", members }];
     const templateMap = buildTemplatesMap({ "t1": "tpl-1" });
@@ -194,10 +194,10 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
     const teams = [{
       id: "t1",
       members: [
-        { userId: "mgr-1", role: "MANAGER" as const, levelId: null },
-        { userId: "mgr-2", role: "MANAGER" as const, levelId: null },
-        { userId: "mgr-3", role: "MANAGER" as const, levelId: null },
-        { userId: "mem-1", role: "MEMBER" as const, levelId: null },
+        { userId: "mgr-1", role: "MANAGER" as const, designationId: null },
+        { userId: "mgr-2", role: "MANAGER" as const, designationId: null },
+        { userId: "mgr-3", role: "MANAGER" as const, designationId: null },
+        { userId: "mem-1", role: "MEMBER" as const, designationId: null },
       ],
     }];
     const templateMap = buildTemplatesMap({ "t1": "tpl-1" });
@@ -226,10 +226,10 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
     const teams = [{
       id: "t1",
       members: [
-        { userId: "mgr-1", role: "MANAGER" as const, levelId: null },
-        { userId: "mem-1", role: "MEMBER" as const, levelId: null },
-        { userId: "mem-2", role: "MEMBER" as const, levelId: null },
-        { userId: "imp-1", role: "IMPERSONATOR" as const, levelId: null, impersonatorDirections: ["SELF"] },
+        { userId: "mgr-1", role: "MANAGER" as const, designationId: null },
+        { userId: "mem-1", role: "MEMBER" as const, designationId: null },
+        { userId: "mem-2", role: "MEMBER" as const, designationId: null },
+        { userId: "imp-1", role: "IMPERSONATOR" as const, designationId: null, impersonatorDirections: ["SELF"] },
       ],
     }];
     const templateMap = buildTemplatesMap({ "t1": "tpl-1" });
@@ -250,11 +250,11 @@ describe("generateAssignmentsFromTeams — edge cases", () => {
     const teams = [{
       id: "t1",
       members: [
-        { userId: "mgr-1", role: "MANAGER" as const, levelId: null },
-        { userId: "mem-1", role: "MEMBER" as const, levelId: null },
-        { userId: "mem-2", role: "MEMBER" as const, levelId: null },
-        { userId: "ext-1", role: "EXTERNAL" as const, levelId: null },
-        { userId: "ext-2", role: "EXTERNAL" as const, levelId: null },
+        { userId: "mgr-1", role: "MANAGER" as const, designationId: null },
+        { userId: "mem-1", role: "MEMBER" as const, designationId: null },
+        { userId: "mem-2", role: "MEMBER" as const, designationId: null },
+        { userId: "ext-1", role: "EXTERNAL" as const, designationId: null },
+        { userId: "ext-2", role: "EXTERNAL" as const, designationId: null },
       ],
     }];
     const templateMap = buildTemplatesMap({ "t1": "tpl-1" });

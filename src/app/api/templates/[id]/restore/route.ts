@@ -62,7 +62,7 @@ export async function POST(
         data: {
           name: snapshot.name,
           description: snapshot.description,
-          levelIds: snapshot.levelIds,
+          designationIds: snapshot.designationIds,
           weightPreset: snapshot.weightPreset,
           weightsMember,
           weightsManager,
@@ -76,7 +76,7 @@ export async function POST(
           version: nextVersion,
           name: snapshot.name,
           description: snapshot.description,
-          levelIds: snapshot.levelIds,
+          designationIds: snapshot.designationIds,
           weightPreset: snapshot.weightPreset,
           weightsMember,
           weightsManager,

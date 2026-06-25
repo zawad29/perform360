@@ -33,7 +33,7 @@ describe("GET /api/cycles/[id]", () => {
                 id: "t1",
                 name: "Standard",
                 description: null,
-                levelIds: [],
+                designationIds: [],
                 weightPreset: null,
                 weightsMember: null,
                 weightsManager: null,
