@@ -122,10 +122,14 @@ export default function PeoplePage() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Failed to invite user");
-      if (json.emailSent) {
-        addToast("User invited and email sent", "success");
+      if (inviteRole === "ADMIN" || inviteRole === "HR") {
+        if (json.emailSent) {
+          addToast("User invited and email sent", "success");
+        } else {
+          addToast("User created but invitation email failed to send", "warning");
+        }
       } else {
-        addToast("User created but invitation email failed to send", "warning");
+        addToast("User created", "success");
       }
       setShowInviteDialog(false);
       setInviteName("");
