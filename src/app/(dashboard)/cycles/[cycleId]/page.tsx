@@ -62,6 +62,7 @@ import {
   FileSpreadsheet,
   Link2,
   Check,
+  Pencil,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -72,7 +73,6 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Pagination } from "@/components/ui/pagination";
 import { DIRECTION_LABELS, DIRECTIONS, type Direction } from "@/lib/directions";
 import type { DirectionWeights } from "@/types/report";
-import { RoutingMatrix, type MatrixTemplate } from "@/components/cycles/routing-matrix";
 import type { TemplateOptionSection } from "@/app/(dashboard)/cycles/new/_components/types";
 
 // ─── Types ───
@@ -138,7 +138,6 @@ interface AssignmentWithNames {
 type StatusFilterValue = "all" | "PENDING" | "IN_PROGRESS" | "SUBMITTED";
 type DirectionFilterValue = "all" | Direction;
 
-const TEAMS_PER_PAGE = 50;
 const ASSIGNMENTS_PER_PAGE = 20;
 const REPORTS_PER_PAGE = 20;
 
@@ -308,8 +307,6 @@ export default function CycleDetailPage() {
   const [reportSearch, setReportSearch] = useState("");
   const [groupByTemplate, setGroupByTemplate] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [teamTemplatePage, setTeamTemplatePage] = useState(1);
-  const [routingTeamId, setRoutingTeamId] = useState<string | null>(null);
   const [assignmentPageByKey, setAssignmentPageByKey] = useState<Record<string, number>>({});
   const [reportPageByKey, setReportPageByKey] = useState<Record<string, number>>({});
   const [assignmentsData, setAssignmentsData] = useState<AssignmentWithNames[] | null>(null);
@@ -818,6 +815,11 @@ export default function CycleDetailPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => router.push(`/cycles/${cycle.id}/edit`)}>
+              <Pencil size={15} strokeWidth={1.5} className="mr-2" />
+              Edit Setup
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             {cycle.status === "DRAFT" && (
               <DropdownMenuItem onClick={() => setShowActivateDialog(true)}>
                 <Play size={15} strokeWidth={1.5} className="mr-2" />
@@ -925,128 +927,6 @@ export default function CycleDetailPage() {
             </Card>
           </div>
 
-          {/* Team-Template Pairs */}
-          {cycle.teamTemplates.length > 0 && (() => {
-            const teamTotalPages = Math.ceil(cycle.teamTemplates.length / TEAMS_PER_PAGE);
-            const teamStart = (teamTemplatePage - 1) * TEAMS_PER_PAGE;
-            const paginatedTeams = cycle.teamTemplates.slice(teamStart, teamStart + TEAMS_PER_PAGE);
-            return (
-              <Card padding="sm">
-                <CardHeader>
-                  <CardTitle>Teams & Templates</CardTitle>
-                </CardHeader>
-                <div className="divide-y divide-gray-50">
-                  {paginatedTeams.map((tt) => (
-                    <div key={tt.teamId} className="px-4 py-2.5">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="text-[14px] font-medium text-gray-900 truncate">
-                          {tt.teamName}
-                        </span>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {tt.templates.length === 0 ? (
-                            <Badge variant="outline" className="shrink-0">No templates</Badge>
-                          ) : (
-                            tt.templates.map((tpl) => (
-                              <Badge key={tpl.id} variant="outline" className="shrink-0">
-                                {tpl.name}
-                                {tpl.designationIds.length > 0 && (
-                                  <span className="ml-1 text-[10px] text-gray-400">
-                                    ({tpl.designationIds.length} {tpl.designationIds.length === 1 ? "designation" : "designations"})
-                                  </span>
-                                )}
-                              </Badge>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                      {tt.templates.some((t) => t.weightsMember || t.weightsManager) && (
-                        <div className="mt-2 space-y-1">
-                          {tt.templates
-                            .filter((t) => t.weightsMember || t.weightsManager)
-                            .map((tpl) => {
-                              const w = tpl.weightsMember ?? tpl.weightsManager!;
-                              return (
-                                <div key={tpl.id} className="flex items-center gap-3 text-[11px] text-gray-400 flex-wrap">
-                                  <span className="text-gray-500">{tpl.name} weights:</span>
-                                  <span>↓ {w.downward}%</span>
-                                  <span>↑ {w.upward}%</span>
-                                  <span>↔ {w.lateral}%</span>
-                                  <span>↻ {w.self}%</span>
-                                  <span>→ {w.external}%</span>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <Pagination
-                  page={teamTemplatePage}
-                  totalPages={teamTotalPages}
-                  total={cycle.teamTemplates.length}
-                  showing={paginatedTeams.length}
-                  noun="teams"
-                  onPageChange={setTeamTemplatePage}
-                />
-              </Card>
-            );
-          })()}
-
-          {/* Routing preview — only meaningful while the cycle is DRAFT.
-              For ACTIVE/CLOSED cycles the assignments are real and live on the
-              Assignments tab; showing a "what would happen" view here would be
-              misleading. Single-team selector keeps the page from flooding. */}
-          {cycle.status === "DRAFT" && cycle.teamTemplates.length > 0 && (() => {
-            const activeTeamId = routingTeamId ?? cycle.teamTemplates[0].teamId;
-            const activeTeam =
-              cycle.teamTemplates.find((tt) => tt.teamId === activeTeamId) ?? cycle.teamTemplates[0];
-            const matrixTemplates: MatrixTemplate[] = activeTeam.templates.map((tpl) => ({
-              id: tpl.id,
-              name: tpl.name,
-              description: tpl.description ?? null,
-              designationIds: tpl.designationIds,
-              sections: tpl.sections,
-              weightsMember: tpl.weightsMember,
-              weightsManager: tpl.weightsManager,
-            }));
-            return (
-              <div className="space-y-3 mt-4">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <h3 className="text-[14px] font-medium uppercase tracking-caps text-gray-700">
-                    Routing preview
-                  </h3>
-                  <Select
-                    value={activeTeam.teamId}
-                    onValueChange={(v) => setRoutingTeamId(v)}
-                  >
-                    <SelectTrigger className="w-auto h-8 min-w-[180px] text-[13px]">
-                      <SelectValue placeholder="Select team" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cycle.teamTemplates.map((tt) => (
-                        <SelectItem key={tt.teamId} value={tt.teamId}>
-                          {tt.teamName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <RoutingMatrix
-                  key={activeTeam.teamId}
-                  teamName={activeTeam.teamName}
-                  members={activeTeam.members.map((m) => ({
-                    userId: m.userId,
-                    name: m.name,
-                    designationId: m.designationId,
-                    designationName: m.designationName,
-                    role: m.role,
-                  }))}
-                  templates={matrixTemplates}
-                />
-              </div>
-            );
-          })()}
         </TabsContent>
 
         {/* ─── Assignments Tab ─── */}
