@@ -39,6 +39,7 @@ const fixture: CompanyImport = {
       description: "Engineering 360",
       weightPreset: "equal",
       designations: ["Engineer", "Senior Engineer"],
+      appliesToRole: "ANY",
       sections: [
         {
           id: "s1",
@@ -90,6 +91,54 @@ describe("Contract: applyCompanyImport", () => {
     const ids = new Set(designations.map((d) => d.id));
     expect(tpl?.designationIds.length).toBe(2);
     for (const id of tpl!.designationIds) expect(ids.has(id)).toBe(true);
+  });
+
+  it("persists a template's appliesToRole and re-routes assignments by it", async () => {
+    const company = await factories.company();
+    // A role-specific fixture: a MANAGER ("Boss", Senior Engineer) plus a MEMBER
+    // template and a MANAGER template that both cover the Senior Engineer designation.
+    const roleFixture: CompanyImport = {
+      ...fixture,
+      templates: [
+        {
+          name: "IC Review",
+          designations: ["Engineer", "Senior Engineer"],
+          appliesToRole: "MEMBER",
+          sections: [{ id: "s1", title: "IC", directions: [], questions: [{ id: "s1-q1", text: "Q", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 }] }],
+        },
+        {
+          name: "Lead Review",
+          designations: ["Senior Engineer"],
+          appliesToRole: "MANAGER",
+          sections: [{ id: "s1", title: "Lead", directions: [], questions: [{ id: "s1-q1", text: "Q", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 }] }],
+        },
+      ],
+      cycles: undefined,
+    };
+    await prisma.$transaction((tx) => applyCompanyImport(tx, company.id, roleFixture, "boss@acme.com"));
+
+    const ic = await prisma.evaluationTemplate.findFirst({ where: { companyId: company.id, name: "IC Review" } });
+    const lead = await prisma.evaluationTemplate.findFirst({ where: { companyId: company.id, name: "Lead Review" } });
+    expect(ic?.appliesToRole).toBe("MEMBER");
+    expect(lead?.appliesToRole).toBe("MANAGER");
+  });
+
+  it("bumps a template version when only appliesToRole changes on re-import", async () => {
+    const company = await factories.company();
+    await prisma.$transaction((tx) => applyCompanyImport(tx, company.id, fixture, "boss@acme.com"));
+    const before = await prisma.evaluationTemplate.findFirst({ where: { companyId: company.id, name: "Eng Review" } });
+    expect(before?.version).toBe(1);
+
+    const changed: CompanyImport = {
+      ...fixture,
+      cycles: undefined,
+      templates: fixture.templates.map((t) => ({ ...t, appliesToRole: "MEMBER" as const })),
+    };
+    const res = await prisma.$transaction((tx) => applyCompanyImport(tx, company.id, changed, "boss@acme.com"));
+    expect(res.templatesUpdated).toBe(1);
+    const after = await prisma.evaluationTemplate.findFirst({ where: { companyId: company.id, name: "Eng Review" } });
+    expect(after?.version).toBe(2);
+    expect(after?.appliesToRole).toBe("MEMBER");
   });
 
   it("leaves every team with a MANAGER (no incomplete teams)", async () => {

@@ -39,7 +39,7 @@ export const COLUMNS = {
   people: ["email", "name", "orgRole", "team", "teamRole", "designation"],
   teams: ["name", "description"],
   blocks: ["block", "sectionTitle", "sectionDescription", "directions", "text", "type", "required", "scaleMin", "scaleMax", "scaleLabels", "options"],
-  templates: ["name", "description", "weightPreset", "designations", "blocks"],
+  templates: ["name", "description", "weightPreset", "designations", "appliesToRole", "blocks"],
   cycles: ["name", "status", "startDate", "endDate", "teams", "templateMode", "generateAssignments"],
 } as const;
 
@@ -258,11 +258,15 @@ export async function workbookToCompanyImport(buf: ArrayBuffer | Buffer): Promis
             questions: b.questions.map((q, qi) => ({ ...q, id: `${secId}-q${qi + 1}` })),
           };
         });
+      const roleCell = get("appliesToRole").trim().toUpperCase();
+      const appliesToRole = (roleCell === "MANAGER" || roleCell === "MEMBER" ? roleCell : "ANY") as
+        CompanyImport["templates"][number]["appliesToRole"];
       templates.push({
         name,
         description: get("description") || undefined,
         weightPreset: (get("weightPreset") || null) as CompanyImport["templates"][number]["weightPreset"],
         designations,
+        appliesToRole,
         sections: sections as unknown as CompanyImport["templates"][number]["sections"],
       });
     });
@@ -399,7 +403,8 @@ export async function companyImportToWorkbook(data: CompanyImport): Promise<Buff
   // Templates sheet — compose blocks.
   addSheet(SHEETS.templates, COLUMNS.templates, data.templates.map((t) => [
     t.name, t.description ?? "", t.weightPreset ?? "",
-    t.designations.join(LIST_SEP), (templateBlockNames.get(t.name) ?? []).join(LIST_SEP),
+    t.designations.join(LIST_SEP), t.appliesToRole ?? "ANY",
+    (templateBlockNames.get(t.name) ?? []).join(LIST_SEP),
   ]));
 
   if (data.cycles?.length) {
@@ -430,7 +435,7 @@ export async function emptyTemplateWorkbook(): Promise<Buffer> {
       ["Values", "Value-Based", "Core values", "SELF|LATERAL|DOWNWARD", "Delivers quality work", "rating_scale", "TRUE", 1, 5, "Low||Mid||High", ""],
       ["Values", "Value-Based", "Core values", "SELF|LATERAL|DOWNWARD", "What went well?", "text", "FALSE", "", "", "", ""],
     ],
-    [SHEETS.templates]: [["Eng Review", "360 for engineers", "equal", "Engineer|Senior Engineer", "Values"]],
+    [SHEETS.templates]: [["Eng Review", "360 for engineers", "equal", "Engineer|Senior Engineer", "ANY", "Values"]],
     [SHEETS.cycles]: [["Annual Review", "ACTIVE", "2025-07-01", "2026-06-30", "ALL", "matching", "TRUE"]],
   };
 

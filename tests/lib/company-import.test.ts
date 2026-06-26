@@ -33,6 +33,7 @@ const fixture: CompanyImport = companyImportSchema.parse({
       description: "360 for engineers",
       weightPreset: "equal",
       designations: ["Software Engineer", "EDA Engineer, DV", "Senior Engineer"],
+      appliesToRole: "MEMBER",
       sections: [
         {
           id: "s1",
@@ -42,6 +43,23 @@ const fixture: CompanyImport = companyImportSchema.parse({
           questions: [
             { id: "s1-q1", text: "Delivers quality", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Low", "", "Mid", "", "High"] },
             { id: "s1-q2", text: "What went well?", type: "text", required: false },
+          ],
+        },
+      ],
+    },
+    {
+      name: "Eng Lead Review",
+      description: "360 for engineering leads",
+      weightPreset: "supervisor_focus",
+      designations: ["Senior Engineer"],
+      appliesToRole: "MANAGER",
+      sections: [
+        {
+          id: "s1",
+          title: "Leadership",
+          directions: ["SELF", "UPWARD"],
+          questions: [
+            { id: "s1-q1", text: "Sets clear direction", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 },
           ],
         },
       ],
@@ -99,6 +117,7 @@ describe("Excel ⇄ company-import round-trip", () => {
       name: t.name,
       description: t.description ?? null,
       weightPreset: t.weightPreset ?? null,
+      appliesToRole: t.appliesToRole,
       designations: [...t.designations].sort(),
       sections: t.sections.map((s) => {
         const sec = s as { title: string; description?: string; directions?: string[]; questions: { text: string; type: string; required: boolean; scaleMin?: number; scaleMax?: number; scaleLabels?: string[]; options?: string[] }[] };
@@ -117,6 +136,29 @@ describe("Excel ⇄ company-import round-trip", () => {
     const buf = await companyImportToWorkbook(fixture);
     const back = await workbookToCompanyImport(buf);
     expect(semantic(back)).toEqual(semantic(fixture));
+  });
+
+  it("preserves each template's appliesToRole through a round-trip", async () => {
+    const back = await workbookToCompanyImport(await companyImportToWorkbook(fixture));
+    const member = back.templates.find((t) => t.name === "Eng Review");
+    const lead = back.templates.find((t) => t.name === "Eng Lead Review");
+    expect(member?.appliesToRole).toBe("MEMBER");
+    expect(lead?.appliesToRole).toBe("MANAGER");
+  });
+
+  it("defaults a template with a blank appliesToRole cell to ANY", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await companyImportToWorkbook(fixture)).buffer as ArrayBuffer);
+    const ws = wb.getWorksheet("Templates")!;
+    const headers = (ws.getRow(1).values as unknown[]).slice(1).map((v) => String(v ?? ""));
+    const roleCol = headers.indexOf("appliesToRole") + 1;
+    expect(roleCol).toBeGreaterThan(0);
+    // Blank out every appliesToRole cell.
+    for (let i = 2; i <= ws.rowCount; i++) ws.getRow(i).getCell(roleCol).value = null;
+    const cleared = Buffer.from(await wb.xlsx.writeBuffer());
+    const back = await workbookToCompanyImport(cleared);
+    expect(back.templates.every((t) => t.appliesToRole === "ANY")).toBe(true);
   });
 
   it("preserves a designation name that contains a comma", async () => {

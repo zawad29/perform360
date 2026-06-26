@@ -6,12 +6,13 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
 import { sectionSchema, directionWeightsSchema } from "@/lib/template-schema";
 import { errorResponse, zodErrorResponse, internalErrorResponse } from "@/lib/api-responses";
-import { Prisma, WeightPreset } from "@prisma/client";
+import { Prisma, WeightPreset, TemplateRole } from "@prisma/client";
 
 const updateTemplateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   designationIds: z.array(z.string()).optional(),
+  appliesToRole: z.nativeEnum(TemplateRole).optional(),
   weightPreset: z.nativeEnum(WeightPreset).nullable().optional(),
   weightsMember: directionWeightsSchema.nullable().optional(),
   weightsManager: directionWeightsSchema.nullable().optional(),
@@ -91,6 +92,7 @@ export async function PATCH(
     if (validated.name) updateData.name = validated.name;
     if (validated.description !== undefined) updateData.description = validated.description;
     if (validated.designationIds) updateData.designationIds = validated.designationIds;
+    if (validated.appliesToRole !== undefined) updateData.appliesToRole = validated.appliesToRole;
     if (validated.weightPreset !== undefined) updateData.weightPreset = validated.weightPreset;
     if (validated.weightsMember !== undefined) {
       updateData.weightsMember = validated.weightsMember ?? Prisma.JsonNull;
@@ -117,6 +119,7 @@ export async function PATCH(
           name: updated.name,
           description: updated.description,
           designationIds: updated.designationIds,
+          appliesToRole: updated.appliesToRole,
           weightPreset: updated.weightPreset,
           weightsMember:
             updated.weightsMember === null

@@ -27,6 +27,7 @@ export function TemplateBuilder() {
     name,
     description,
     designationIds,
+    appliesToRole,
     weightPreset,
     weightsMember,
     weightsManager,
@@ -35,6 +36,7 @@ export function TemplateBuilder() {
     setName,
     setDescription,
     setDesignationIds,
+    setAppliesToRole,
     setWeights,
     setUseDirectionRouting,
     addSection,
@@ -129,10 +131,12 @@ export function TemplateBuilder() {
             </div>
           </div>
 
-          {/* Optional config: Designations + Weights as collapsible strips */}
+          {/* Optional config: Designations + Applies-to + Weights as collapsible strips */}
           <TemplateMetaStrips
             designationIds={designationIds}
             onDesignationsChange={setDesignationIds}
+            appliesToRole={appliesToRole}
+            onAppliesToRoleChange={setAppliesToRole}
             preset={weightPreset}
             member={weightsMember}
             manager={weightsManager}

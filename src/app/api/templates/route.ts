@@ -6,12 +6,13 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { parsePaginationParams, buildPaginationMeta } from "@/lib/utils";
 import { sectionSchema, directionWeightsSchema } from "@/lib/template-schema";
 import { errorResponse, zodErrorResponse, internalErrorResponse } from "@/lib/api-responses";
-import { Prisma, WeightPreset } from "@prisma/client";
+import { Prisma, WeightPreset, TemplateRole } from "@prisma/client";
 
 const createTemplateSchema = z.object({
   name: z.string().min(1, "Template name is required"),
   description: z.string().optional(),
   designationIds: z.array(z.string()).default([]),
+  appliesToRole: z.nativeEnum(TemplateRole).default(TemplateRole.ANY),
   weightPreset: z.nativeEnum(WeightPreset).nullable().optional(),
   weightsMember: directionWeightsSchema.nullable().optional(),
   weightsManager: directionWeightsSchema.nullable().optional(),
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
           name: validated.name,
           description: validated.description,
           designationIds: validated.designationIds,
+          appliesToRole: validated.appliesToRole,
           weightPreset: validated.weightPreset ?? null,
           weightsMember,
           weightsManager,
@@ -122,6 +124,7 @@ export async function POST(request: NextRequest) {
           name: created.name,
           description: created.description,
           designationIds: created.designationIds,
+          appliesToRole: created.appliesToRole,
           weightPreset: created.weightPreset,
           weightsMember,
           weightsManager,

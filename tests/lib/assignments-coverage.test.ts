@@ -41,6 +41,7 @@ describe("validateTeamTemplateCoverage", () => {
       {
         id: "tpl-1",
         designationIds: ["level-1"],
+        appliesToRole: "ANY",
         sections: [],
       },
     ] as any);
@@ -81,6 +82,7 @@ describe("validateTeamTemplateCoverage", () => {
       {
         id: "tpl-1",
         designationIds: ["level-1"],
+        appliesToRole: "ANY",
         sections: [],
       },
     ] as any);

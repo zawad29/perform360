@@ -5,15 +5,29 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { TemplateDesignations } from "./template-designations";
 import { TemplateWeights } from "./template-weights";
 import { WEIGHT_PRESETS, type DirectionWeights, type WeightPreset } from "@/lib/directions";
+import type { TemplateApplicableRole } from "@/lib/template-routing";
 
 interface DesignationOption {
   id: string;
   name: string;
 }
 
+const ROLE_OPTIONS: { value: TemplateApplicableRole; label: string }[] = [
+  { value: "ANY", label: "Everyone" },
+  { value: "MANAGER", label: "Team leads" },
+  { value: "MEMBER", label: "Team members" },
+];
+const ROLE_SUMMARY: Record<TemplateApplicableRole, string> = {
+  ANY: "Everyone",
+  MANAGER: "Team leads",
+  MEMBER: "Team members",
+};
+
 interface TemplateMetaStripsProps {
   designationIds: string[];
   onDesignationsChange: (ids: string[]) => void;
+  appliesToRole: TemplateApplicableRole;
+  onAppliesToRoleChange: (role: TemplateApplicableRole) => void;
   preset: WeightPreset | null;
   member: DirectionWeights | null;
   manager: DirectionWeights | null;
@@ -27,12 +41,15 @@ interface TemplateMetaStripsProps {
 export function TemplateMetaStrips({
   designationIds,
   onDesignationsChange,
+  appliesToRole,
+  onAppliesToRoleChange,
   preset,
   member,
   manager,
   onWeightsChange,
 }: TemplateMetaStripsProps) {
   const [openDesignations, setOpenDesignations] = useState(false);
+  const [openRole, setOpenRole] = useState(false);
   const [openWeights, setOpenWeights] = useState(false);
   const [designations, setDesignations] = useState<DesignationOption[]>([]);
 
@@ -80,6 +97,43 @@ export function TemplateMetaStrips({
       </div>
       {openDesignations && (
         <TemplateDesignations selected={designationIds} onChange={onDesignationsChange} />
+      )}
+
+      <div>
+        <Strip
+          label="Applies to"
+          summary={ROLE_SUMMARY[appliesToRole]}
+          open={openRole}
+          onToggle={() => setOpenRole((v) => !v)}
+          actionLabel={openRole ? "Done" : "Change"}
+        />
+      </div>
+      {openRole && (
+        <div className="border border-gray-200 bg-white p-3">
+          <p className="mb-2 text-[12px] text-gray-500">
+            Pick which team role this template scores. Subjects with a matching role get this
+            template before any &ldquo;Everyone&rdquo; template.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {ROLE_OPTIONS.map((opt) => {
+              const active = appliesToRole === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onAppliesToRoleChange(opt.value)}
+                  className={
+                    active
+                      ? "border border-gray-900 bg-gray-900 px-3 py-1.5 text-[13px] text-white"
+                      : "border border-gray-300 bg-white px-3 py-1.5 text-[13px] text-gray-700 hover:bg-gray-50"
+                  }
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <div>

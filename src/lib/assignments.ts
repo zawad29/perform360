@@ -7,6 +7,7 @@ import { DIRECTION_KEYS, isValidDirection } from "@/lib/directions";
 import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 import {
   resolveAssignmentForm,
+  resolveTemplateForSubject,
   type SectionShape,
   type TemplateMeta,
 } from "@/lib/template-routing";
@@ -124,7 +125,10 @@ export function generateAssignmentsFromTeams(
             break;
         }
         for (const subject of subjects) {
-          const resolved = resolveAssignmentForm(templates, subject.designationId, direction);
+          // Impersonator subjects are drawn from members/managers, so role is
+          // always a cycle-subject role — narrow it for role-aware routing.
+          const subjectRole = isCycleSubjectRole(subject.role) ? subject.role : undefined;
+          const resolved = resolveAssignmentForm(templates, subject.designationId, direction, subjectRole);
           if (resolved) addAssignment(subject.userId, imp.userId, direction, resolved.templateId);
         }
       }
@@ -134,7 +138,7 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("SELF")) {
       for (const m of team.members) {
         if (m.role === "EXTERNAL" || m.role === "IMPERSONATOR") continue;
-        const resolved = resolveAssignmentForm(templates, m.designationId, "SELF");
+        const resolved = resolveAssignmentForm(templates, m.designationId, "SELF", m.role);
         if (resolved) selfEvalPairs.add(`${m.userId}:${resolved.templateId}`);
       }
     }
@@ -143,7 +147,7 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("DOWNWARD")) {
       for (const mgr of managers) {
         for (const member of members) {
-          const resolved = resolveAssignmentForm(templates, member.designationId, "DOWNWARD");
+          const resolved = resolveAssignmentForm(templates, member.designationId, "DOWNWARD", "MEMBER");
           if (resolved) addAssignment(member.userId, mgr.userId, "DOWNWARD", resolved.templateId);
         }
       }
@@ -153,7 +157,7 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("UPWARD")) {
       for (const member of members) {
         for (const mgr of managers) {
-          const resolved = resolveAssignmentForm(templates, mgr.designationId, "UPWARD");
+          const resolved = resolveAssignmentForm(templates, mgr.designationId, "UPWARD", "MANAGER");
           if (resolved) addAssignment(mgr.userId, member.userId, "UPWARD", resolved.templateId);
         }
       }
@@ -164,14 +168,14 @@ export function generateAssignmentsFromTeams(
       for (const reviewer of members) {
         for (const subject of members) {
           if (reviewer.userId === subject.userId) continue;
-          const resolved = resolveAssignmentForm(templates, subject.designationId, "LATERAL");
+          const resolved = resolveAssignmentForm(templates, subject.designationId, "LATERAL", "MEMBER");
           if (resolved) addAssignment(subject.userId, reviewer.userId, "LATERAL", resolved.templateId);
         }
       }
       for (const reviewer of managers) {
         for (const subject of managers) {
           if (reviewer.userId === subject.userId) continue;
-          const resolved = resolveAssignmentForm(templates, subject.designationId, "LATERAL");
+          const resolved = resolveAssignmentForm(templates, subject.designationId, "LATERAL", "MANAGER");
           if (resolved) addAssignment(subject.userId, reviewer.userId, "LATERAL", resolved.templateId);
         }
       }
@@ -181,11 +185,11 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("EXTERNAL")) {
       for (const ext of externals) {
         for (const member of members) {
-          const resolved = resolveAssignmentForm(templates, member.designationId, "EXTERNAL");
+          const resolved = resolveAssignmentForm(templates, member.designationId, "EXTERNAL", "MEMBER");
           if (resolved) addAssignment(member.userId, ext.userId, "EXTERNAL", resolved.templateId);
         }
         for (const mgr of managers) {
-          const resolved = resolveAssignmentForm(templates, mgr.designationId, "EXTERNAL");
+          const resolved = resolveAssignmentForm(templates, mgr.designationId, "EXTERNAL", "MANAGER");
           if (resolved) addAssignment(mgr.userId, ext.userId, "EXTERNAL", resolved.templateId);
         }
       }
@@ -258,7 +262,7 @@ export async function validateTeamTemplateCoverage(
         OR: [{ companyId }, { isGlobal: true }],
         isArchived: false,
       },
-      select: { id: true, designationIds: true, sections: true },
+      select: { id: true, designationIds: true, appliesToRole: true, sections: true },
     }),
   ]);
 
@@ -275,6 +279,7 @@ export async function validateTeamTemplateCoverage(
       {
         id: t.id,
         designationIds: t.designationIds,
+        appliesToRole: t.appliesToRole,
         sections: t.sections as unknown as SectionShape[],
       },
     ])
@@ -289,14 +294,14 @@ export async function validateTeamTemplateCoverage(
       .map((id) => templateMap.get(id))
       .filter((x): x is TemplateMeta => Boolean(x));
 
-    const hasWildcard = assigned.some((t) => t.designationIds.length === 0);
-    if (hasWildcard) continue;
-
-    const coveredDesignations = new Set(assigned.flatMap((t) => t.designationIds));
+    // A subject is covered only if a template matches BOTH their team-role and
+    // designation. (A wildcard MEMBER template doesn't cover a MANAGER, so the
+    // old "any wildcard → fully covered" short-circuit no longer applies.)
     const missing: CoverageGap["members"] = [];
     for (const m of team.members) {
       if (!isCycleSubjectRole(m.role)) continue;
-      if (m.designationId === null || !coveredDesignations.has(m.designationId)) {
+      const resolved = resolveTemplateForSubject(assigned, m.designationId, m.role);
+      if (!resolved) {
         missing.push({
           userId: m.userId,
           name: m.user?.name ?? "Unknown",

@@ -169,7 +169,7 @@ export function RoutingMatrix({ teamName, members, templates }: RoutingMatrixPro
                       </td>
                     );
                   }
-                  const resolved = resolveTemplateForSubject(templates, row.designationId);
+                  const resolved = resolveTemplateForSubject(templates, row.designationId, role);
                   if (!resolved) {
                     return (
                       <td key={role} className="px-3 py-2">

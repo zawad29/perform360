@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Direction, DirectionWeights, WeightPreset } from "@/lib/directions";
+import type { TemplateApplicableRole } from "@/lib/template-routing";
 
 interface TemplateQuestion {
   id: string;
@@ -25,6 +26,7 @@ interface TemplateBuilderState {
   name: string;
   description: string;
   designationIds: string[];
+  appliesToRole: TemplateApplicableRole;
   weightPreset: WeightPreset | null;
   weightsMember: DirectionWeights | null;
   weightsManager: DirectionWeights | null;
@@ -37,6 +39,7 @@ interface TemplateBuilderState {
   setName: (name: string) => void;
   setDescription: (description: string) => void;
   setDesignationIds: (ids: string[]) => void;
+  setAppliesToRole: (role: TemplateApplicableRole) => void;
   setWeights: (next: {
     preset: WeightPreset | null;
     member: DirectionWeights | null;
@@ -64,6 +67,7 @@ interface TemplateBuilderState {
     name: string;
     description: string;
     designationIds: string[];
+    appliesToRole?: TemplateApplicableRole;
     weightPreset: WeightPreset | null;
     weightsMember: DirectionWeights | null;
     weightsManager: DirectionWeights | null;
@@ -79,6 +83,7 @@ export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
   name: "",
   description: "",
   designationIds: [],
+  appliesToRole: "ANY",
   weightPreset: null,
   weightsMember: null,
   weightsManager: null,
@@ -91,6 +96,7 @@ export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
   setName: (name) => set({ name, isDirty: true }),
   setDescription: (description) => set({ description, isDirty: true }),
   setDesignationIds: (designationIds) => set({ designationIds, isDirty: true }),
+  setAppliesToRole: (appliesToRole) => set({ appliesToRole, isDirty: true }),
   setWeights: ({ preset, member, manager }) =>
     set({
       weightPreset: preset,
@@ -219,6 +225,7 @@ export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
       name: "",
       description: "",
       designationIds: [],
+      appliesToRole: "ANY",
       weightPreset: null,
       weightsMember: null,
       weightsManager: null,
@@ -234,6 +241,7 @@ export const useTemplateBuilder = create<TemplateBuilderState>((set) => ({
       name: data.name,
       description: data.description,
       designationIds: data.designationIds,
+      appliesToRole: data.appliesToRole ?? "ANY",
       weightPreset: data.weightPreset,
       weightsMember: data.weightsMember,
       weightsManager: data.weightsManager,

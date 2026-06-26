@@ -14,6 +14,7 @@ export interface TeamOption {
 }
 
 import type { Direction, DirectionWeights } from "@/lib/directions";
+import type { TemplateApplicableRole } from "@/lib/template-routing";
 
 export interface TemplateOptionSection {
   id: string;
@@ -29,6 +30,8 @@ export interface TemplateOption {
   description?: string | null;
   isGlobal: boolean;
   designationIds: string[];
+  // Which team-role this template serves; drives role-aware routing/coverage.
+  appliesToRole: TemplateApplicableRole;
   // Surfaced from /api/templates so the wizard can render the routing matrix
   // and full preview without an extra fetch round-trip.
   sections: TemplateOptionSection[];

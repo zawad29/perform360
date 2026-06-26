@@ -34,6 +34,9 @@ export async function cleanDatabase(): Promise<void> {
   await prisma.account.deleteMany();
   await prisma.authUser.deleteMany();
   await prisma.verificationToken.deleteMany();
+  // Designations are FK-referenced by Company; delete them before companies.
+  // (TeamMember rows that reference designations are already removed above.)
+  await prisma.designation.deleteMany();
   await prisma.company.deleteMany();
 }
 

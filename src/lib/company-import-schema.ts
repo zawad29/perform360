@@ -19,6 +19,7 @@ import { Prisma } from "@prisma/client";
 import type { PrismaClient, TeamMemberRole, UserRole } from "@prisma/client";
 import { sectionSchema } from "./template-schema";
 import { WEIGHT_PRESETS } from "./directions";
+import { resolveTemplateForSubject, type TemplateMeta, type SubjectRole } from "./template-routing";
 
 // ─── Zod schema for the universal format ───
 
@@ -49,6 +50,9 @@ export const importTemplateSchema = z.object({
   description: z.string().nullable().optional(),
   weightPreset: weightPresetEnum.nullable().optional(),
   designations: z.array(z.string()).default([]),
+  // Which team-role the template serves. Defaults to ANY (role-agnostic) so
+  // legacy imports without the column behave exactly as before.
+  appliesToRole: z.enum(["MANAGER", "MEMBER", "ANY"]).default("ANY"),
   sections: z.array(sectionSchema).min(1),
 });
 
@@ -246,6 +250,7 @@ export async function applyCompanyImport(
         canonicalJson(existing.sections) !== canonicalJson(tpl.sections) ||
         JSON.stringify([...existing.designationIds].sort()) !== JSON.stringify([...resolvedDesignationIds].sort()) ||
         (existing.description ?? null) !== (tpl.description ?? null) ||
+        existing.appliesToRole !== tpl.appliesToRole ||
         (existing.weightPreset ?? null) !== (tpl.weightPreset ?? null);
       if (changed) {
         const nextVersion = existing.version + 1;
@@ -254,6 +259,7 @@ export async function applyCompanyImport(
           data: {
             description: tpl.description ?? null,
             designationIds: resolvedDesignationIds,
+            appliesToRole: tpl.appliesToRole,
             weightPreset: tpl.weightPreset ?? null,
             weightsMember, weightsManager,
             sections: sectionsJson,
@@ -263,7 +269,7 @@ export async function applyCompanyImport(
         await tx.evaluationTemplateVersion.create({
           data: {
             templateId: updated.id, version: nextVersion, name: updated.name, description: updated.description,
-            designationIds: resolvedDesignationIds, weightPreset: updated.weightPreset,
+            designationIds: resolvedDesignationIds, appliesToRole: updated.appliesToRole, weightPreset: updated.weightPreset,
             weightsMember, weightsManager, sections: sectionsJson, createdBy,
           },
         });
@@ -274,14 +280,14 @@ export async function applyCompanyImport(
       const created = await tx.evaluationTemplate.create({
         data: {
           name: tpl.name, description: tpl.description ?? null, isGlobal: false, companyId, createdBy,
-          designationIds: resolvedDesignationIds, weightPreset: tpl.weightPreset ?? null,
+          designationIds: resolvedDesignationIds, appliesToRole: tpl.appliesToRole, weightPreset: tpl.weightPreset ?? null,
           weightsMember, weightsManager, sections: sectionsJson,
         },
       });
       await tx.evaluationTemplateVersion.create({
         data: {
           templateId: created.id, version: 1, name: created.name, description: created.description,
-          designationIds: resolvedDesignationIds, weightPreset: created.weightPreset,
+          designationIds: resolvedDesignationIds, appliesToRole: created.appliesToRole, weightPreset: created.weightPreset,
           weightsMember, weightsManager, sections: sectionsJson, createdBy,
         },
       });
@@ -292,16 +298,26 @@ export async function applyCompanyImport(
 
   // 5. Cycles (optional) — create cycle + cycle-teams + (optionally) assignments. No responses.
   if (data.cycles && data.cycles.length) {
-    // designationId → owning template id (for "matching" mode).
-    const tplByDesignationId = new Map<string, string>();
+    // Build routing metadata (one TemplateMeta per template) so cycle assignment uses the
+    // exact same role+designation routing as the live engine (resolveTemplateForSubject).
+    const templateMetas: TemplateMeta[] = [];
     for (const tpl of data.templates) {
       const id = templateId.get(tpl.name);
       if (!id) continue;
-      for (const dn of tpl.designations) {
-        const did = designationId.get(dn);
-        if (did) tplByDesignationId.set(did, id);
-      }
+      templateMetas.push({
+        id,
+        appliesToRole: tpl.appliesToRole,
+        designationIds: tpl.designations
+          .map((dn) => designationId.get(dn))
+          .filter((x): x is string => !!x),
+        sections: [],
+      });
     }
+    // Resolve the owning template id for a (role, designationName) subject.
+    const templateIdFor = (designationName: string | null | undefined, role: SubjectRole): string | null => {
+      const did = designationName ? designationId.get(designationName) ?? null : null;
+      return resolveTemplateForSubject(templateMetas, did, role)?.template.id ?? null;
+    };
 
     for (const c of data.cycles) {
       // Upsert cycle by (name, companyId) so re-import does not create duplicate cycles.
@@ -333,8 +349,9 @@ export async function applyCompanyImport(
         if (c.templateMode === "matching") {
           const set = new Set<string>();
           for (const m of team.members) {
-            const did = m.designation ? designationId.get(m.designation) : undefined;
-            const matched = did ? tplByDesignationId.get(did) : undefined;
+            // Only cycle subjects (MANAGER/MEMBER) drive template matching.
+            if (m.role !== "MANAGER" && m.role !== "MEMBER") continue;
+            const matched = templateIdFor(m.designation, m.role);
             if (matched) set.add(matched);
           }
           tplIds = [...set];
@@ -352,8 +369,8 @@ export async function applyCompanyImport(
           const memberEmails = team.members.filter((m) => m.role !== "MANAGER").map((m) => m.email.trim().toLowerCase());
           const templateForEmail = (email: string): string | null => {
             const mem = team.members.find((m) => m.email.trim().toLowerCase() === email);
-            const did = mem?.designation ? designationId.get(mem.designation) : undefined;
-            return (did && tplByDesignationId.get(did)) || tplIds[0] || null;
+            const role: SubjectRole = mem?.role === "MANAGER" ? "MANAGER" : "MEMBER";
+            return templateIdFor(mem?.designation, role) || tplIds[0] || null;
           };
           const addAssignment = async (reviewer: string, subject: string, direction: string) => {
             const rId = userId.get(reviewer);

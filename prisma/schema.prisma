@@ -85,6 +85,15 @@ enum WeightPreset {
   custom
 }
 
+// Which team-role a template is written for. Routing prefers a template whose
+// appliesToRole matches the subject's team role (MANAGER/MEMBER), falling back
+// to ANY. ANY = role-agnostic (the pre-feature default; applies to everyone).
+enum TemplateRole {
+  MANAGER
+  MEMBER
+  ANY
+}
+
 model EvaluationTemplate {
   id          String  @id @default(cuid())
   name        String
@@ -96,6 +105,10 @@ model EvaluationTemplate {
 
   // Template-wide designation filter. Empty array = applies to all designations.
   designationIds String[] @default([])
+
+  // Which team-role this template serves. Routing picks the role-matching
+  // template before falling back to ANY. Default ANY = legacy behavior.
+  appliesToRole TemplateRole @default(ANY)
 
   // Direction weights (optional). null = equal/default at scoring time.
   // Shape: { downward, upward, lateral, self, external } as decimals 0.0–1.0
@@ -132,6 +145,7 @@ model EvaluationTemplateVersion {
   name           String
   description    String?
   designationIds String[]           @default([])
+  appliesToRole  TemplateRole       @default(ANY)
   weightPreset   WeightPreset?
   weightsMember  Json?
   weightsManager Json?

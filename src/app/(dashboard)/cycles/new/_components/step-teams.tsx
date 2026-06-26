@@ -6,6 +6,7 @@ import { MultiCombobox } from "@/components/ui/multi-combobox";
 import type { MultiComboboxOption } from "@/components/ui/multi-combobox";
 import { Plus, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { isCycleSubjectRole } from "@/lib/cycle-subjects";
+import { resolveTemplateForSubject, type TemplateMeta } from "@/lib/template-routing";
 import type {
   AssignmentGroup,
   CoverageGapTeam,
@@ -60,11 +61,15 @@ function computeGroupGaps(
 ): CoverageGapTeam[] {
   if (group.teamIds.length === 0 || group.templateIds.length === 0) return [];
 
+  // Build routing metadata for the group's templates so coverage mirrors the live
+  // engine: a subject is covered only when a template matches BOTH role and designation.
   const groupTemplates = templates.filter((t) => group.templateIds.includes(t.id));
-  const hasWildcard = groupTemplates.some((t) => t.designationIds.length === 0);
-  if (hasWildcard) return [];
-
-  const coveredDesignationIds = new Set(groupTemplates.flatMap((t) => t.designationIds));
+  const metas: TemplateMeta[] = groupTemplates.map((t) => ({
+    id: t.id,
+    designationIds: t.designationIds,
+    appliesToRole: t.appliesToRole,
+    sections: [],
+  }));
 
   const gaps: CoverageGapTeam[] = [];
   for (const teamId of group.teamIds) {
@@ -73,7 +78,7 @@ function computeGroupGaps(
 
     const uncovered = team.members
       .filter((m) => isCycleSubjectRole(m.role))
-      .filter((m) => m.designationId === null || !coveredDesignationIds.has(m.designationId))
+      .filter((m) => !resolveTemplateForSubject(metas, m.designationId, m.role as "MANAGER" | "MEMBER"))
       .map((m) => ({
         userId: m.userId,
         name: m.user.name,

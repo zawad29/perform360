@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { generateAssignmentsFromTeams } from "@/lib/assignments";
-import { buildTemplatesMap } from "../helpers/template-meta";
+import { buildTemplatesMap, buildTemplateList } from "../helpers/template-meta";
 
 // Mock generateToken to return predictable values
 vi.mock("@/lib/tokens", () => {
@@ -84,6 +84,35 @@ describe("assignments", () => {
       selfAssignments.forEach((a) => {
         expect(a.subjectId).toBe(a.reviewerId);
       });
+    });
+
+    it("routes a working-lead MANAGER to the lead template by team-role, not designation", () => {
+      // Both templates cover the same IC designation "d-eng"; the lead template is
+      // MANAGER-scoped. A MANAGER holding the IC designation must get the lead template.
+      const teams = [{
+        id: "team-1",
+        members: [
+          { userId: "mgr-1", role: "MANAGER" as const, designationId: "d-eng" },
+          { userId: "mem-1", role: "MEMBER" as const, designationId: "d-eng" },
+        ],
+      }];
+      const templateMap = new Map([
+        ["team-1", buildTemplateList([
+          { id: "tpl-member", designationIds: ["d-eng"], appliesToRole: "MEMBER" },
+          { id: "tpl-lead", designationIds: ["d-eng"], appliesToRole: "MANAGER" },
+        ])],
+      ]);
+      const assignments = generateAssignmentsFromTeams(cycleId, teams, templateMap);
+
+      // The manager's SELF + UPWARD assignments use the lead template.
+      const mgrSubject = assignments.filter((a) => a.subjectId === "mgr-1");
+      expect(mgrSubject.length).toBeGreaterThan(0);
+      expect(mgrSubject.every((a) => a.templateId === "tpl-lead")).toBe(true);
+
+      // The member's assignments use the member template.
+      const memSubject = assignments.filter((a) => a.subjectId === "mem-1");
+      expect(memSubject.length).toBeGreaterThan(0);
+      expect(memSubject.every((a) => a.templateId === "tpl-member")).toBe(true);
     });
 
     it("deduplicates assignments across teams with same template", () => {

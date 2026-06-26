@@ -46,6 +46,7 @@ interface EditCycleTeamTemplate {
     name: string;
     description?: string | null;
     designationIds?: string[];
+    appliesToRole?: TemplateOption["appliesToRole"];
     weightsMember?: DirectionWeights | null;
     weightsManager?: DirectionWeights | null;
     sections?: TemplateOption["sections"];
@@ -96,6 +97,7 @@ function templateOptionFromCycle(t: EditCycleTeamTemplate["templates"][number]):
     description: t.description ?? null,
     isGlobal: false,
     designationIds: t.designationIds ?? [],
+    appliesToRole: t.appliesToRole ?? "ANY",
     sections: t.sections ?? [],
     weightsMember: t.weightsMember ?? null,
     weightsManager: t.weightsManager ?? null,
