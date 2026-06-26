@@ -23,7 +23,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Users, Plus, Search, MoreHorizontal, Eye, Trash2, Archive, ArchiveRestore, ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, ArrowRight, Upload, Pencil, AlertTriangle } from "lucide-react";
+import { Users, Plus, Search, MoreHorizontal, Eye, Trash2, Archive, ArchiveRestore, ArrowDown, ArrowUp, ArrowLeftRight, RotateCcw, ArrowRight, Pencil, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorCard } from "@/components/ui/error-card";
 import Link from "next/link";
@@ -166,9 +166,6 @@ export default function TeamsPage() {
         title="Teams"
         description="Manage your organization's teams"
       >
-        <Link href="/teams/import">
-          <Button variant="secondary"><Upload size={16} strokeWidth={1.5} className="mr-1.5" />Import CSV</Button>
-        </Link>
         <Link href="/teams/new">
           <Button><Plus size={16} strokeWidth={2} className="mr-1.5" />New Team</Button>
         </Link>

@@ -13,10 +13,35 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import Image from "next/image";
 import Link from "next/link";
 import { UpdateBanner } from "@/components/system/update-banner";
+import {
+  CheckCircle2,
+  Download,
+  FileArchive,
+  FileSpreadsheet,
+  ShieldCheck,
+  Upload,
+} from "lucide-react";
 
 interface NotificationSettings {
   evaluationInvitations: boolean;
   cycleCompletion: boolean;
+}
+
+interface ImportSummary {
+  designationsCreated: number;
+  designationsExisted: number;
+  usersCreated: number;
+  usersExisted: number;
+  usersUpdated: number;
+  teamsCreated: number;
+  teamsExisted: number;
+  membershipsCreated: number;
+  membershipsExisted: number;
+  templatesCreated: number;
+  templatesUpdated: number;
+  cyclesCreated: number;
+  assignmentsCreated: number;
+  warnings: string[];
 }
 
 const DEFAULT_NOTIFICATIONS: NotificationSettings = {
@@ -48,6 +73,38 @@ const NOTIFICATION_ITEMS: { key: keyof NotificationSettings; label: string; desc
   { key: "cycleCompletion", label: "Cycle completion", description: "Notify admins when a cycle reaches 100% completion" },
 ];
 
+const IMPORT_RESULT_ORDER: (keyof Omit<ImportSummary, "warnings">)[] = [
+  "usersCreated",
+  "usersUpdated",
+  "teamsCreated",
+  "membershipsCreated",
+  "templatesCreated",
+  "templatesUpdated",
+  "cyclesCreated",
+  "assignmentsCreated",
+  "designationsCreated",
+  "designationsExisted",
+  "usersExisted",
+  "teamsExisted",
+  "membershipsExisted",
+];
+
+const IMPORT_RESULT_LABELS: Record<(typeof IMPORT_RESULT_ORDER)[number], string> = {
+  usersCreated: "People added",
+  usersUpdated: "People refreshed",
+  teamsCreated: "Teams added",
+  membershipsCreated: "Team placements added",
+  templatesCreated: "Templates added",
+  templatesUpdated: "Templates refreshed",
+  cyclesCreated: "Review cycles added",
+  assignmentsCreated: "Assignments prepared",
+  designationsCreated: "Titles added",
+  designationsExisted: "Titles already in place",
+  usersExisted: "People already in place",
+  teamsExisted: "Teams already in place",
+  membershipsExisted: "Team placements already in place",
+};
+
 export default function SettingsPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +118,10 @@ export default function SettingsPage() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportPassphrase, setExportPassphrase] = useState("");
   const [exportingData, setExportingData] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportSummary | null>(null);
+  const [importFileName, setImportFileName] = useState("");
+  const importFileRef = useRef<HTMLInputElement>(null);
   const [ollamaUrl, setOllamaUrl] = useState("");
   const [ollamaApiKey, setOllamaApiKey] = useState("");
   const [ollamaModel, setOllamaModel] = useState("");
@@ -294,6 +355,41 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDownloadImportTemplate = async () => {
+    try {
+      const res = await fetch("/api/import/company/example");
+      if (!res.ok) throw new Error("Failed to fetch template");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "company-import-template.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : "Failed to download template", "error");
+    }
+  };
+
+  const handleImportFile = async (file: File) => {
+    setImporting(true);
+    setImportResult(null);
+    setImportFileName(file.name);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/import/company", { method: "POST", body: formData });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Import failed");
+      setImportResult(json.data as ImportSummary);
+      addToast("Import complete", "success");
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : "Import failed", "error");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const profileDirty =
     company !== null && (companyName !== company.name || companySlug !== company.slug);
 
@@ -314,6 +410,7 @@ export default function SettingsPage() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="ai">AI</TabsTrigger>
+          <TabsTrigger value="import-export">Import / Export</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -432,28 +529,6 @@ export default function SettingsPage() {
               </Card>
             </Link>
           </div>
-
-          <Card className="max-w-2xl mt-6 border-gray-900">
-            <CardHeader>
-              <CardTitle>Data Export</CardTitle>
-              <CardDescription>
-                Export a full company data dump with decrypted evaluation responses.
-                The export will be emailed to you as a JSON attachment.
-              </CardDescription>
-            </CardHeader>
-            <div className="pt-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setShowExportDialog(true);
-                  setExportPassphrase("");
-                }}
-              >
-                Export Company Data
-              </Button>
-            </div>
-          </Card>
 
         </TabsContent>
 
@@ -587,14 +662,195 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="import-export" className="space-y-6">
+          <div className="max-w-3xl space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5">
+                    <FileSpreadsheet size={20} strokeWidth={1.5} className="text-gray-900" />
+                  </div>
+                  <div>
+                    <CardTitle>Import Records</CardTitle>
+                    <CardDescription>
+                      Add or refresh people, teams, titles, templates, and optional review cycles from one template file.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <div className="space-y-3">
+                <div className="flex flex-col gap-3 border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-medium text-gray-900">1. Download template</p>
+                    <p className="mt-1 text-[13px] text-gray-500">Start with the standard file format.</p>
+                  </div>
+                  <Button type="button" variant="secondary" size="sm" onClick={handleDownloadImportTemplate}>
+                    <Download size={16} className="mr-2" />
+                    Download Template
+                  </Button>
+                </div>
+
+                <div className="flex flex-col gap-4 border border-dashed border-gray-300 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-medium text-gray-900">2. Upload completed file</p>
+                    <p className="mt-1 text-[13px] text-gray-500">Existing records are matched and updated where possible.</p>
+                    <p className="mt-2 text-[12px] text-gray-400">
+                      {importFileName ? `Selected: ${importFileName}` : "No file selected"}
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    <input
+                      ref={importFileRef}
+                      type="file"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleImportFile(f);
+                        if (importFileRef.current) importFileRef.current.value = "";
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      disabled={importing}
+                      onClick={() => importFileRef.current?.click()}
+                    >
+                      <Upload size={16} className="mr-2" />
+                      {importing ? "Processing..." : "Upload File"}
+                    </Button>
+                  </div>
+                </div>
+
+                {importResult && (
+                  <div className="border border-gray-900">
+                    <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-gray-500">Import summary</p>
+                        <p className="mt-1 text-[14px] text-gray-900">Latest upload completed successfully.</p>
+                      </div>
+                      <div className="inline-flex items-center gap-2 border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-700">
+                        <CheckCircle2 size={14} />
+                        Completed
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 border-b border-gray-200 lg:grid-cols-4">
+                      <div className="border-b border-r border-gray-200 p-4 sm:border-b-0">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500">People added</p>
+                        <p className="mt-2 text-title text-gray-900 tabular-nums">{importResult.usersCreated}</p>
+                      </div>
+                      <div className="border-b border-gray-200 p-4 sm:border-b-0 sm:border-r">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500">Teams added</p>
+                        <p className="mt-2 text-title text-gray-900 tabular-nums">{importResult.teamsCreated}</p>
+                      </div>
+                      <div className="border-r border-gray-200 p-4">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500">Templates added</p>
+                        <p className="mt-2 text-title text-gray-900 tabular-nums">{importResult.templatesCreated}</p>
+                      </div>
+                      <div className="p-4">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500">Assignments prepared</p>
+                        <p className="mt-2 text-title text-gray-900 tabular-nums">{importResult.assignmentsCreated}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-5 px-5 py-5">
+                      <div>
+                        <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.18em] text-gray-500">Detailed results</p>
+                        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {IMPORT_RESULT_ORDER.map((key) => (
+                            <li key={key} className="flex items-center justify-between border-b border-gray-100 py-2 text-[13px] text-gray-900">
+                              <span className="text-gray-500">{IMPORT_RESULT_LABELS[key]}</span>
+                              <span className="font-medium tabular-nums">{importResult[key]}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="border border-gray-200 bg-gray-50 p-4">
+                        <div className="flex items-center gap-2 text-gray-900">
+                          <ShieldCheck size={16} />
+                          <p className="text-[11px] font-medium uppercase tracking-[0.18em]">Notes</p>
+                        </div>
+                        {importResult.warnings.length > 0 ? (
+                          <ul className="mt-3 space-y-2 text-[13px] leading-6 text-gray-600">
+                            {importResult.warnings.map((warning, index) => (
+                              <li key={`${warning}-${index}`}>{warning}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-3 text-[13px] leading-6 text-gray-600">
+                            No follow-up notes were generated.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5">
+                    <FileArchive size={20} strokeWidth={1.5} className="text-gray-900" />
+                  </div>
+                  <div>
+                    <CardTitle>Secure Export</CardTitle>
+                    <CardDescription>
+                      Prepare a protected export for backup, transition planning, or controlled record sharing.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <div className="space-y-3">
+                <div className="flex flex-col gap-3 border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-medium text-gray-900">Prepare export</p>
+                    <p className="mt-1 text-[13px] text-gray-500">
+                      We verify the passphrase, prepare the export, and send it to your email.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setShowExportDialog(true);
+                      setExportPassphrase("");
+                    }}
+                  >
+                    Prepare Secure Export
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="border border-gray-200 bg-gray-50 p-3 text-[13px] text-gray-500">
+                    Includes company records and review data.
+                  </div>
+                  <div className="border border-gray-200 bg-gray-50 p-3 text-[13px] text-gray-500">
+                    Requires passphrase confirmation before processing.
+                  </div>
+                  <div className="border border-gray-200 bg-gray-50 p-3 text-[13px] text-gray-500">
+                    Delivered securely to your inbox.
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+
       </Tabs>
 
       <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Export Company Data</DialogTitle>
+            <DialogTitle>Prepare Secure Export</DialogTitle>
             <DialogDescription>
-              Enter your encryption passphrase to export all company data. The export will be emailed to you as a JSON file.
+              Enter your encryption passphrase to prepare a secure export of your company records.
+              We will send the protected file to your email.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">

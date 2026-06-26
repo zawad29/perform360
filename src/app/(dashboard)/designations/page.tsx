@@ -51,7 +51,19 @@ export default function DesignationsPage() {
   }
 
   useEffect(() => {
-    fetchDesignations();
+    async function load() {
+      setDesignationsLoading(true);
+      try {
+        const res = await fetch("/api/designations");
+        const json = await res.json();
+        if (json.success) setDesignations(json.data);
+      } catch {
+        /* silently handle */
+      } finally {
+        setDesignationsLoading(false);
+      }
+    }
+    load();
   }, []);
 
   const handleCreateDesignation = async () => {

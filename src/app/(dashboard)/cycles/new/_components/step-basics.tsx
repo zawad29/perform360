@@ -10,6 +10,7 @@ interface StepBasicsProps {
   onStartDateChange: (value: string) => void;
   endDate: string;
   onEndDateChange: (value: string) => void;
+  readOnly?: boolean;
 }
 
 export function StepBasics({
@@ -19,6 +20,7 @@ export function StepBasics({
   onStartDateChange,
   endDate,
   onEndDateChange,
+  readOnly = false,
 }: StepBasicsProps) {
   return (
     <div className="space-y-6">
@@ -39,6 +41,7 @@ export function StepBasics({
         onChange={(e) => onNameChange(e.target.value)}
         required
         autoFocus
+        disabled={readOnly}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -49,6 +52,7 @@ export function StepBasics({
           onChange={onStartDateChange}
           placeholder="Pick start date"
           required
+          disabled={readOnly}
         />
         <DatePicker
           id="endDate"
@@ -58,6 +62,7 @@ export function StepBasics({
           placeholder="Pick end date"
           minDate={startDate ? new Date(startDate) : undefined}
           required
+          disabled={readOnly}
         />
       </div>
     </div>

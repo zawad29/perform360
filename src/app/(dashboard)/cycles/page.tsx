@@ -16,14 +16,6 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Plus, Calendar, Search, MoreHorizontal, Eye, Trash2, Pencil, TrendingUp } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorCard } from "@/components/ui/error-card";
@@ -75,11 +67,6 @@ export default function CyclesPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
-  const [editCycle, setEditCycle] = useState<Cycle | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editStartDate, setEditStartDate] = useState("");
-  const [editEndDate, setEditEndDate] = useState("");
-  const [editLoading, setEditLoading] = useState(false);
   const { addToast } = useToast();
   const router = useRouter();
 
@@ -114,31 +101,6 @@ export default function CyclesPage() {
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     setPage(1);
-  };
-
-  const handleEditCycle = async () => {
-    if (!editCycle || !editName.trim()) return;
-    const nameUnchanged = editName.trim() === editCycle.name;
-    const startUnchanged = editStartDate === editCycle.startDate.slice(0, 10);
-    const endUnchanged = editEndDate === editCycle.endDate.slice(0, 10);
-    if (nameUnchanged && startUnchanged && endUnchanged) { setEditCycle(null); return; }
-    setEditLoading(true);
-    try {
-      const res = await fetch(`/api/cycles/${editCycle.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editName.trim(), startDate: editStartDate, endDate: editEndDate }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Failed to update cycle");
-      addToast("Cycle updated", "success");
-      setEditCycle(null);
-      fetchCycles();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : "Failed to update cycle", "error");
-    } finally {
-      setEditLoading(false);
-    }
   };
 
   const handleDelete = async (cycle: Cycle) => {
@@ -247,17 +209,10 @@ export default function CyclesPage() {
                           <Eye size={14} strokeWidth={1.5} className="mr-2" />
                           View
                         </DropdownMenuItem>
-                        {cycle.status === "DRAFT" && (
-                          <DropdownMenuItem onClick={() => {
-                            setEditCycle(cycle);
-                            setEditName(cycle.name);
-                            setEditStartDate(cycle.startDate.slice(0, 10));
-                            setEditEndDate(cycle.endDate.slice(0, 10));
-                          }}>
-                            <Pencil size={14} strokeWidth={1.5} className="mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem onClick={() => router.push(`/cycles/${cycle.id}/edit`)}>
+                          <Pencil size={14} strokeWidth={1.5} className="mr-2" />
+                          Edit Setup
+                        </DropdownMenuItem>
                         {cycle.status === "DRAFT" && (
                           <>
                             <DropdownMenuSeparator />
@@ -301,50 +256,6 @@ export default function CyclesPage() {
         </>
       )}
 
-      {/* Edit Cycle Dialog */}
-      <Dialog open={!!editCycle} onOpenChange={(open) => { if (!open) setEditCycle(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Cycle</DialogTitle>
-            <DialogDescription>Update details for {editCycle?.name}</DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-4 mt-4"
-            onSubmit={(e) => { e.preventDefault(); handleEditCycle(); }}
-          >
-            <Input
-              id="edit-cycle-name"
-              label="Cycle Name"
-              placeholder="Q1 2026 Review"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              required
-            />
-            <Input
-              id="edit-start-date"
-              label="Start Date"
-              type="date"
-              value={editStartDate}
-              onChange={(e) => setEditStartDate(e.target.value)}
-              required
-            />
-            <Input
-              id="edit-end-date"
-              label="End Date"
-              type="date"
-              value={editEndDate}
-              onChange={(e) => setEditEndDate(e.target.value)}
-              required
-            />
-            <div className="flex gap-3 pt-2">
-              <Button type="button" variant="secondary" onClick={() => setEditCycle(null)}>Cancel</Button>
-              <Button type="submit" className="flex-1" disabled={editLoading || !editName.trim()}>
-                {editLoading ? "Saving..." : "Save Changes"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

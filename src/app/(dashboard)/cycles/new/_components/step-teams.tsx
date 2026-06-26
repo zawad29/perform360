@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { MultiCombobox } from "@/components/ui/multi-combobox";
 import type { MultiComboboxOption } from "@/components/ui/multi-combobox";
 import { Plus, X, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { RoutingMatrix, type MatrixTemplate } from "@/components/cycles/routing-matrix";
 import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 import type {
   AssignmentGroup,
@@ -24,6 +23,7 @@ interface StepTeamsProps {
   onTeamSearch: (q: string) => void;
   onTemplateSearch: (q: string) => void;
   fetchError: string;
+  readOnly?: boolean;
 }
 
 function computeExternalDirectionWarnings(
@@ -97,6 +97,7 @@ export function StepTeams({
   onTeamSearch,
   onTemplateSearch,
   fetchError,
+  readOnly = false,
 }: StepTeamsProps) {
   // All team IDs already used across all groups
   const usedTeamIds = useMemo(() => {
@@ -148,15 +149,13 @@ export function StepTeams({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h3 className="text-[15px] font-semibold text-gray-900 mb-1">
+        <h3 className="mb-1 text-[15px] font-semibold text-gray-900">
           Team &amp; Template Assignments
         </h3>
         <p className="text-[13px] text-gray-500">
-          Group teams that share evaluation templates. Each group can have
-          multiple templates — the system picks the right one per subject by
-          their level.
+          Assign teams to the templates they should use. The matching template is chosen automatically for each subject.
         </p>
       </div>
 
@@ -170,68 +169,76 @@ export function StepTeams({
           const externalWarningTeams = computeExternalDirectionWarnings(group, teams, templates);
           const groupReady =
             group.teamIds.length > 0 && group.templateIds.length > 0;
-          const groupTemplates: MatrixTemplate[] = templates
-            .filter((t) => group.templateIds.includes(t.id))
-            .map((t) => ({
-              id: t.id,
-              name: t.name,
-              description: t.description ?? null,
-              designationIds: t.designationIds,
-              sections: t.sections,
-              weightsMember: t.weightsMember,
-              weightsManager: t.weightsManager,
-            }));
-          const groupTeams = teams.filter((t) => group.teamIds.includes(t.id));
           return (
             <div
               key={index}
-              className="border border-gray-900 bg-gray-50/40 p-4 space-y-4"
+              className="space-y-4 border border-gray-200 bg-white p-4 sm:p-5"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[13px] font-medium text-gray-600">
-                  Group {index + 1}
-                </span>
+              <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-4">
+                <div className="min-w-0">
+                  <p className="text-[14px] font-medium text-gray-900">
+                    Group {index + 1}
+                  </p>
+                  <p className="mt-1 text-[12px] text-gray-500">
+                    {group.teamIds.length} {group.teamIds.length === 1 ? "team" : "teams"} selected
+                    {" · "}
+                    {group.templateIds.length} {group.templateIds.length === 1 ? "template" : "templates"} selected
+                  </p>
+                </div>
                 {groups.length > 1 && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => removeGroup(index)}
-                    className="h-7 w-7 p-0"
+                    className="h-7 w-7 shrink-0 p-0"
+                    disabled={readOnly}
+                    aria-label={`Remove group ${index + 1}`}
                   >
                     <X size={14} strokeWidth={1.5} />
                   </Button>
                 )}
               </div>
 
-              <div>
-                <MultiCombobox
-                  label="Teams"
-                  placeholder="Select teams..."
-                  emptyMessage="No teams found"
-                  value={group.teamIds}
-                  onChange={(ids) => updateGroup(index, { teamIds: ids })}
-                  onSearchChange={onTeamSearch}
-                  loading={isSearchingTeams}
-                  options={getTeamOptions(index)}
-                />
+              <div className="space-y-4">
+                <div>
+                  <MultiCombobox
+                    label="Teams"
+                    placeholder="Select teams..."
+                    emptyMessage="No teams found"
+                    value={group.teamIds}
+                    onChange={(ids) => updateGroup(index, { teamIds: ids })}
+                    onSearchChange={onTeamSearch}
+                    loading={isSearchingTeams}
+                    options={getTeamOptions(index)}
+                    disabled={readOnly}
+                  />
+                </div>
+                <div>
+                  <MultiCombobox
+                    label="Templates"
+                    placeholder="Select one or more templates..."
+                    emptyMessage="No templates found"
+                    value={group.templateIds}
+                    onChange={(ids) => updateGroup(index, { templateIds: ids })}
+                    onSearchChange={onTemplateSearch}
+                    loading={isSearchingTemplates}
+                    options={templateOptions}
+                    disabled={readOnly}
+                  />
+                </div>
               </div>
 
-              <div>
-                <MultiCombobox
-                  label="Templates"
-                  placeholder="Select one or more templates..."
-                  emptyMessage="No templates found"
-                  value={group.templateIds}
-                  onChange={(ids) => updateGroup(index, { templateIds: ids })}
-                  onSearchChange={onTemplateSearch}
-                  loading={isSearchingTemplates}
-                  options={templateOptions}
-                />
-              </div>
+              {!groupReady && (
+                <div className="border border-gray-200 bg-gray-50 px-3 py-2">
+                  <p className="text-[12px] text-gray-600">
+                    Select at least one team and one template to continue.
+                  </p>
+                </div>
+              )}
 
               {groupReady && gaps.length === 0 && (
-                <div className="flex items-start gap-2 border border-gray-200 bg-white px-3 py-2">
+                <div className="flex items-start gap-2 border border-gray-200 bg-gray-50 px-3 py-2">
                   <CheckCircle2
                     size={14}
                     strokeWidth={1.5}
@@ -244,7 +251,7 @@ export function StepTeams({
               )}
 
               {groupReady && gaps.length === 0 && externalWarningTeams.length > 0 && (
-                <div className="border border-gray-900 bg-white p-3">
+                <div className="border border-gray-200 bg-gray-50 p-3">
                   <div className="flex items-start gap-2">
                     <AlertTriangle
                       size={14}
@@ -253,34 +260,14 @@ export function StepTeams({
                     />
                     <div>
                       <p className="text-[12px] font-semibold text-gray-900">
-                        External reviewers won&apos;t receive assignments or emails
+                        External reviewers will be skipped
                       </p>
                       <p className="text-[11px] text-gray-500 mt-0.5">
                         {externalWarningTeams.join(", ")}{" "}
-                        {externalWarningTeams.length === 1 ? "has" : "have"} external reviewers, but none of the selected templates include the External direction. In the template editor, add &ldquo;External&rdquo; to at least one section&apos;s direction filter, or leave directions empty to match all reviewers. You can still proceed — external reviewers will be skipped.
+                        {externalWarningTeams.length === 1 ? "has" : "have"} external reviewers, but none of the selected templates include the External direction.
                       </p>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Routing matrix per team — visible once both teams + templates are picked AND coverage passes */}
-              {groupReady && gaps.length === 0 && groupTeams.length > 0 && (
-                <div className="space-y-3">
-                  {groupTeams.map((team) => (
-                    <RoutingMatrix
-                      key={team.id}
-                      teamName={team.name}
-                      members={team.members.map((m) => ({
-                        userId: m.userId,
-                        name: m.user.name,
-                        designationId: m.designationId,
-                        designationName: m.designation?.name ?? null,
-                        role: m.role,
-                      }))}
-                      templates={groupTemplates}
-                    />
-                  ))}
                 </div>
               )}
 
@@ -294,11 +281,10 @@ export function StepTeams({
                     />
                     <div>
                       <p className="text-[12px] font-semibold text-gray-900">
-                        Coverage gap — these members have no matching template
+                        Coverage gap
                       </p>
                       <p className="text-[11px] text-gray-500 mt-0.5">
-                        Add a template that covers their designation, or include one
-                        with no designation filter (acts as a wildcard).
+                        These members do not have a matching template yet.
                       </p>
                     </div>
                   </div>
@@ -331,10 +317,12 @@ export function StepTeams({
         })}
       </div>
 
-      <Button type="button" variant="secondary" size="sm" onClick={addGroup}>
-        <Plus size={14} strokeWidth={1.5} className="mr-1.5" />
-        Add Group
-      </Button>
+      {!readOnly && (
+        <Button type="button" variant="secondary" size="sm" onClick={addGroup}>
+          <Plus size={14} strokeWidth={1.5} className="mr-1.5" />
+          Add Group
+        </Button>
+      )}
     </div>
   );
 }

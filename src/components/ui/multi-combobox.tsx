@@ -24,6 +24,7 @@ interface MultiComboboxProps {
   options: MultiComboboxOption[];
   onSearchChange?: (query: string) => void;
   loading?: boolean;
+  disabled?: boolean;
 }
 
 export function MultiCombobox({
@@ -36,6 +37,7 @@ export function MultiCombobox({
   options,
   onSearchChange,
   loading = false,
+  disabled = false,
 }: MultiComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
@@ -127,8 +129,9 @@ export function MultiCombobox({
         </label>
       )}
       <Popover
-        open={open}
+        open={disabled ? false : open}
         onOpenChange={(nextOpen) => {
+          if (disabled) return;
           setOpen(nextOpen);
           if (!nextOpen) {
             setSearch("");
@@ -144,9 +147,11 @@ export function MultiCombobox({
             role="combobox"
             aria-expanded={open}
             aria-controls={listboxId}
+            disabled={disabled}
             className={cn(
               "flex min-h-[44px] w-full items-center gap-1.5 flex-wrap border border-gray-900 bg-white px-3 py-2 text-[15px]",
-              "focus:outline-none focus:outline-2 focus:outline-accent focus:outline-offset-2"
+              "focus:outline-none focus:outline-2 focus:outline-accent focus:outline-offset-2",
+              disabled && "cursor-not-allowed opacity-60"
             )}
           >
             {selectedLabels.length > 0 ? (
@@ -160,8 +165,9 @@ export function MultiCombobox({
                     <span
                       role="button"
                       tabIndex={0}
-                      onClick={(e) => removeItem(item.value, e)}
+                      onClick={(e) => !disabled && removeItem(item.value, e)}
                       onKeyDown={(e) => {
+                        if (disabled) return;
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           removeItem(item.value, e as unknown as React.MouseEvent);
