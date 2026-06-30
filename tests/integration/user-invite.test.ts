@@ -144,6 +144,46 @@ describe("Integration: User Invite Workflow", () => {
     expect(body.code).toBe("DUPLICATE");
   });
 
+  it("allows reusing an email from an archived user", async () => {
+    mockAuth(fixtures.admin);
+    vi.mocked(prisma.user.findFirst)
+      .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: "archived-user",
+        email: "reuse@test.com",
+      } as any);
+    vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => {
+      if (typeof cb === "function") {
+        return cb({
+          authUser: { upsert: vi.fn().mockResolvedValue({ id: "auth-reuse" }) },
+          user: {
+            update: vi.fn().mockResolvedValue({} as any),
+            create: vi.fn().mockResolvedValue({
+              id: "user-reuse",
+              email: "reuse@test.com",
+              name: "Reuse",
+              role: "HR",
+              companyId: fixtures.admin.companyId,
+            }),
+          },
+        });
+      }
+      return null;
+    });
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({ id: fixtures.admin.companyId, name: "Acme" } as any);
+
+    const req = createMockRequest("http://localhost:3000/api/users/invite", {
+      method: "POST",
+      body: { name: "Reuse", email: "reuse@test.com", role: "HR" },
+    });
+    const res = await POST(req as any);
+    const { status, body } = await parseResponse(res);
+
+    expect(status).toBe(201);
+    expect(body.success).toBe(true);
+  });
+
   it("HR cannot assign ADMIN role", async () => {
     mockAuth(fixtures.hr);
 

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
 import { writeAuditLog } from "@/lib/audit";
+import { getArchivedEmail, getDisplayEmail, findActiveUserByEmail } from "@/lib/user-archive";
 
 export async function GET(
   request: NextRequest,
@@ -98,7 +99,8 @@ export async function GET(
       data: {
         id: user.id,
         name: user.name,
-        email: user.email,
+        email: getDisplayEmail(user.email),
+        archivedAt: user.archivedAt,
         avatar: user.avatar,
         role: user.role,
         createdAt: user.createdAt,
@@ -130,6 +132,7 @@ const updateUserSchema = z.object({
   role: z.enum(["ADMIN", "HR", "MEMBER"]).optional(),
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
+  archived: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -191,9 +194,70 @@ export async function PATCH(
       }, { status: 403 });
     }
 
+    if (validated.archived === false && existing.archivedAt) {
+      const restoredEmail = getDisplayEmail(existing.email);
+      const conflictingUser = await findActiveUserByEmail(
+        authResult.companyId,
+        restoredEmail,
+        id
+      );
+
+      if (conflictingUser) {
+        return NextResponse.json({
+          success: false,
+          error: "Cannot restore user because the email is already in use",
+          code: "DUPLICATE",
+        }, { status: 409 });
+      }
+
+      const restoredUser = await prisma.user.update({
+        where: { id },
+        data: {
+          archivedAt: null,
+          email: restoredEmail,
+        },
+      });
+
+      await writeAuditLog({
+        companyId: authResult.companyId,
+        userId: authResult.userId,
+        action: "user_deactivate",
+        target: `user:${id}`,
+        metadata: { email: restoredEmail, role: existing.role, type: "restore" },
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...restoredUser,
+          email: restoredEmail,
+        },
+      });
+    }
+
+    if (validated.email && validated.email !== getDisplayEmail(existing.email)) {
+      const conflictingUser = await findActiveUserByEmail(
+        authResult.companyId,
+        validated.email,
+        id
+      );
+
+      if (conflictingUser) {
+        return NextResponse.json({
+          success: false,
+          error: "A user with this email already exists in the company",
+          code: "DUPLICATE",
+        }, { status: 409 });
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id: id },
-      data: validated,
+      data: {
+        ...(validated.role !== undefined ? { role: validated.role } : {}),
+        ...(validated.name !== undefined ? { name: validated.name } : {}),
+        ...(validated.email !== undefined ? { email: validated.email } : {}),
+      },
     });
 
     if (validated.role && validated.role !== existing.role) {
@@ -208,7 +272,10 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      data: user,
+      data: {
+        ...user,
+        email: getDisplayEmail(user.email ?? existing.email),
+      },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -335,7 +402,10 @@ export async function DELETE(
   // Soft delete — archive the user
   await prisma.user.update({
     where: { id: id },
-    data: { archivedAt: new Date() },
+    data: {
+      archivedAt: new Date(),
+      email: getArchivedEmail(getDisplayEmail(user.email), user.id),
+    },
   });
 
   await writeAuditLog({

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { createOTP, hashOTP } from "@/lib/otp";
 import { sendEmail, getOTPEmail } from "@/lib/email";
 import { OTP_CONFIG } from "@/lib/constants";
@@ -48,6 +48,24 @@ export async function POST(
         { success: false, error: "Reviewer not found" },
         { status: 404 }
       );
+    }
+
+    // Reuse an existing verified session when one is still active.
+    const existingSession = await prisma.otpSession.findFirst({
+      where: {
+        email: reviewer.email,
+        verifiedAt: { not: null },
+        sessionExpiry: { gt: new Date() },
+        sessionToken: { not: null },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (existingSession) {
+      return NextResponse.json<ApiResponse<{ sent: false; alreadyVerified: true }>>({
+        success: true,
+        data: { sent: false, alreadyVerified: true },
+      });
     }
 
     // Rate limit: max 5 sends per email per hour

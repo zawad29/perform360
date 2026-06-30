@@ -14,13 +14,13 @@ interface DesignationOption {
 
 const ROLE_OPTIONS: { value: TemplateApplicableRole; label: string }[] = [
   { value: "ANY", label: "Everyone" },
-  { value: "MANAGER", label: "Team leads" },
-  { value: "MEMBER", label: "Team members" },
+  { value: "MANAGER", label: "Manager" },
+  { value: "MEMBER", label: "Member" },
 ];
 const ROLE_SUMMARY: Record<TemplateApplicableRole, string> = {
   ANY: "Everyone",
-  MANAGER: "Team leads",
-  MEMBER: "Team members",
+  MANAGER: "Manager",
+  MEMBER: "Member",
 };
 
 interface TemplateMetaStripsProps {

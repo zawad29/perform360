@@ -18,6 +18,7 @@ interface QuestionData {
   text: string;
   type: "rating_scale" | "text" | "multiple_choice";
   required: boolean;
+  guideline?: string;
   options?: string[];
   scaleMin?: number;
   scaleMax?: number;

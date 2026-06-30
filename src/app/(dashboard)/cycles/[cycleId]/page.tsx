@@ -133,6 +133,37 @@ interface AssignmentWithNames {
   isImpersonator: boolean;
 }
 
+interface ReviewerAssignmentsGroup {
+  reviewerId: string;
+  reviewerName: string;
+  isImpersonator: boolean;
+  reviewerLinkToken: string | null;
+  assignments: AssignmentWithNames[];
+}
+
+interface TeamAssignmentsGroup {
+  teamId: string;
+  teamName: string;
+  reviewers: ReviewerAssignmentsGroup[];
+}
+
+function countCompleted(assignments: AssignmentWithNames[]) {
+  return {
+    done: assignments.filter((a) => a.status === "SUBMITTED").length,
+    total: assignments.length,
+  };
+}
+
+function countTeamCompleted(reviewers: ReviewerAssignmentsGroup[]) {
+  return reviewers.reduce(
+    (acc, reviewer) => {
+      const { done, total } = countCompleted(reviewer.assignments);
+      return { done: acc.done + done, total: acc.total + total };
+    },
+    { done: 0, total: 0 }
+  );
+}
+
 // ─── Constants ───
 
 type StatusFilterValue = "all" | "PENDING" | "IN_PROGRESS" | "SUBMITTED";
@@ -309,13 +340,13 @@ export default function CycleDetailPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [assignmentPageByKey, setAssignmentPageByKey] = useState<Record<string, number>>({});
   const [reportPageByKey, setReportPageByKey] = useState<Record<string, number>>({});
-  const [assignmentsData, setAssignmentsData] = useState<AssignmentWithNames[] | null>(null);
+  const [assignmentsData, setAssignmentsData] = useState<TeamAssignmentsGroup[] | null>(null);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [assignmentsFailed, setAssignmentsFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reportLoading, setReportLoading] = useState(false);
   const [reminding, setReminding] = useState(false);
-  const [remindingId, setRemindingId] = useState<string | null>(null);
+  const [remindingReviewerId, setRemindingReviewerId] = useState<string | null>(null);
   const [showActivateDialog, setShowActivateDialog] = useState(false);
   const [activating, setActivating] = useState(false);
   const [activatePassphrase, setActivatePassphrase] = useState("");
@@ -414,11 +445,7 @@ export default function CycleDetailPage() {
 
   useEffect(() => {
     if (activeTab === "assignments") {
-      fetch(`/api/cycles/${cycleId}/assignments`)
-        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-        .then((json) => { if (json.success) setAssignmentsData(json.data); else setAssignmentsFailed(true); })
-        .catch(() => setAssignmentsFailed(true))
-        .finally(() => setAssignmentsLoading(false));
+      fetchAssignments();
     }
     if (activeTab === "reports") {
       fetch(`/api/reports/cycle/${cycleId}`)
@@ -439,26 +466,59 @@ export default function CycleDetailPage() {
   // ─── Filtered assignments ───
 
   const assignments = useMemo(
-    () => assignmentsData ?? [],
+    () =>
+      assignmentsData?.flatMap((team) =>
+        team.reviewers.flatMap((reviewer) => reviewer.assignments)
+      ) ?? [],
     [assignmentsData]
   );
 
-  const filteredAssignments = useMemo(() => {
+  const filteredAssignmentTeams = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    return assignments.filter((a) => {
-      if (statusFilter !== "all" && a.status !== statusFilter) return false;
-      if (directionFilter !== "all" && a.direction !== directionFilter)
-        return false;
-      if (teamFilter !== "all" && a.teamId !== teamFilter) return false;
-      if (
-        query &&
-        !a.subjectName.toLowerCase().includes(query) &&
-        !a.reviewerName.toLowerCase().includes(query)
-      )
-        return false;
-      return true;
-    });
-  }, [assignments, statusFilter, directionFilter, teamFilter, searchQuery]);
+    return (assignmentsData ?? [])
+      .map((team) => {
+        const reviewers = team.reviewers
+          .map((reviewer) => {
+            const reviewerMatches = query
+              ? reviewer.reviewerName.toLowerCase().includes(query)
+              : false;
+
+            const items = reviewer.assignments.filter((a) => {
+              if (statusFilter !== "all" && a.status !== statusFilter) return false;
+              if (directionFilter !== "all" && a.direction !== directionFilter)
+                return false;
+              if (teamFilter !== "all" && a.teamId !== teamFilter) return false;
+              if (
+                query &&
+                !reviewerMatches &&
+                !a.subjectName.toLowerCase().includes(query)
+              ) {
+                return false;
+              }
+              return true;
+            });
+
+            if (items.length === 0) return null;
+            return { ...reviewer, assignments: items };
+          })
+          .filter((reviewer): reviewer is ReviewerAssignmentsGroup => Boolean(reviewer));
+
+        if (reviewers.length === 0) return null;
+        return { ...team, reviewers };
+      })
+      .filter((team): team is TeamAssignmentsGroup => Boolean(team));
+  }, [assignmentsData, statusFilter, directionFilter, teamFilter, searchQuery]);
+
+  const filteredAssignmentCount = useMemo(
+    () =>
+      filteredAssignmentTeams.reduce(
+        (total, team) =>
+          total +
+          team.reviewers.reduce((sum, reviewer) => sum + reviewer.assignments.length, 0),
+        0
+      ),
+    [filteredAssignmentTeams]
+  );
 
   const assignmentFilterKey = useMemo(
     () => `${statusFilter}:${directionFilter}:${teamFilter}:${searchQuery}`,
@@ -469,26 +529,11 @@ export default function CycleDetailPage() {
     setAssignmentPageByKey((prev) => ({ ...prev, [assignmentFilterKey]: page }));
   }
 
-  const assignmentTotalPages = Math.ceil(filteredAssignments.length / ASSIGNMENTS_PER_PAGE);
-  const paginatedAssignments = useMemo(() => {
+  const assignmentTotalPages = Math.ceil(filteredAssignmentTeams.length / ASSIGNMENTS_PER_PAGE);
+  const paginatedAssignmentTeams = useMemo(() => {
     const start = (assignmentPage - 1) * ASSIGNMENTS_PER_PAGE;
-    return filteredAssignments.slice(start, start + ASSIGNMENTS_PER_PAGE);
-  }, [filteredAssignments, assignmentPage]);
-
-  // Group paginated assignments by team
-  const groupedByTeam = useMemo(() => {
-    const groups = new Map<string, { teamName: string; items: AssignmentWithNames[] }>();
-    for (const a of paginatedAssignments) {
-      const group = groups.get(a.teamId) ?? { teamName: a.teamName, items: [] };
-      group.items.push(a);
-      groups.set(a.teamId, group);
-    }
-    return Array.from(groups.entries()).map(([teamId, g]) => ({
-      teamId,
-      teamName: g.teamName,
-      items: g.items,
-    }));
-  }, [paginatedAssignments]);
+    return filteredAssignmentTeams.slice(start, start + ASSIGNMENTS_PER_PAGE);
+  }, [filteredAssignmentTeams, assignmentPage]);
 
   const activeFilterCount = [
     statusFilter !== "all",
@@ -638,16 +683,16 @@ export default function CycleDetailPage() {
     }
   }
 
-  async function handleRemindIndividual(
-    assignmentId: string,
+  async function handleRemindReviewer(
+    reviewerId: string,
     reviewerName: string
   ) {
-    setRemindingId(assignmentId);
+    setRemindingReviewerId(reviewerId);
     try {
       const res = await fetch(`/api/cycles/${cycleId}/remind`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignmentId }),
+        body: JSON.stringify({ reviewerId }),
       });
       const json = await res.json();
       if (json.success && json.data.totalPending > 0) {
@@ -660,7 +705,7 @@ export default function CycleDetailPage() {
     } catch {
       addToast("Failed to send reminder", "error");
     } finally {
-      setRemindingId(null);
+      setRemindingReviewerId(null);
     }
   }
 
@@ -772,10 +817,10 @@ export default function CycleDetailPage() {
     }
   }
 
-  function copyLink(assignmentId: string, token: string) {
-    const url = `${window.location.origin}/evaluate/${token}`;
+  function copyReviewerLink(token: string) {
+    const url = `${window.location.origin}/review/${token}`;
     navigator.clipboard.writeText(url).then(() => {
-      setCopiedId(assignmentId);
+      setCopiedId(token);
       setTimeout(() => setCopiedId(null), 2000);
     });
   }
@@ -1043,16 +1088,16 @@ export default function CycleDetailPage() {
 
           {/* Results count */}
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[12px] text-gray-400">
-              {filteredAssignments.length} of {assignments.length} assignment
+              <p className="text-[12px] text-gray-400">
+              {filteredAssignmentCount} of {assignments.length} assignment
               {assignments.length !== 1 ? "s" : ""}
-              {groupedByTeam.length > 1 &&
-                ` across ${groupedByTeam.length} teams`}
+              {filteredAssignmentTeams.length > 0 &&
+                ` across ${filteredAssignmentTeams.length} team${filteredAssignmentTeams.length !== 1 ? "s" : ""}`}
             </p>
           </div>
 
           {/* Grouped Assignments Table */}
-          {filteredAssignments.length === 0 ? (
+          {filteredAssignmentTeams.length === 0 ? (
             <Card className="py-12">
               <div className="flex flex-col items-center gap-2">
                 <Search
@@ -1077,9 +1122,8 @@ export default function CycleDetailPage() {
             </Card>
           ) : (
             <div className="space-y-4">
-              {groupedByTeam.map((group) => (
-                <Card key={group.teamId} padding="sm">
-                  {/* Team header */}
+              {paginatedAssignmentTeams.map((team) => (
+                <Card key={team.teamId} padding="sm">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                     <div className="flex items-center gap-2">
                       <Users
@@ -1088,123 +1132,125 @@ export default function CycleDetailPage() {
                         className="text-gray-400"
                       />
                       <span className="text-[14px] font-semibold text-gray-900">
-                        {group.teamName}
+                        {team.teamName}
                       </span>
                     </div>
                     <span className="text-[12px] text-gray-400">
-                      {group.items.filter((a) => a.status === "SUBMITTED").length}
-                      /{group.items.length} completed
+                      {(() => {
+                        const { done, total } = countTeamCompleted(team.reviewers);
+                        return `${done}/${total} completed`;
+                      })()}
                     </span>
                   </div>
-                  <div className="overflow-x-auto -mx-1 sm:mx-0">
-                    <table className="w-full min-w-[420px] sm:min-w-0">
-                      <thead>
-                        <tr className="border-b border-gray-50">
-                          <th className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2">
-                            Subject
-                          </th>
-                          <th className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2">
-                            Reviewer
-                          </th>
-                          <th className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2">
-                            Direction
-                          </th>
-                          <th className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2">
-                            Status
-                          </th>
-                          <th className="px-4 py-2 w-10" />
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {group.items.map((a) => (
-                          <tr
-                            key={a.id}
-                            className="hover:bg-gray-50"
-                          >
-                            <td className="px-4 py-2.5">
-                              <div className="flex items-center gap-2">
-                                <Avatar name={a.subjectName} size="sm" />
-                                <span className="text-[13px] font-medium text-gray-900">
-                                  {a.subjectName}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-2.5">
-                              <div className="flex items-center gap-2">
-                                <Avatar name={a.reviewerName} size="sm" />
-                                <span className="text-[13px] text-gray-700">
-                                  {a.reviewerName}
-                                </span>
-                                {a.isImpersonator && (
-                                  <Badge variant="error" className="text-[10px] px-1.5 py-0">
-                                    Impersonator
-                                  </Badge>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-2.5">
-                              <Badge variant="outline">
-                                {DIRECTION_LABELS[a.direction] ?? a.direction}
+                  <div className="divide-y divide-gray-100">
+                    {team.reviewers.map((reviewer) => (
+                      <div key={`${team.teamId}:${reviewer.reviewerId}`}>
+                        <div className="flex items-center justify-between px-4 py-3 bg-gray-50/60">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Avatar name={reviewer.reviewerName} size="sm" />
+                            <span className="text-[13px] font-medium text-gray-900 truncate">
+                              {reviewer.reviewerName}
+                            </span>
+                            {reviewer.isImpersonator && (
+                              <Badge variant="error" className="text-[10px] px-1.5 py-0">
+                                Impersonator
                               </Badge>
-                            </td>
-                            <td className="px-4 py-2.5">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  {statusIcon[a.status]}
-                                  <span className="text-[12px] text-gray-600">
-                                    {statusLabel[a.status]}
-                                  </span>
-                                </div>
-                                {cycle.status === "ACTIVE" &&
-                                  a.status !== "SUBMITTED" && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      disabled={remindingId === a.id}
-                                      onClick={() =>
-                                        handleRemindIndividual(
-                                          a.id,
-                                          a.reviewerName
-                                        )
-                                      }
-                                    >
-                                      <Send
-                                        size={14}
-                                        strokeWidth={1.5}
-                                        className="mr-1"
-                                      />
-                                      {remindingId === a.id
-                                        ? "Sending\u2026"
-                                        : "Remind"}
-                                    </Button>
-                                  )}
-                              </div>
-                            </td>
-                            <td className="px-2 py-2.5">
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[12px] text-gray-400">
+                              {(() => {
+                                const { done, total } = countCompleted(reviewer.assignments);
+                                return `${done}/${total} completed`;
+                              })()}
+                            </span>
+                            {reviewer.reviewerLinkToken && (
                               <button
-                                onClick={() => copyLink(a.id, a.token)}
-                                title="Copy evaluation link"
+                                onClick={() => copyReviewerLink(reviewer.reviewerLinkToken!)}
+                                title="Copy reviewer link"
                                 className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
                               >
-                                {copiedId === a.id
+                                {copiedId === reviewer.reviewerLinkToken
                                   ? <Check size={14} strokeWidth={2} className="text-green-600" />
                                   : <Link2 size={14} strokeWidth={1.5} />
                                 }
                               </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            )}
+                            {cycle.status === "ACTIVE" &&
+                              reviewer.assignments.some((a) => a.status !== "SUBMITTED") && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={remindingReviewerId === reviewer.reviewerId}
+                                onClick={() => handleRemindReviewer(reviewer.reviewerId, reviewer.reviewerName)}
+                              >
+                                <Send size={14} strokeWidth={1.5} className="mr-1" />
+                                {remindingReviewerId === reviewer.reviewerId
+                                  ? "Sending\u2026"
+                                  : "Remind"}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="overflow-x-auto -mx-1 sm:mx-0">
+                          <table className="w-full min-w-[420px] sm:min-w-0">
+                            <thead>
+                              <tr className="border-b border-gray-50">
+                                <th className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2">
+                                  Subject
+                                </th>
+                                <th className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2">
+                                  Direction
+                                </th>
+                                <th className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2">
+                                  Status
+                                </th>
+                                <th className="px-4 py-2 w-10" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {reviewer.assignments.map((a) => (
+                                <tr
+                                  key={a.id}
+                                  className="hover:bg-gray-50"
+                                >
+                                  <td className="px-4 py-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <Avatar name={a.subjectName} size="sm" />
+                                      <span className="text-[13px] font-medium text-gray-900">
+                                        {a.subjectName}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2.5">
+                                    <Badge variant="outline">
+                                      {DIRECTION_LABELS[a.direction] ?? a.direction}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-4 py-2.5">
+                                    <div className="flex items-center gap-1.5">
+                                      {statusIcon[a.status]}
+                                      <span className="text-[12px] text-gray-600">
+                                        {statusLabel[a.status]}
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </Card>
               ))}
               <Pagination
                 page={assignmentPage}
                 totalPages={assignmentTotalPages}
-                total={filteredAssignments.length}
-                showing={paginatedAssignments.length}
-                noun="assignments"
+                total={filteredAssignmentTeams.length}
+                showing={paginatedAssignmentTeams.length}
+                noun="teams"
                 onPageChange={setAssignmentPage}
               />
             </div>

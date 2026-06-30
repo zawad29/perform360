@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import cuid from "cuid";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { verifyOTP, isOTPExpired, isInCooldown, getCooldownEnd, getSummarySessionExpiry } from "@/lib/otp";
 import { OTP_CONFIG } from "@/lib/constants";
 

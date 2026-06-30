@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { encrypt } from "@/lib/encryption";
 import { decryptDataKeyFromCookie } from "@/lib/encryption-session";
 import { validateEvaluationSession } from "@/lib/session-validation";

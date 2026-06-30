@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit";
 import { sendEmail, getUserInviteEmail } from "@/lib/email";
+import { getArchivedEmail, getDisplayEmail, isArchivedEmail, findActiveUserByEmail } from "@/lib/user-archive";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -35,13 +36,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if active user already exists in company
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        email: validated.email,
-        companyId: authResult.companyId,
-        archivedAt: null,
-      },
-    });
+    const existingUser = await findActiveUserByEmail(
+      authResult.companyId,
+      validated.email
+    );
 
     if (existingUser) {
       return NextResponse.json({
@@ -50,6 +48,15 @@ export async function POST(request: NextRequest) {
         code: "DUPLICATE",
       }, { status: 409 });
     }
+
+    const archivedUser = await prisma.user.findFirst({
+      where: {
+        email: validated.email,
+        companyId: authResult.companyId,
+        archivedAt: { not: null },
+      },
+      select: { id: true, email: true, archivedAt: true },
+    });
 
     // ADMIN/HR get an AuthUser record (they can log in).
     // MEMBER/EXTERNAL only exist in the Users table (OTP-based access).
@@ -65,6 +72,13 @@ export async function POST(request: NextRequest) {
           update: {},
         });
         authUserId = authUser.id;
+      }
+
+      if (archivedUser?.archivedAt && !isArchivedEmail(archivedUser.email)) {
+        await tx.user.update({
+          where: { id: archivedUser.id },
+          data: { email: getArchivedEmail(getDisplayEmail(archivedUser.email), archivedUser.id) },
+        });
       }
 
       const user = await tx.user.create({

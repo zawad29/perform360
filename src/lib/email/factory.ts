@@ -1,6 +1,6 @@
 import type { EmailProvider } from "./types";
 
-type ProviderName = "console" | "resend" | "brevo" | "smtp";
+type ProviderName = "console" | "resend" | "brevo" | "mailgun" | "smtp";
 
 let _provider: EmailProvider | null = null;
 
@@ -26,13 +26,17 @@ function createProvider(name: ProviderName): EmailProvider {
       const { brevoProvider } = require("./providers/brevo") as typeof import("./providers/brevo");
       return brevoProvider;
     }
+    case "mailgun": {
+      const { mailgunProvider } = require("./providers/mailgun") as typeof import("./providers/mailgun");
+      return mailgunProvider;
+    }
     case "smtp": {
       const { smtpProvider } = require("./providers/smtp") as typeof import("./providers/smtp");
       return smtpProvider;
     }
     default:
       throw new Error(
-        `Unknown EMAIL_PROVIDER "${name}". Valid options: console, resend, brevo, smtp`
+        `Unknown EMAIL_PROVIDER "${name}". Valid options: console, resend, brevo, mailgun, smtp`
       );
   }
 }

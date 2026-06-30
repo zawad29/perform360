@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { parsePaginationParams, buildPaginationMeta } from "@/lib/utils";
 import type { Prisma } from "@prisma/client";
+import { getDisplayEmail } from "@/lib/user-archive";
 
 export async function GET(request: NextRequest) {
   const rl = applyRateLimit(request);
@@ -59,7 +60,10 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    data: users,
+    data: users.map((user) => ({
+      ...user,
+      email: getDisplayEmail(user.email),
+    })),
     pagination: buildPaginationMeta(page, limit, total),
   });
 }

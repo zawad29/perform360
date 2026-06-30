@@ -21,6 +21,7 @@ export const questionSchema = z.object({
   text: z.string().min(1),
   type: z.enum(["rating_scale", "text", "multiple_choice"]),
   required: z.boolean(),
+  guideline: z.string().optional(),
   options: z.array(z.string()).optional(),
   scaleMin: z.number().optional(),
   scaleMax: z.number().optional(),

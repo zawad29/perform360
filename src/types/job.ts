@@ -35,6 +35,7 @@ export interface CycleRemindPayload {
   cycleId: string;
   companyId: string;
   assignmentId?: string;
+  reviewerId?: string;
 }
 
 export type CycleAutoClosePayload = Record<string, never>;

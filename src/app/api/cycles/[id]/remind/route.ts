@@ -19,11 +19,13 @@ export async function POST(
   const authResult = await requireAdminOrHR();
   if (isAuthError(authResult)) return authResult;
 
-  // Parse optional assignmentId from request body
+  // Parse optional assignmentId or reviewerId from request body
   let assignmentId: string | undefined;
+  let reviewerId: string | undefined;
   try {
     const body = await request.json();
     assignmentId = body.assignmentId;
+    reviewerId = body.reviewerId;
   } catch {
     // No body or invalid JSON — send to all
   }
@@ -31,6 +33,11 @@ export async function POST(
   if (assignmentId) {
     const invalidAssignment = validateCuidParam(assignmentId);
     if (invalidAssignment) return invalidAssignment;
+  }
+
+  if (reviewerId) {
+    const invalidReviewer = validateCuidParam(reviewerId);
+    if (invalidReviewer) return invalidReviewer;
   }
 
   // 1. Fetch cycle and validate status
@@ -65,6 +72,7 @@ export async function POST(
       cycleId: id,
       status: { in: ["PENDING", "IN_PROGRESS"] },
       ...(assignmentId ? { id: assignmentId } : {}),
+      ...(reviewerId ? { reviewerId } : {}),
     },
   });
 
@@ -75,7 +83,9 @@ export async function POST(
         sent: 0,
         message: assignmentId
           ? "Assignment not found or already submitted"
-          : "All evaluations have been submitted",
+          : reviewerId
+            ? "No pending assignments for this reviewer"
+            : "All evaluations have been submitted",
       },
     });
   }
@@ -87,6 +97,7 @@ export async function POST(
       cycleId: id,
       companyId: authResult.companyId,
       assignmentId,
+      reviewerId,
     },
     { priority: 3 }
   );

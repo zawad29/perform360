@@ -6,6 +6,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { parsePaginationParams, buildPaginationMeta } from "@/lib/utils";
 import { sectionSchema, directionWeightsSchema } from "@/lib/template-schema";
 import { errorResponse, zodErrorResponse, internalErrorResponse } from "@/lib/api-responses";
+import { normalizeTemplateSections } from "@/lib/template-sections";
 import { Prisma, WeightPreset, TemplateRole } from "@prisma/client";
 
 const createTemplateSchema = z.object({
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const sectionsJson = JSON.parse(JSON.stringify(validated.sections));
+    const sectionsJson = JSON.parse(JSON.stringify(normalizeTemplateSections(validated.sections)));
     const weightsMember = validated.weightsMember ?? Prisma.JsonNull;
     const weightsManager = validated.weightsManager ?? Prisma.JsonNull;
 

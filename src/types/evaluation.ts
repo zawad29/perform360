@@ -10,6 +10,7 @@ export interface TemplateQuestion {
   text: string;
   type: "rating_scale" | "text" | "multiple_choice";
   required: boolean;
+  guideline?: string;
   options?: string[];
   scaleMin?: number;
   scaleMax?: number;
@@ -18,11 +19,11 @@ export interface TemplateQuestion {
 }
 
 export interface TemplateSection {
-  id: string;
+  id?: string;
   title: string;
   description?: string;
-  /** Empty array = applies to all directions */
-  directions: Direction[];
+  /** Empty/missing = applies to all directions */
+  directions?: Direction[];
   questions: TemplateQuestion[];
 }
 

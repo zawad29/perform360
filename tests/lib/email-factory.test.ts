@@ -7,12 +7,12 @@ import { describe, it, expect, vi } from "vitest";
 describe("Email Factory", () => {
   it("rejects unknown provider name", async () => {
     const saved = process.env.EMAIL_PROVIDER;
-    process.env.EMAIL_PROVIDER = "mailgun";
+    process.env.EMAIL_PROVIDER = "postmark";
     vi.resetModules();
     const { getEmailProvider } = await import("@/lib/email/factory");
 
     expect(() => getEmailProvider()).toThrow(
-      'Unknown EMAIL_PROVIDER "mailgun". Valid options: console, resend, brevo, smtp'
+      'Unknown EMAIL_PROVIDER "postmark". Valid options: console, resend, brevo, mailgun, smtp'
     );
 
     process.env.EMAIL_PROVIDER = saved;
@@ -24,7 +24,7 @@ describe("Email Factory", () => {
     const { getEmailProvider } = await import("@/lib/email/factory");
 
     expect(() => getEmailProvider()).toThrow("Unknown EMAIL_PROVIDER");
-    expect(() => getEmailProvider()).toThrow("Valid options: console, resend, brevo, smtp");
+    expect(() => getEmailProvider()).toThrow("Valid options: console, resend, brevo, mailgun, smtp");
 
     delete process.env.EMAIL_PROVIDER;
   });

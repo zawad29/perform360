@@ -6,6 +6,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
 import { sectionSchema, directionWeightsSchema } from "@/lib/template-schema";
 import { errorResponse, zodErrorResponse, internalErrorResponse } from "@/lib/api-responses";
+import { normalizeTemplateSections } from "@/lib/template-sections";
 import { Prisma, WeightPreset, TemplateRole } from "@prisma/client";
 
 const updateTemplateSchema = z.object({
@@ -101,7 +102,7 @@ export async function PATCH(
       updateData.weightsManager = validated.weightsManager ?? Prisma.JsonNull;
     }
     if (validated.sections) {
-      updateData.sections = JSON.parse(JSON.stringify(validated.sections));
+      updateData.sections = JSON.parse(JSON.stringify(normalizeTemplateSections(validated.sections)));
     }
 
     // Snapshot the new content into a fresh version row, then update the

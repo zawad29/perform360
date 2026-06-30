@@ -4,6 +4,7 @@ import { requireAuth, requireAdminOrHR, isAuthError } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
+import { errorResponse, zodErrorResponse, internalErrorResponse } from "@/lib/api-responses";
 
 const updateTeamSchema = z.object({
   name: z.string().min(1).optional(),
@@ -42,11 +43,7 @@ export async function GET(
   });
 
   if (!team) {
-    return NextResponse.json({
-      success: false,
-      error: "Team not found",
-      code: "NOT_FOUND",
-    }, { status: 404 });
+    return errorResponse("Team not found", "NOT_FOUND", 404);
   }
 
   return NextResponse.json({
@@ -80,11 +77,7 @@ export async function PATCH(
     });
 
     if (!existing) {
-      return NextResponse.json({
-        success: false,
-        error: "Team not found",
-        code: "NOT_FOUND",
-      }, { status: 404 });
+      return errorResponse("Team not found", "NOT_FOUND", 404);
     }
 
     const { archived, ...fields } = validated;
@@ -112,16 +105,9 @@ export async function PATCH(
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({
-        success: false,
-        error: "Validation failed",
-        code: "VALIDATION_ERROR",
-      }, { status: 400 });
+      return zodErrorResponse(error);
     }
-    return NextResponse.json({
-      success: false,
-      error: "Internal server error",
-    }, { status: 500 });
+    return internalErrorResponse(error);
   }
 }
 
@@ -146,11 +132,7 @@ export async function DELETE(
   });
 
   if (!team) {
-    return NextResponse.json({
-      success: false,
-      error: "Team not found",
-      code: "NOT_FOUND",
-    }, { status: 404 });
+    return errorResponse("Team not found", "NOT_FOUND", 404);
   }
 
   const linkedCycleCount = await prisma.cycleTeam.count({
@@ -158,11 +140,11 @@ export async function DELETE(
   });
 
   if (linkedCycleCount > 0) {
-    return NextResponse.json({
-      success: false,
-      error: `Team is linked to ${linkedCycleCount} evaluation cycle(s)`,
-      code: "TEAM_IN_USE",
-    }, { status: 409 });
+    return errorResponse(
+      `Team is linked to ${linkedCycleCount} evaluation cycle(s)`,
+      "TEAM_IN_USE",
+      409
+    );
   }
 
   await prisma.$transaction([

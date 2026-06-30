@@ -264,7 +264,13 @@ describe("Integration: Evaluation Flow", () => {
           {
             title: "Performance",
             questions: [
-              { id: "q1", text: "Rating", type: "rating_scale", required: true },
+              {
+                id: "q1",
+                text: "Rating",
+                type: "rating_scale",
+                required: true,
+                guideline: "<p>Use examples from the last quarter.</p>",
+              },
             ],
           },
         ],
@@ -285,6 +291,7 @@ describe("Integration: Evaluation Flow", () => {
       expect(body.data.subjectName).toBe("Subject User");
       expect(body.data.sections).toHaveLength(1);
       expect(body.data.sections[0].questions).toHaveLength(1);
+      expect(body.data.sections[0].questions[0].guideline).toBe("<p>Use examples from the last quarter.</p>");
     });
 
     it("loads form with valid summary session", async () => {

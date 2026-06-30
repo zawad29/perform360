@@ -142,7 +142,7 @@ export async function handleCycleActivate(
 export async function handleCycleRemind(
   payload: CycleRemindPayload
 ): Promise<void> {
-  const { cycleId, companyId, assignmentId } = payload;
+  const { cycleId, companyId, assignmentId, reviewerId } = payload;
 
   const [cycle, company] = await Promise.all([
     prisma.evaluationCycle.findUnique({
@@ -166,6 +166,7 @@ export async function handleCycleRemind(
       cycleId,
       status: { in: ["PENDING", "IN_PROGRESS"] },
       ...(assignmentId ? { id: assignmentId } : {}),
+      ...(reviewerId ? { reviewerId } : {}),
     },
     select: {
       token: true,

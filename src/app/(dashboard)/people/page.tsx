@@ -35,6 +35,7 @@ import { UserPlus, Search, MoreHorizontal, Shield, Trash2, Users, Pencil } from 
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorCard } from "@/components/ui/error-card";
 import type { PaginationMeta } from "@/types/pagination";
+import { deactivateUser, restoreUser } from "@/lib/user-actions";
 
 interface TeamMembership {
   id: string;
@@ -47,6 +48,7 @@ interface User {
   email: string;
   avatar: string | null;
   role: string;
+  archivedAt: string | null;
   teamMemberships: TeamMembership[];
 }
 
@@ -77,6 +79,7 @@ export default function PeoplePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [page, setPage] = useState(1);
+  const [showArchived, setShowArchived] = useState(false);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -91,6 +94,7 @@ export default function PeoplePage() {
       const params = new URLSearchParams({ page: String(page), limit: "20" });
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       if (roleFilter !== "ALL") params.set("role", roleFilter);
+      if (showArchived) params.set("archived", "true");
       const res = await fetch(`/api/users?${params}`);
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Failed to load users");
@@ -103,7 +107,7 @@ export default function PeoplePage() {
     } finally {
       setLoading(false);
     }
-  }, [addToast, page, searchQuery, roleFilter]);
+  }, [addToast, page, searchQuery, roleFilter, showArchived]);
 
   useEffect(() => {
     const timer = setTimeout(fetchUsers, searchQuery ? 300 : 0);
@@ -191,16 +195,24 @@ export default function PeoplePage() {
   };
 
   const handleDeactivate = async (user: User) => {
-    try {
-      const res = await fetch(`/api/users/${user.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Failed to deactivate user");
-      addToast(`${user.name} deactivated`, "success");
-      setPage(1);
-      fetchUsers();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : "Failed to deactivate user", "error");
+    const result = await deactivateUser(user.id);
+    if (!result.ok) {
+      addToast(result.error ?? "Failed to deactivate user", "error");
+      return;
     }
+    addToast(`${user.name} deactivated`, "success");
+    setPage(1);
+    fetchUsers();
+  };
+
+  const handleRestore = async (user: User) => {
+    const result = await restoreUser(user.id);
+    if (!result.ok) {
+      addToast(result.error ?? "Failed to restore user", "error");
+      return;
+    }
+    addToast(`${user.name} restored`, "success");
+    fetchUsers();
   };
 
   if (error && users.length === 0) {
@@ -241,6 +253,17 @@ export default function PeoplePage() {
             </button>
           ))}
         </div>
+        <button
+          onClick={() => { setShowArchived((v) => !v); setPage(1); }}
+          aria-pressed={showArchived}
+          className={`px-3 py-1.5 text-[13px] font-medium uppercase tracking-caps border ${
+            showArchived
+              ? "text-gray-900 border-gray-900 bg-gray-100"
+              : "text-gray-500 border-gray-200 hover:text-gray-900"
+          }`}
+        >
+          Show Archived
+        </button>
         <div className="relative w-full sm:max-w-xs ml-auto">
           <Search size={16} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -282,6 +305,7 @@ export default function PeoplePage() {
               <thead>
                 <tr className="border-b-2 border-accent">
                   <th className="text-left text-[12px] font-medium text-gray-400 uppercase tracking-caps px-4 py-3">User</th>
+                  <th className="text-left text-[12px] font-medium text-gray-400 uppercase tracking-caps px-4 py-3">Status</th>
                   <th className="text-left text-[12px] font-medium text-gray-400 uppercase tracking-caps px-4 py-3">Role</th>
                   <th className="text-left text-[12px] font-medium text-gray-400 uppercase tracking-caps px-4 py-3 hidden sm:table-cell">Teams</th>
                   <th className="text-right text-[12px] font-medium text-gray-400 uppercase tracking-caps px-4 py-3"><span className="sr-only">Actions</span></th>
@@ -291,7 +315,7 @@ export default function PeoplePage() {
                 {users.map((user) => {
                   const badge = roleBadgeMap[user.role] ?? { variant: "default" as const, label: user.role };
                   return (
-                    <tr key={user.id} className="hover:bg-gray-50">
+                    <tr key={user.id} className={`hover:bg-gray-50 ${user.archivedAt ? "opacity-70" : ""}`}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <Avatar name={user.name} src={user.avatar} size="sm" />
@@ -300,6 +324,9 @@ export default function PeoplePage() {
                             <p className="text-[12px] text-gray-500 truncate">{user.email}</p>
                           </div>
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant={user.archivedAt ? "warning" : "success"}>{user.archivedAt ? "Archived" : "Active"}</Badge>
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={badge.variant}>{badge.label}</Badge>
@@ -317,31 +344,40 @@ export default function PeoplePage() {
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => {
-                              setSelectedUser(user);
-                              setEditName(user.name);
-                              setEditEmail(user.email);
-                              setShowEditDialog(true);
-                            }}>
-                              <Pencil size={14} strokeWidth={1.5} className="mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => {
-                              setSelectedUser(user);
-                              setNewRole(user.role);
-                              setShowRoleDialog(true);
-                            }}>
-                              <Shield size={14} strokeWidth={1.5} className="mr-2" />
-                              Change Role
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-red-600"
-                              onClick={() => handleDeactivate(user)}
-                            >
-                              <Trash2 size={14} strokeWidth={1.5} className="mr-2" />
-                              Deactivate
-                            </DropdownMenuItem>
+                            {user.archivedAt ? (
+                              <DropdownMenuItem onClick={() => handleRestore(user)}>
+                                <Shield size={14} strokeWidth={1.5} className="mr-2" />
+                                Restore
+                              </DropdownMenuItem>
+                            ) : (
+                              <>
+                                <DropdownMenuItem onClick={() => {
+                                  setSelectedUser(user);
+                                  setEditName(user.name);
+                                  setEditEmail(user.email);
+                                  setShowEditDialog(true);
+                                }}>
+                                  <Pencil size={14} strokeWidth={1.5} className="mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
+                                  setSelectedUser(user);
+                                  setNewRole(user.role);
+                                  setShowRoleDialog(true);
+                                }}>
+                                  <Shield size={14} strokeWidth={1.5} className="mr-2" />
+                                  Change Role
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() => handleDeactivate(user)}
+                                >
+                                  <Trash2 size={14} strokeWidth={1.5} className="mr-2" />
+                                  Deactivate
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>

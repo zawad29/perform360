@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { createOTP, hashOTP } from "@/lib/otp";
 import { sendEmail, getOTPEmail } from "@/lib/email";
 import { OTP_CONFIG } from "@/lib/constants";

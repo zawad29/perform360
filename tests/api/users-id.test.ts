@@ -143,7 +143,10 @@ describe("DELETE /api/users/[id]", () => {
     expect(prisma.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: validCuid },
-        data: { archivedAt: expect.any(Date) },
+        data: expect.objectContaining({
+          archivedAt: expect.any(Date),
+          email: expect.stringContaining("target@test.com"),
+        }),
       })
     );
   });
@@ -164,6 +167,76 @@ describe("DELETE /api/users/[id]", () => {
         metadata: expect.objectContaining({ type: "archive" }),
       })
     );
+  });
+
+  it("restores an archived user when email is available", async () => {
+    mockAuth(fixtures.admin);
+    const archivedEmail = "__archived__clx1abc2def3ghi4jkl5mno6p__target@test.com";
+    vi.mocked(prisma.user.findFirst)
+      .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
+      .mockResolvedValueOnce({
+        id: validCuid,
+        role: "MEMBER",
+        email: archivedEmail,
+        archivedAt: new Date(),
+        companyId: fixtures.admin.companyId,
+      } as any)
+      .mockResolvedValueOnce(null);
+    vi.mocked(prisma.user.update).mockResolvedValue({
+      id: validCuid,
+      role: "MEMBER",
+      email: "target@test.com",
+      archivedAt: null,
+    } as any);
+
+    const req = createMockRequest(`http://localhost:3000/api/users/${validCuid}`, {
+      method: "PATCH",
+      body: { archived: false },
+    });
+    const res = await callWith(PATCH, req, validCuid);
+    const { status, body } = await parseResponse(res);
+
+    expect(status).toBe(200);
+    expect(body.data.email).toBe("target@test.com");
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: validCuid },
+        data: expect.objectContaining({
+          archivedAt: null,
+          email: "target@test.com",
+        }),
+      })
+    );
+    expect(writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ type: "restore" }),
+      })
+    );
+  });
+
+  it("blocks restore when the original email is already in use", async () => {
+    mockAuth(fixtures.admin);
+    const archivedEmail = "__archived__clx1abc2def3ghi4jkl5mno6p__target@test.com";
+    vi.mocked(prisma.user.findFirst)
+      .mockResolvedValueOnce({ id: fixtures.admin.userId, email: fixtures.admin.email, role: "ADMIN", companyId: fixtures.admin.companyId } as any)
+      .mockResolvedValueOnce({
+        id: validCuid,
+        role: "MEMBER",
+        email: archivedEmail,
+        archivedAt: new Date(),
+        companyId: fixtures.admin.companyId,
+      } as any)
+      .mockResolvedValueOnce({ id: "active-user" } as any);
+
+    const req = createMockRequest(`http://localhost:3000/api/users/${validCuid}`, {
+      method: "PATCH",
+      body: { archived: false },
+    });
+    const res = await callWith(PATCH, req, validCuid);
+    const { status, body } = await parseResponse(res);
+
+    expect(status).toBe(409);
+    expect(body.code).toBe("DUPLICATE");
   });
 
   it("hard deletes user and cascades related records with ?hard=true", async () => {

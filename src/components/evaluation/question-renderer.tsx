@@ -1,8 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import type { TemplateQuestion } from "@/types/evaluation";
+import { RichTextContent } from "@/components/ui/rich-text-content";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface QuestionRendererProps {
   question: TemplateQuestion;
@@ -30,67 +38,59 @@ function RatingScale({
   const scaleMin = q.scaleMin || 1;
   const scaleMax = q.scaleMax || 5;
   const values = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => i + scaleMin);
-  const displayVal = hoveredVal ?? answer;
-  const activeLabel = displayVal !== undefined ? q.scaleLabels?.[displayVal - scaleMin] : null;
 
   return (
     <div className="space-y-3">
-      <div className="relative flex items-center justify-between gap-1">
-        {/* Track */}
-        <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-[2px] bg-gray-100" />
-        {/* Filled track */}
-        {answer !== undefined && (
-          <div
-            className="absolute left-4 top-1/2 -translate-y-1/2 h-[2px] bg-gray-300 transition-all duration-150"
-            style={{ width: `calc((${((answer - scaleMin) / (scaleMax - scaleMin)) * 100}%) - 8px)` }}
-          />
-        )}
-        {values.map((val) => {
-          const isSelected = answer === val;
-          const isHovered = hoveredVal === val;
-          return (
-            <button
-              key={val}
-              type="button"
-              onClick={() => onAnswer(val)}
-              onMouseEnter={() => setHoveredVal(val)}
-              onMouseLeave={() => setHoveredVal(null)}
-              className={`
-                relative z-10 flex items-center justify-center transition-all duration-100
-                ${isSelected
-                  ? "w-10 h-10 bg-gray-900 text-white shadow-sm scale-110"
-                  : isHovered
-                    ? "w-9 h-9 bg-gray-900 text-white scale-105"
-                    : answer !== undefined && val < answer
-                      ? "w-8 h-8 bg-gray-200 text-gray-600 border border-gray-200"
-                      : "w-8 h-8 bg-white text-gray-400 border border-gray-200 hover:border-gray-400"
-                }
-              `}
-            >
-              <span className={`font-semibold tabular-nums ${isSelected || isHovered ? "text-[14px]" : "text-[12px]"}`}>
-                {val}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Labels row */}
-      <div className="flex items-start justify-between px-1 min-h-[18px]">
-        {q.scaleLabels?.[0] && (
-          <span className="text-[11px] text-gray-400 font-medium max-w-[35%] leading-tight">{q.scaleLabels[0]}</span>
-        )}
-        {activeLabel && (
-          <span className="text-[11px] font-semibold text-gray-700 text-center px-2 bg-gray-50 border border-gray-100 py-0.5">
-            {activeLabel}
-          </span>
-        )}
-        {q.scaleLabels && q.scaleLabels.length > 1 && (
-          <span className="text-[11px] text-gray-400 font-medium max-w-[35%] text-right leading-tight">
-            {q.scaleLabels[q.scaleLabels.length - 1]}
-          </span>
-        )}
-      </div>
+      <TooltipProvider>
+        <div className="relative flex items-center justify-between gap-1">
+          {/* Track */}
+          <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-[2px] bg-gray-100" />
+          {/* Filled track */}
+          {answer !== undefined && (
+            <div
+              className="absolute left-4 top-1/2 -translate-y-1/2 h-[2px] bg-gray-300 transition-all duration-150"
+              style={{ width: `calc((${((answer - scaleMin) / (scaleMax - scaleMin)) * 100}%) - 8px)` }}
+            />
+          )}
+          {values.map((val) => {
+            const isSelected = answer === val;
+            const isHovered = hoveredVal === val;
+            const label = q.scaleLabels?.[val - scaleMin];
+            return (
+              <Tooltip key={val}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => onAnswer(val)}
+                    onMouseEnter={() => setHoveredVal(val)}
+                    onMouseLeave={() => setHoveredVal(null)}
+                    className={`
+                      relative z-10 flex items-center justify-center transition-all duration-100
+                      ${isSelected
+                        ? "w-10 h-10 bg-gray-900 text-white shadow-sm scale-110"
+                        : isHovered
+                          ? "w-9 h-9 bg-gray-900 text-white scale-105"
+                          : answer !== undefined && val < answer
+                            ? "w-8 h-8 bg-gray-200 text-gray-600 border border-gray-200"
+                            : "w-8 h-8 bg-white text-gray-400 border border-gray-200 hover:border-gray-400"
+                      }
+                    `}
+                  >
+                    <span className={`font-semibold tabular-nums ${isSelected || isHovered ? "text-[14px]" : "text-[12px]"}`}>
+                      {val}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                {label && (
+                  <TooltipContent side="top">
+                    {label}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            );
+          })}
+        </div>
+      </TooltipProvider>
     </div>
   );
 }
@@ -106,9 +106,11 @@ export function QuestionRenderer({
   showWordCount = true,
   indentClass = "pl-0 sm:pl-10",
 }: QuestionRendererProps) {
+  const [showGuidelineDialog, setShowGuidelineDialog] = useState(false);
   const isAnswered = answer !== undefined && answer !== "";
 
   return (
+    <>
     <div className={`relative ${hasError ? "rounded-sm ring-1 ring-red-400 ring-offset-4" : ""}`}>
       {/* Question header */}
       <div className="flex items-start gap-3 mb-4">
@@ -131,6 +133,18 @@ export function QuestionRenderer({
           </p>
           {hasError && (
             <p className="text-[12px] text-red-500 font-medium mt-0.5">Required — please answer before continuing</p>
+          )}
+          {q.guideline && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setShowGuidelineDialog(true)}
+                className="inline-flex items-center gap-1.5 text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <Info size={12} strokeWidth={1.75} />
+                <span>View instructions</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -206,5 +220,30 @@ export function QuestionRenderer({
         </div>
       )}
     </div>
+
+      <Dialog open={showGuidelineDialog} onOpenChange={(o) => !o && setShowGuidelineDialog(false)}>
+        <DialogContent className="max-w-xl max-h-[70vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[14px] font-semibold uppercase tracking-caps">
+              <Info size={14} strokeWidth={1.75} />
+              View instructions
+            </DialogTitle>
+          </DialogHeader>
+          <RichTextContent
+            html={q.guideline ?? ""}
+            className="prose prose-sm max-w-none text-[13px] leading-relaxed text-gray-600 prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-strong:text-gray-900"
+          />
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setShowGuidelineDialog(false)}
+              className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

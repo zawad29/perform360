@@ -128,6 +128,39 @@ describe("Review OTP send (POST /api/review/[token]/otp/send)", () => {
     expect(status).toBe(429);
     expect(body.code).toBe("RATE_LIMITED");
   });
+
+  it("reuses an existing verified session without sending another email", async () => {
+    vi.mocked(prisma.cycleReviewerLink.findUnique).mockResolvedValue({
+      id: "rl-1",
+      token: SUMMARY_TOKEN,
+      reviewerId: "r1",
+      cycle: { status: "ACTIVE" },
+    } as any);
+
+    vi.mocked(prisma.user.findFirst).mockResolvedValue({
+      email: "reviewer@test.com",
+      name: "Reviewer",
+    } as any);
+
+    vi.mocked(prisma.otpSession.findFirst).mockResolvedValue({
+      id: "otp-existing",
+      sessionToken: "session-token",
+      sessionExpiry: new Date(Date.now() + 60_000),
+      verifiedAt: new Date(),
+    } as any);
+
+    const req = makeRequest(
+      `http://localhost:3000/api/review/${SUMMARY_TOKEN}/otp/send`,
+    );
+    const res = await sendOTP(req, { params: Promise.resolve({ token: SUMMARY_TOKEN }) });
+    const { status, body } = await parseResponse(res);
+
+    expect(status).toBe(200);
+    expect(body.data).toEqual({ sent: false, alreadyVerified: true });
+    expect(prisma.otpSession.count).not.toHaveBeenCalled();
+    expect(prisma.otpSession.create).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
 });
 
 // ─── OTP Verify ───

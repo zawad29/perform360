@@ -99,7 +99,15 @@ describe("API /api/templates", () => {
             id: "s1",
             title: "Performance",
             questions: [
-              { id: "q1", text: "Rate performance", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 },
+              {
+                id: "q1",
+                text: "Rate performance",
+                type: "rating_scale",
+                required: true,
+                guideline: "<p>Cover results, quality, and ownership.</p>",
+                scaleMin: 1,
+                scaleMax: 5,
+              },
             ],
           }],
         },
@@ -116,6 +124,18 @@ describe("API /api/templates", () => {
             companyId: fixtures.admin.companyId,
             createdBy: fixtures.admin.userId,
             isGlobal: false,
+            sections: expect.arrayContaining([
+              expect.objectContaining({
+                id: "s1",
+                title: "Performance",
+                questions: expect.arrayContaining([
+                  expect.objectContaining({
+                    id: "q1",
+                    guideline: "<p>Cover results, quality, and ownership.</p>",
+                  }),
+                ]),
+              }),
+            ]),
           }),
         })
       );

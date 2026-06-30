@@ -186,6 +186,18 @@ describe("useTemplateBuilder store", () => {
       expect(sections[0].questions[1].text).toBe("");
       expect(sections[1].questions[0].text).toBe("");
     });
+
+    it("stores guideline content on the target question", () => {
+      const store = useTemplateBuilder.getState();
+      store.addSection();
+      const [section] = useTemplateBuilder.getState().sections;
+      store.addQuestion(section.id);
+      const question = useTemplateBuilder.getState().sections[0].questions[0];
+
+      store.updateQuestion(section.id, question.id, { guideline: "<p>Use recent examples</p>" });
+
+      expect(useTemplateBuilder.getState().sections[0].questions[0].guideline).toBe("<p>Use recent examples</p>");
+    });
   });
 
   describe("removeQuestion", () => {
@@ -288,7 +300,15 @@ describe("useTemplateBuilder store", () => {
             title: "Section 1",
             directions: [],
             questions: [
-              { id: "q1", text: "Question 1", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5 },
+              {
+                id: "q1",
+                text: "Question 1",
+                type: "rating_scale",
+                required: true,
+                guideline: "<p>Be specific</p>",
+                scaleMin: 1,
+                scaleMax: 5,
+              },
             ],
           },
         ],
@@ -299,6 +319,7 @@ describe("useTemplateBuilder store", () => {
       expect(state.description).toBe("A loaded template");
       expect(state.sections).toHaveLength(1);
       expect(state.sections[0].questions).toHaveLength(1);
+      expect(state.sections[0].questions[0].guideline).toBe("<p>Be specific</p>");
       expect(state.isDirty).toBe(false);
     });
   });

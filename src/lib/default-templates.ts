@@ -15,6 +15,7 @@ export const DEFAULT_TEMPLATES = [
             required: true,
             scaleMin: 1,
             scaleMax: 5,
+            guideline: "<p>Consider how they approach unfamiliar problems — do they break them down, ask the right questions, or rely on others?</p>",
             scaleLabels: ["Needs guidance", "", "Works independently", "", "Exceptional"],
           },
           {
@@ -48,6 +49,7 @@ export const DEFAULT_TEMPLATES = [
             required: true,
             scaleMin: 1,
             scaleMax: 5,
+            guideline: "<p>Think about cross-team interactions, meetings, and how they contribute to shared goals.</p>",
             scaleLabels: ["Prefers solo work", "", "Good team player", "", "Outstanding collaborator"],
           },
           {
@@ -131,6 +133,7 @@ export const DEFAULT_TEMPLATES = [
             required: true,
             scaleMin: 1,
             scaleMax: 5,
+            guideline: "<p>Evaluate how well they translate business needs into technical solutions. Do they ask clarifying questions?</p>",
             scaleLabels: ["Needs clear instructions", "Handles basic problems", "Works independently", "Sees bigger picture", "Solves complex issues"],
           },
           {
@@ -394,7 +397,7 @@ export const DEFAULT_TEMPLATES = [
         title: "Overall Assessment",
         description: "Summary feedback and areas for improvement",
         questions: [
-          { id: "swe-q33", text: "What are their greatest strengths?", type: "text", required: true },
+          { id: "swe-q33", text: "What are their greatest strengths?", type: "text", required: true, guideline: "<p>Focus on qualities that set them apart — technical depth, soft skills, reliability, or leadership potential.</p>" },
           { id: "swe-q34", text: "What areas would benefit most from development or improvement?", type: "text", required: true },
           { id: "swe-q35", text: "Any additional feedback or characteristics not covered in this review?", type: "text", required: false },
         ],
@@ -637,6 +640,7 @@ export const DEFAULT_TEMPLATES = [
             required: true,
             scaleMin: 1,
             scaleMax: 5,
+            guideline: "<p>Think about times they flagged risks early, versus times issues caught them by surprise.</p>",
             scaleLabels: ["Misses problems", "Identifies obvious issues", "Catches most problems", "Proactively identifies risks", "Exceptional foresight"],
           },
           {
@@ -771,6 +775,7 @@ export const DEFAULT_TEMPLATES = [
             required: true,
             scaleMin: 1,
             scaleMax: 5,
+            guideline: "<p>Consider one-on-one frequency, availability for questions, and presence in team meetings.</p>",
             scaleLabels: ["Rarely available", "Occasionally present", "Regularly available", "Highly engaged", "Exceptionally present and engaged"],
           },
           {

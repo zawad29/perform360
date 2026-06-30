@@ -6,12 +6,14 @@ import { CSS } from "@dnd-kit/utilities";
 import { Trash2, Plus, X, Settings2 } from "lucide-react";
 import { DragHandle } from "./drag-handle";
 import { QuestionTypeSelector, type QuestionType } from "./question-type-selector";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 
 interface QuestionData {
   id: string;
   text: string;
   type: QuestionType;
   required: boolean;
+  guideline?: string;
   options?: string[];
   scaleMin?: number;
   scaleMax?: number;
@@ -53,6 +55,7 @@ export function QuestionEditor({ question, sectionId, onUpdate, onRemove }: Ques
 
   const scaleMin = question.scaleMin ?? 1;
   const scaleMax = question.scaleMax ?? 5;
+  const guidelineEnabled = question.guideline !== undefined;
 
   return (
     <div
@@ -120,6 +123,16 @@ export function QuestionEditor({ question, sectionId, onUpdate, onRemove }: Ques
           )}
         </div>
 
+        <label className="flex items-center gap-1.5 text-[13px] text-gray-500 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={guidelineEnabled}
+            onChange={(e) => onUpdate({ guideline: e.target.checked ? (question.guideline ?? "") : undefined })}
+            className="rounded border-gray-300 text-brand-500 focus:ring-brand-500/40"
+          />
+          Reviewer guideline
+        </label>
+
         {/* Expandable settings */}
         {question.type === "rating_scale" && showSettings && (
           <RatingScaleSettings
@@ -136,6 +149,20 @@ export function QuestionEditor({ question, sectionId, onUpdate, onRemove }: Ques
             onUpdate={onUpdate}
           />
         )}
+
+        {guidelineEnabled && (
+          <div className="space-y-1.5">
+            <p className="text-[12px] text-gray-500">
+              Optional guidance shown to reviewers while answering this question.
+            </p>
+            <RichTextEditor
+              value={question.guideline ?? ""}
+              onChange={(guideline) => onUpdate({ guideline })}
+              placeholder="Add examples, expectations, or scoring notes..."
+            />
+          </div>
+        )}
+
       </div>
 
       <button

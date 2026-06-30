@@ -349,9 +349,9 @@ async function main() {
           description: "Ability to design scalable, maintainable systems",
           directions: [],
           questions: [
-            { id: "tc-q1", text: "System design and architecture skills", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Beginner", "Learning", "Competent", "Advanced", "Expert"] },
-            { id: "tc-q2", text: "Code review quality and thoroughness", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Rarely reviews", "Basic feedback", "Good reviews", "Thorough", "Exceptional"] },
-            { id: "tc-q3", text: "Comments on their system design approach", type: "text", required: false },
+            { id: "tc-q1", text: "System design and architecture skills", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, guideline: "<p>Consider their ability to design scalable systems and make sound architectural trade-offs.</p>", scaleLabels: ["Beginner", "Learning", "Competent", "Advanced", "Expert"] },
+            { id: "tc-q2", text: "Code review quality and thoroughness", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, guideline: "<p>Do they catch bugs, suggest improvements, and explain reasoning clearly in reviews?</p>", scaleLabels: ["Rarely reviews", "Basic feedback", "Good reviews", "Thorough", "Exceptional"] },
+            { id: "tc-q3", text: "Comments on their system design approach", type: "text", required: false, guideline: "<p>Provide specific examples of designs they owned or contributed to significantly.</p>" },
           ],
         },
         {
@@ -402,7 +402,7 @@ async function main() {
           description: "Core engineering skills for early-career engineers",
           directions: [],
           questions: [
-            { id: "jr-q1", text: "Foundational coding skills", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Needs help", "Learning", "Competent", "Strong", "Exceptional"] },
+            { id: "jr-q1", text: "Foundational coding skills", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, guideline: "<p>Assess code quality, syntax familiarity, and ability to write clean, working code.</p>", scaleLabels: ["Needs help", "Learning", "Competent", "Strong", "Exceptional"] },
             { id: "jr-q2", text: "Receptiveness to feedback", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Defensive", "Reluctant", "Open", "Eager", "Seeks it out"] },
             { id: "jr-q3", text: "Reliability on assigned work", type: "rating_scale", required: true, scaleMin: 1, scaleMax: 5, scaleLabels: ["Often misses", "Sometimes misses", "Reliable", "Very reliable", "Always delivers"] },
           ],
@@ -473,6 +473,7 @@ async function main() {
               required: true,
               scaleMin: 1,
               scaleMax: 5,
+              guideline: "<p>Consider their overall impact on team goals, quality of work, and cultural contribution.</p>",
               scaleLabels: ["Poor", "Below avg", "Solid", "Strong", "Outstanding"],
             },
             {

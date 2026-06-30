@@ -308,148 +308,147 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
       )}
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+            {/* Section stepper */}
+            {sections.length > 1 && (
+              <nav className="mb-8">
+                <div className="flex items-center justify-center gap-0">
+                  {sections.map((s, i) => {
+                    const complete = isSectionComplete(i);
+                    const active = i === currentSection;
+                    const answered = getSectionAnsweredCount(i);
 
-        {/* Section stepper */}
-        {sections.length > 1 && (
-          <nav className="mb-8">
-            <div className="flex items-center justify-center gap-0">
-              {sections.map((s, i) => {
-                const complete = isSectionComplete(i);
-                const active = i === currentSection;
-                const answered = getSectionAnsweredCount(i);
-
-                return (
-                  <div key={i} className="flex items-center">
-                    {i > 0 && (
-                      <div className={`h-px w-6 sm:w-10 transition-colors ${complete || isSectionComplete(i - 1) ? "bg-gray-300" : "bg-gray-100"}`} />
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => { setSectionErrors(new Set()); setShowValidation(false); setCurrentSection(i); }}
-                      title={`${s.title} (${answered}/${s.questions.length})`}
-                      className={`
-                        relative flex items-center justify-center transition-all
-                        ${active
-                          ? "w-9 h-9 bg-gray-900 text-white"
-                          : complete
-                            ? "w-7 h-7 bg-gray-900 text-white"
-                            : answered > 0
-                              ? "w-7 h-7 bg-white text-gray-900 border border-gray-300"
-                              : "w-7 h-7 bg-white text-gray-300 border border-gray-100"
-                        }
-                      `}
-                    >
-                      {complete && !active ? (
-                        <Check size={12} strokeWidth={3} />
-                      ) : (
-                        <span className={`font-semibold tabular-nums ${active ? "text-[13px]" : "text-[11px]"}`}>{i + 1}</span>
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="text-center mt-3">
-              <p className="text-[14px] font-medium text-gray-900">{section.title}</p>
-              {section.description && (
-                <p className="text-[12px] text-gray-400 mt-0.5">{section.description}</p>
-              )}
-            </div>
-          </nav>
-        )}
-
-        {/* Single section title (when only one section) */}
-        {sections.length === 1 && (
-          <div className="mb-8">
-            <h2 className="text-[18px] font-semibold text-gray-900">{section.title}</h2>
-            {section.description && (
-              <p className="text-[13px] text-gray-400 mt-1">{section.description}</p>
+                    return (
+                      <div key={i} className="flex items-center">
+                        {i > 0 && (
+                          <div className={`h-px w-6 sm:w-10 transition-colors ${complete || isSectionComplete(i - 1) ? "bg-gray-300" : "bg-gray-100"}`} />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { setSectionErrors(new Set()); setShowValidation(false); setCurrentSection(i); }}
+                          title={`${s.title} (${answered}/${s.questions.length})`}
+                          className={`
+                            relative flex items-center justify-center transition-all
+                            ${active
+                              ? "w-9 h-9 bg-gray-900 text-white"
+                              : complete
+                                ? "w-7 h-7 bg-gray-900 text-white"
+                                : answered > 0
+                                  ? "w-7 h-7 bg-white text-gray-900 border border-gray-300"
+                                  : "w-7 h-7 bg-white text-gray-300 border border-gray-100"
+                            }
+                          `}
+                        >
+                          {complete && !active ? (
+                            <Check size={12} strokeWidth={3} />
+                          ) : (
+                            <span className={`font-semibold tabular-nums ${active ? "text-[13px]" : "text-[11px]"}`}>{i + 1}</span>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-center mt-3">
+                  <p className="text-[14px] font-medium text-gray-900">{section.title}</p>
+                  {section.description && (
+                    <p className="text-[12px] text-gray-400 mt-0.5">{section.description}</p>
+                  )}
+                </div>
+              </nav>
             )}
-          </div>
-        )}
 
-        {/* Validation banner */}
-        {showValidation && sectionErrors.size > 0 && (
-          <div className="mb-6 flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-200">
-            <AlertCircle size={14} strokeWidth={1.5} className="text-red-500 flex-shrink-0" />
-            <p className="text-[13px] text-red-700">
-              {sectionErrors.size} required {sectionErrors.size === 1 ? "question" : "questions"} need answers before you can continue
-            </p>
-          </div>
-        )}
+            {/* Single section title (when only one section) */}
+            {sections.length === 1 && (
+              <div className="mb-8">
+                <h2 className="text-[18px] font-semibold text-gray-900">{section.title}</h2>
+                {section.description && (
+                  <p className="text-[13px] text-gray-400 mt-1">{section.description}</p>
+                )}
+              </div>
+            )}
 
-        {/* Questions */}
-        <div className="space-y-10">
-          {section.questions.map((q, qIdx) => (
-            <QuestionRenderer
-              key={q.id}
-              question={q}
-              questionNumber={currentQuestionOffset + qIdx + 1}
-              answer={answers[q.id]}
-              onAnswer={(val) => setAnswer(q.id, val)}
-              hasError={showValidation && sectionErrors.has(q.id)}
-              showWordCount
-            />
-          ))}
-        </div>
+            {/* Validation banner */}
+            {showValidation && sectionErrors.size > 0 && (
+              <div className="mb-6 flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-200">
+                <AlertCircle size={14} strokeWidth={1.5} className="text-red-500 flex-shrink-0" />
+                <p className="text-[13px] text-red-700">
+                  {sectionErrors.size} required {sectionErrors.size === 1 ? "question" : "questions"} need answers before you can continue
+                </p>
+              </div>
+            )}
 
-        {/* Submit error */}
-        {submitError && (
-          <div className="mt-6 flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-200">
-            <AlertCircle size={14} strokeWidth={1.5} className="text-red-500 flex-shrink-0" />
-            <p className="text-[13px] text-red-700">{submitError}</p>
-          </div>
-        )}
+            {/* Questions */}
+            <div className="space-y-10">
+              {section.questions.map((q, qIdx) => (
+                <QuestionRenderer
+                  key={q.id}
+                  question={q}
+                  questionNumber={currentQuestionOffset + qIdx + 1}
+                  answer={answers[q.id]}
+                  onAnswer={(val) => setAnswer(q.id, val)}
+                  hasError={showValidation && sectionErrors.has(q.id)}
+                  showWordCount
+                />
+              ))}
+            </div>
 
-        {/* Navigation */}
-        <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-100">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setSectionErrors(new Set()); setShowValidation(false); setCurrentSection(Math.max(0, currentSection - 1)); }}
-            disabled={currentSection === 0}
-            className="text-gray-500"
-          >
-            <ChevronLeft size={15} strokeWidth={1.5} className="mr-1" />
-            Previous
-          </Button>
+            {/* Submit error */}
+            {submitError && (
+              <div className="mt-6 flex items-center gap-2.5 px-4 py-3 bg-red-50 border border-red-200">
+                <AlertCircle size={14} strokeWidth={1.5} className="text-red-500 flex-shrink-0" />
+                <p className="text-[13px] text-red-700">{submitError}</p>
+              </div>
+            )}
 
-          <span className="text-[11px] font-medium text-gray-300 uppercase tracking-widest hidden sm:inline">
-            {currentSection + 1} / {sections.length}
-          </span>
+            {/* Navigation */}
+            <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-100">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setSectionErrors(new Set()); setShowValidation(false); setCurrentSection(Math.max(0, currentSection - 1)); }}
+                disabled={currentSection === 0}
+                className="text-gray-500"
+              >
+                <ChevronLeft size={15} strokeWidth={1.5} className="mr-1" />
+                Previous
+              </Button>
 
-          {!isLastSection ? (
-            <Button
-              size="sm"
-              onClick={() => {
-                if (validateSection(currentSection)) setCurrentSection(currentSection + 1);
-              }}
-            >
-              Next
-              <ChevronRight size={15} strokeWidth={1.5} className="ml-1" />
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => {
-                const result = validateAllSections();
-                if (!result.valid) {
-                  if (result.firstInvalidSection !== currentSection) setCurrentSection(result.firstInvalidSection);
-                  return;
-                }
-                handleSubmit();
-              }}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <Loader2 size={14} strokeWidth={1.5} className="mr-1.5 animate-spin" />
+              <span className="text-[11px] font-medium text-gray-300 uppercase tracking-widest hidden sm:inline">
+                {currentSection + 1} / {sections.length}
+              </span>
+
+              {!isLastSection ? (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (validateSection(currentSection)) setCurrentSection(currentSection + 1);
+                  }}
+                >
+                  Next
+                  <ChevronRight size={15} strokeWidth={1.5} className="ml-1" />
+                </Button>
               ) : (
-                <Send size={14} strokeWidth={1.5} className="mr-1.5" />
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const result = validateAllSections();
+                    if (!result.valid) {
+                      if (result.firstInvalidSection !== currentSection) setCurrentSection(result.firstInvalidSection);
+                      return;
+                    }
+                    handleSubmit();
+                  }}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <Loader2 size={14} strokeWidth={1.5} className="mr-1.5 animate-spin" />
+                  ) : (
+                    <Send size={14} strokeWidth={1.5} className="mr-1.5" />
+                  )}
+                  {isSubmitting ? "Submitting..." : "Submit"}
+                </Button>
               )}
-              {isSubmitting ? "Submitting..." : "Submit"}
-            </Button>
-          )}
-        </div>
+            </div>
       </main>
     </div>
   );

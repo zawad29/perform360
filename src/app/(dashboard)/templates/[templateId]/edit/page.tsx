@@ -35,7 +35,7 @@ export default function EditTemplatePage() {
           weightPreset: json.data.weightPreset ?? null,
           weightsMember: json.data.weightsMember ?? null,
           weightsManager: json.data.weightsManager ?? null,
-          sections: json.data.sections.map((s: { id?: string; title: string; description?: string; directions?: string[]; questions: Array<{ id?: string; text: string; type: string; required: boolean; options?: string[]; scaleMin?: number; scaleMax?: number; scaleLabels?: string[] }> }, i: number) => ({
+          sections: json.data.sections.map((s: { id?: string; title: string; description?: string; directions?: string[]; questions: Array<{ id?: string; text: string; type: string; required: boolean; guideline?: string; options?: string[]; scaleMin?: number; scaleMax?: number; scaleLabels?: string[] }> }, i: number) => ({
             id: s.id ?? `section-${i}`,
             title: s.title,
             description: s.description,
@@ -45,6 +45,7 @@ export default function EditTemplatePage() {
               text: q.text,
               type: q.type as "rating_scale" | "text" | "multiple_choice",
               required: q.required,
+              guideline: q.guideline,
               options: q.options,
               scaleMin: q.scaleMin,
               scaleMax: q.scaleMax,

@@ -27,7 +27,7 @@ vi.mock("@/lib/prisma", () => {
     $queryRawUnsafe: vi.fn(),
     $queryRaw: vi.fn(),
   };
-  return { prisma, default: prisma };
+  return { prisma };
 });
 
 // Mock NextAuth
@@ -71,9 +71,9 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: vi.fn().mockReturnValue({ allowed: true }),
   rateLimitResponse: vi.fn(),
   getClientIp: vi.fn().mockReturnValue("127.0.0.1"),
-  AUTH_RATE_LIMIT: { maxTokens: 10, refillRate: 1, refillInterval: 60000 },
-  API_RATE_LIMIT: { maxTokens: 60, refillRate: 1, refillInterval: 60000 },
-  OTP_RATE_LIMIT: { maxTokens: 5, refillRate: 1, refillInterval: 60000 },
+  AUTH_RATE_LIMIT: { maxRequests: 5, windowMs: 900000 },
+  API_RATE_LIMIT: { maxRequests: 100, windowMs: 60000 },
+  OTP_SEND_RATE_LIMIT: { maxRequests: 5, windowMs: 3600000 },
 }));
 
 // Mock audit

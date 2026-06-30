@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { DIRECTION_LABELS, type Direction } from "@/lib/directions";
+import { deactivateUser, restoreUser } from "@/lib/user-actions";
 
 interface TeamMembership {
   id: string;
@@ -78,6 +79,7 @@ interface PersonDetail {
   avatar: string | null;
   role: string;
   createdAt: string;
+  archivedAt: string | null;
   teamMemberships: TeamMembership[];
   receivingEvaluations: EvaluationEntry[];
   givingEvaluations: EvaluationEntry[];
@@ -184,15 +186,24 @@ export default function PersonDetailPage() {
 
   const handleDeactivate = async () => {
     if (!person) return;
-    try {
-      const res = await fetch(`/api/users/${person.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Failed to deactivate user");
-      addToast(`${person.name} deactivated`, "success");
-      router.push("/people");
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : "Failed to deactivate user", "error");
+    const result = await deactivateUser(person.id);
+    if (!result.ok) {
+      addToast(result.error ?? "Failed to deactivate user", "error");
+      return;
     }
+    addToast(`${person.name} deactivated`, "success");
+    router.push("/people");
+  };
+
+  const handleRestore = async () => {
+    if (!person) return;
+    const result = await restoreUser(person.id);
+    if (!result.ok) {
+      addToast(result.error ?? "Failed to restore user", "error");
+      return;
+    }
+    addToast(`${person.name} restored`, "success");
+    fetchPerson();
   };
 
   if (error) {
@@ -256,6 +267,7 @@ export default function PersonDetailPage() {
           </Button>
         </Link>
         <Badge variant={badge.variant}>{badge.label}</Badge>
+        {person.archivedAt && <Badge variant="warning">Archived</Badge>}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="p-2 hover:bg-gray-100 " aria-label="User actions">
@@ -263,15 +275,24 @@ export default function PersonDetailPage() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => { setNewRole(person.role); setShowRoleDialog(true); }}>
-              <Shield size={14} strokeWidth={1.5} className="mr-2" />
-              Change Role
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-gray-900" onClick={handleDeactivate}>
-              <Trash2 size={14} strokeWidth={1.5} className="mr-2" />
-              Deactivate
-            </DropdownMenuItem>
+            {person.archivedAt ? (
+              <DropdownMenuItem onClick={handleRestore}>
+                <Shield size={14} strokeWidth={1.5} className="mr-2" />
+                Restore
+              </DropdownMenuItem>
+            ) : (
+              <>
+                <DropdownMenuItem onClick={() => { setNewRole(person.role); setShowRoleDialog(true); }}>
+                  <Shield size={14} strokeWidth={1.5} className="mr-2" />
+                  Change Role
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-gray-900" onClick={handleDeactivate}>
+                  <Trash2 size={14} strokeWidth={1.5} className="mr-2" />
+                  Deactivate
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </PageHeader>
