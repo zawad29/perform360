@@ -445,7 +445,8 @@ export default function CycleDetailPage() {
 
   useEffect(() => {
     if (activeTab === "assignments") {
-      fetchAssignments();
+      const id = setTimeout(fetchAssignments, 0);
+      return () => clearTimeout(id);
     }
     if (activeTab === "reports") {
       fetch(`/api/reports/cycle/${cycleId}`)
