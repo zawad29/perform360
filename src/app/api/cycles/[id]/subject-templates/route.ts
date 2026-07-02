@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
 import { errorResponse, zodErrorResponse, internalErrorResponse } from "@/lib/api-responses";
-import { regenerateCycleAssignments } from "@/lib/assignments";
+import { regenerateCycleAssignments, syncSubjectTemplateMap } from "@/lib/assignments";
 import { resolveTemplateForSubject, type TemplateMeta } from "@/lib/template-routing";
 import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 
@@ -95,6 +95,11 @@ function teamMetas(team: CycleForMapping["cycleTeams"][number]): TemplateMeta[] 
     appliesToRole: t.template.appliesToRole,
     sections: [],
   }));
+}
+
+/** teamId → routing metas, for syncSubjectTemplateMap (routing ignores sections). */
+function teamTemplatesMapFrom(cycle: CycleForMapping): Map<string, TemplateMeta[]> {
+  return new Map(cycle.cycleTeams.map((ct) => [ct.team.id, teamMetas(ct)]));
 }
 
 export async function GET(
@@ -245,6 +250,10 @@ export async function PUT(
       update: { templateId, source: "MANUAL" },
     });
 
+    // Ensure the mapping is complete before regenerating (fills AUTO rows for any
+    // subjects without one — e.g. a legacy cycle — while preserving this MANUAL
+    // choice). Prevents regen from wiping other subjects on an incomplete mapping.
+    await syncSubjectTemplateMap(id, authResult.companyId, teamTemplatesMapFrom(cycle));
     await regenerateCycleAssignments(id, authResult.companyId);
 
     return NextResponse.json({ success: true });
@@ -304,6 +313,8 @@ export async function DELETE(
       update: { templateId: routed, source: "AUTO" },
     });
 
+    // Complete the mapping before regenerating (see PUT).
+    await syncSubjectTemplateMap(id, authResult.companyId, teamTemplatesMapFrom(cycle));
     await regenerateCycleAssignments(id, authResult.companyId);
 
     return NextResponse.json({ success: true });

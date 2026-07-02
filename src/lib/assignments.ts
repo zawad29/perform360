@@ -567,6 +567,16 @@ export async function syncSubjectTemplateMap(
   const existingByKey = new Map(existing.map((r) => [`${r.subjectId}:${r.teamId}`, r]));
   const validKeys = new Set<string>();
 
+  // Collect the diff and flush it in one transaction — the common case (already
+  // synced) produces no ops, and a first-time fill batches instead of N awaits.
+  const creates: {
+    cycleId: string;
+    teamId: string;
+    subjectId: string;
+    templateId: string | null;
+  }[] = [];
+  const updates: { id: string; templateId: string | null }[] = [];
+
   for (const team of teams) {
     const templates = teamTemplatesMap.get(team.id) ?? [];
     for (const m of team.members) {
@@ -578,14 +588,9 @@ export async function syncSubjectTemplateMap(
       const resolved = resolveTemplateForSubject(templates, m.designationId, m.role);
       const templateId = resolved?.template.id ?? null;
       if (!row) {
-        await prisma.cycleSubjectTemplate.create({
-          data: { cycleId, teamId: team.id, subjectId: m.userId, templateId, source: "AUTO" },
-        });
+        creates.push({ cycleId, teamId: team.id, subjectId: m.userId, templateId });
       } else if (row.templateId !== templateId) {
-        await prisma.cycleSubjectTemplate.update({
-          where: { id: row.id },
-          data: { templateId },
-        });
+        updates.push({ id: row.id, templateId });
       }
     }
   }
@@ -593,9 +598,20 @@ export async function syncSubjectTemplateMap(
   const staleIds = existing
     .filter((r) => !validKeys.has(`${r.subjectId}:${r.teamId}`))
     .map((r) => r.id);
-  if (staleIds.length) {
-    await prisma.cycleSubjectTemplate.deleteMany({ where: { id: { in: staleIds } } });
-  }
+
+  if (creates.length === 0 && updates.length === 0 && staleIds.length === 0) return;
+
+  await prisma.$transaction([
+    ...(creates.length
+      ? [prisma.cycleSubjectTemplate.createMany({ data: creates.map((c) => ({ ...c, source: "AUTO" as const })) })]
+      : []),
+    ...updates.map((u) =>
+      prisma.cycleSubjectTemplate.update({ where: { id: u.id }, data: { templateId: u.templateId } })
+    ),
+    ...(staleIds.length
+      ? [prisma.cycleSubjectTemplate.deleteMany({ where: { id: { in: staleIds } } })]
+      : []),
+  ]);
 }
 
 export interface ReviewerInfo {
