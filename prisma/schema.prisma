@@ -83,6 +83,7 @@ enum WeightPreset {
   supervisor_focus
   peer_focus
   custom
+  default
 }
 
 // Which team-role a template is written for. Routing prefers a template whose

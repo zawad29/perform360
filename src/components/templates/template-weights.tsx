@@ -27,7 +27,7 @@ const WEIGHT_FIELDS: [keyof DirectionWeights, string][] = [
   ["external", "External"],
 ];
 
-const PRESET_KEYS: WeightPreset[] = ["equal", "supervisor_focus", "peer_focus", "custom"];
+const PRESET_KEYS: WeightPreset[] = ["default", "equal", "supervisor_focus", "peer_focus", "custom"];
 
 interface TemplateWeightsProps {
   preset: WeightPreset | null;
@@ -106,7 +106,7 @@ export function TemplateWeights({ preset, member, manager, onChange }: TemplateW
         </div>
         <button
           type="button"
-          onClick={preset ? clearWeights : () => setPreset("equal")}
+          onClick={preset ? clearWeights : () => setPreset("default")}
           className="text-[12px] font-medium text-gray-700 hover:text-gray-900"
         >
           {preset ? "Remove" : "Add weights"}
@@ -115,7 +115,7 @@ export function TemplateWeights({ preset, member, manager, onChange }: TemplateW
 
       {preset && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
             {PRESET_KEYS.map((key) => {
               const p = WEIGHT_PRESETS[key];
               const isActive = preset === key;

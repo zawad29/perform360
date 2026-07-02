@@ -147,6 +147,12 @@ export const WEIGHT_PRESETS: Record<
     member: { downward: 35, lateral: 30, upward: 0, self: 15, external: 20 },
     manager: { downward: 0, lateral: 30, upward: 35, self: 20, external: 15 },
   },
+  default: {
+    label: "Default",
+    description: "Team lead weighted, with self, peer & stakeholder input",
+    member: { downward: 50, lateral: 20, upward: 0, self: 10, external: 20 },
+    manager: { downward: 0, lateral: 20, upward: 50, self: 10, external: 20 },
+  },
 };
 
 export function getWeightSum(weights: DirectionWeights): number {
