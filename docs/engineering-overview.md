@@ -281,6 +281,14 @@ Five feedback directions (`Direction` enum): `DOWNWARD`, `UPWARD`, `LATERAL`, `S
 
 Assignments are deduplicated on `(cycleId, subjectId, reviewerId, templateId, direction)`.
 
+**Known limitation — assignments don't store `teamId`.** An `EvaluationAssignment`
+records `(subject, reviewer, template, direction)` but not which team it came from.
+The Assignments tab (and anywhere that needs an assignment's team) infers it from
+`(subjectId, templateId)` via the `CycleSubjectTemplate` mapping. This is ambiguous
+when a subject has the **same template in multiple teams** — the first match wins.
+Proper fix: persist `teamId` on `EvaluationAssignment` at generation time
+(`generateAssignmentsFromTeams` + a schema column).
+
 ### 7.3 Template routing
 
 `src/lib/template-routing.ts` resolves which template applies to a given subject:
