@@ -11,6 +11,7 @@ export interface TemplateQuestion {
   type: "rating_scale" | "text" | "multiple_choice";
   required: boolean;
   guideline?: string;
+  whatToLookFor?: string;
   options?: string[];
   scaleMin?: number;
   scaleMax?: number;

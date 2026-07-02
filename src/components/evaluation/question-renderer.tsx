@@ -134,6 +134,12 @@ export function QuestionRenderer({
           {hasError && (
             <p className="text-[12px] text-red-500 font-medium mt-0.5">Required — please answer before continuing</p>
           )}
+          {q.whatToLookFor && (
+            <div className="mt-2 border border-gray-200 bg-gray-50 px-3 py-2 text-[12px] font-light text-gray-500">
+              <span className="font-semibold text-gray-700">What to Look For: </span>
+              {q.whatToLookFor}
+            </div>
+          )}
           {q.guideline && (
             <div className="mt-2">
               <button
