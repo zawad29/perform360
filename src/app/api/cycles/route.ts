@@ -6,6 +6,7 @@ import {
   applyTeamTemplates,
   createAssignmentsForCycle,
   computeDirectionCoverageWarnings,
+  syncSubjectTemplateMap,
   validateTeamTemplateCoverage,
 } from "@/lib/assignments";
 import { applyRateLimit } from "@/lib/rate-limit";
@@ -136,15 +137,12 @@ export async function POST(request: NextRequest) {
       return created;
     });
 
-    const directionWarnings = computeDirectionCoverageWarnings(
-      new Map(pairs.map((p) => [p.teamId, p.templates]))
-    );
+    const teamTemplatesMap = new Map(pairs.map((p) => [p.teamId, p.templates]));
+    const directionWarnings = computeDirectionCoverageWarnings(teamTemplatesMap);
 
-    const { count } = await createAssignmentsForCycle(
-      cycle.id,
-      authResult.companyId,
-      pairs
-    );
+    // Fill the subject→template mapping (source of truth), then generate reviews from it.
+    await syncSubjectTemplateMap(cycle.id, authResult.companyId, teamTemplatesMap);
+    const { count } = await createAssignmentsForCycle(cycle.id, authResult.companyId);
 
     const cycleWithRelations = await prisma.evaluationCycle.findUniqueOrThrow({
       where: { id: cycle.id },

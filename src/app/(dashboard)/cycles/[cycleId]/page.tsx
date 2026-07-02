@@ -109,12 +109,41 @@ interface CoverageGapEntry {
   members: { userId: string; name: string; designationName: string | null }[];
 }
 
+interface SubjectTemplateEntry {
+  subjectId: string;
+  name: string;
+  role: "MANAGER" | "MEMBER" | "EXTERNAL" | "IMPERSONATOR";
+  designationName: string | null;
+  templateId: string | null;
+  templateName: string | null;
+  source: "AUTO" | "MANUAL";
+  covered: boolean;
+}
+
+interface SubjectTemplateTeam {
+  teamId: string;
+  teamName: string;
+  subjects: SubjectTemplateEntry[];
+}
+
+interface SubjectTemplatesData {
+  status: "DRAFT" | "ACTIVE" | "CLOSED" | "ARCHIVED";
+  membershipOutOfDate: boolean;
+  teams: SubjectTemplateTeam[];
+}
+
+interface TemplatePickerOption {
+  id: string;
+  name: string;
+}
+
 interface CycleApiData {
   id: string;
   name: string;
   status: "DRAFT" | "ACTIVE" | "CLOSED" | "ARCHIVED";
   teamTemplates: TeamTemplate[];
   coverageGaps?: CoverageGapEntry[];
+  membershipOutOfDate?: boolean;
   startDate: string;
   endDate: string;
   stats: {
@@ -175,6 +204,9 @@ function countTeamCompleted(reviewers: ReviewerAssignmentsGroup[]) {
 
 type StatusFilterValue = "all" | "PENDING" | "IN_PROGRESS" | "SUBMITTED";
 type DirectionFilterValue = "all" | Direction;
+
+// Sentinel for the "None — won't be reviewed" choice in the template dialog.
+const NONE_VALUE = "__none__";
 
 const ASSIGNMENTS_PER_PAGE = 20;
 const REPORTS_PER_PAGE = 20;
@@ -333,7 +365,7 @@ export default function CycleDetailPage() {
   const [cycle, setCycle] = useState<CycleApiData | null>(null);
   const [cycleReport, setCycleReport] = useState<CycleReport | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "overview" | "assignments" | "reports" | "calibration"
+    "overview" | "assignments" | "templates" | "reports" | "calibration"
   >("overview");
   const [calibrationData, setCalibrationData] = useState<CalibrationData | null>(null);
   const [calibrationLoading, setCalibrationLoading] = useState(false);
@@ -367,6 +399,16 @@ export default function CycleDetailPage() {
   const [reopenEndDate, setReopenEndDate] = useState("");
   const [exportingExcel, setExportingExcel] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Templates tab
+  const [subjectTemplates, setSubjectTemplates] = useState<SubjectTemplatesData | null>(null);
+  const [subjectTemplatesLoading, setSubjectTemplatesLoading] = useState(false);
+  const [templateOptions, setTemplateOptions] = useState<TemplatePickerOption[]>([]);
+  const [editSubject, setEditSubject] = useState<
+    { teamId: string; teamName: string; subject: SubjectTemplateEntry } | null
+  >(null);
+  const [pickedTemplateId, setPickedTemplateId] = useState<string>("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
   const { locked, reset, handleApiResponse, handleUnlocked } = useEncryptionUnlock();
   const { addToast } = useToast();
 
@@ -380,6 +422,119 @@ export default function CycleDetailPage() {
       // handled by null state
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchSubjectTemplates() {
+    setSubjectTemplatesLoading(true);
+    try {
+      const res = await fetch(`/api/cycles/${cycleId}/subject-templates`);
+      const json = await res.json();
+      if (json.success) setSubjectTemplates(json.data);
+    } catch {
+      // handled by null state
+    } finally {
+      setSubjectTemplatesLoading(false);
+    }
+  }
+
+  const templateOptionsFetchedRef = useRef(false);
+  async function ensureTemplateOptions() {
+    if (templateOptionsFetchedRef.current) return;
+    templateOptionsFetchedRef.current = true;
+    try {
+      const res = await fetch(`/api/templates?limit=100`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setTemplateOptions(json.data.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
+      }
+    } catch {
+      templateOptionsFetchedRef.current = false;
+    }
+  }
+
+  // After a template pin/reset/re-sync, reload everything that derives from
+  // assignments + the mapping so all tabs stay consistent. Nulling these caches
+  // makes the Assignments/Reports tabs refetch when next opened.
+  function refreshAfterMappingChange() {
+    setAssignmentsData(null);
+    setCycleReport(null);
+    void fetchCycle();
+    void fetchSubjectTemplates();
+  }
+
+  async function handleSaveTemplate() {
+    if (!editSubject || !pickedTemplateId) return;
+    setSavingTemplate(true);
+    try {
+      const res = await fetch(`/api/cycles/${cycleId}/subject-templates`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamId: editSubject.teamId,
+          subjectId: editSubject.subject.subjectId,
+          templateId: pickedTemplateId === NONE_VALUE ? null : pickedTemplateId,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        addToast("Template updated", "success");
+        setEditSubject(null);
+        refreshAfterMappingChange();
+      } else {
+        addToast(json.error ?? "Failed to update template", "error");
+      }
+    } catch {
+      addToast("Failed to update template", "error");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
+  async function handleResetTemplate() {
+    if (!editSubject) return;
+    setSavingTemplate(true);
+    try {
+      const res = await fetch(`/api/cycles/${cycleId}/subject-templates`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamId: editSubject.teamId,
+          subjectId: editSubject.subject.subjectId,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        addToast("Reset to automatic", "success");
+        setEditSubject(null);
+        refreshAfterMappingChange();
+      } else {
+        addToast(json.error ?? "Failed to reset template", "error");
+      }
+    } catch {
+      addToast("Failed to reset template", "error");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
+  async function handleResync() {
+    setResyncing(true);
+    try {
+      const res = await fetch(`/api/cycles/${cycleId}/subject-templates/sync`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (json.success) {
+        addToast("Cycle re-synced with current team members", "success");
+        refreshAfterMappingChange();
+      } else {
+        addToast(json.error ?? "Failed to re-sync", "error");
+      }
+    } catch {
+      addToast("Failed to re-sync", "error");
+    } finally {
+      setResyncing(false);
     }
   }
 
@@ -469,6 +624,14 @@ export default function CycleDetailPage() {
         .catch(() => {})
         .finally(() => setCalibrationLoading(false));
     }
+    if (activeTab === "templates") {
+      const id = setTimeout(() => {
+        void ensureTemplateOptions();
+        void fetchSubjectTemplates();
+      }, 0);
+      return () => clearTimeout(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, cycleId, handleApiResponse]);
 
   // ─── Filtered assignments ───
@@ -924,7 +1087,7 @@ export default function CycleDetailPage() {
       <Tabs
         value={activeTab}
         onValueChange={(v) =>
-          setActiveTab(v as "overview" | "assignments" | "reports" | "calibration")
+          setActiveTab(v as "overview" | "assignments" | "templates" | "reports" | "calibration")
         }
       >
         <TabsList>
@@ -941,6 +1104,10 @@ export default function CycleDetailPage() {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="templates">
+            <FileSpreadsheet size={15} strokeWidth={1.5} className="mr-1.5" />
+            Templates
+          </TabsTrigger>
           <TabsTrigger value="reports">
             <Users size={15} strokeWidth={1.5} className="mr-1.5" />
             Reports
@@ -955,6 +1122,25 @@ export default function CycleDetailPage() {
 
         {/* ─── Overview Tab ─── */}
         <TabsContent value="overview">
+          {cycle.status === "DRAFT" && cycle.membershipOutOfDate && (
+            <div className="mb-6 flex items-start justify-between gap-3 border border-gray-900 bg-white p-4">
+              <div className="flex items-start gap-2 min-w-0">
+                <AlertTriangle size={16} strokeWidth={1.5} className="text-gray-900 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[13px] font-semibold text-gray-900">
+                    Team membership changed since setup
+                  </p>
+                  <p className="text-[12px] text-gray-500 mt-0.5">
+                    Some team members were added or removed after this cycle was set up. Re-sync to
+                    update templates and regenerate reviews.
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" onClick={handleResync} disabled={resyncing} className="shrink-0">
+                {resyncing ? "Re-syncing…" : "Re-sync"}
+              </Button>
+            </div>
+          )}
           {/* Coverage-gap banner — persistent reminder that some subjects have no
               matching template and won't be reviewed. Fixable only while DRAFT. */}
           {cycle.coverageGaps && cycle.coverageGaps.length > 0 && (
@@ -1318,6 +1504,122 @@ export default function CycleDetailPage() {
             </div>
           )}
           </>)}
+        </TabsContent>
+
+        {/* ─── Templates Tab ─── */}
+        <TabsContent value="templates">
+          {cycle.status === "DRAFT" && cycle.membershipOutOfDate && (
+            <div className="mb-4 flex items-start justify-between gap-3 border border-gray-900 bg-white p-4">
+              <div className="flex items-start gap-2 min-w-0">
+                <AlertTriangle size={16} strokeWidth={1.5} className="text-gray-900 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[13px] font-semibold text-gray-900">
+                    Team membership changed since setup
+                  </p>
+                  <p className="text-[12px] text-gray-500 mt-0.5">
+                    Re-sync to add new members, drop departed ones, and regenerate reviews. Manual
+                    template choices are kept.
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" onClick={handleResync} disabled={resyncing} className="shrink-0">
+                {resyncing ? "Re-syncing…" : "Re-sync"}
+              </Button>
+            </div>
+          )}
+
+          <p className="text-[13px] text-gray-500 mb-4">
+            {cycle.status === "DRAFT"
+              ? "The template each person is reviewed with, per team. Change it for anyone who needs a different form; empty means no matching template (they won't be reviewed)."
+              : "The template each person was reviewed with, per team. Locked once the cycle is active."}
+          </p>
+
+          {subjectTemplatesLoading && !subjectTemplates ? (
+            <div className="space-y-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-48 w-full" />
+            </div>
+          ) : !subjectTemplates || subjectTemplates.teams.length === 0 ? (
+            <Card className="py-12">
+              <p className="text-center text-[14px] text-gray-400">No teams in this cycle</p>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {subjectTemplates.teams.map((team) => (
+                <Card key={team.teamId} padding="sm">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
+                    <Users size={15} strokeWidth={1.5} className="text-gray-400" />
+                    <span className="text-[14px] font-semibold text-gray-900">{team.teamName}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px]">
+                      <thead>
+                        <tr className="border-b border-gray-50">
+                          {["Person", "Designation", "Role", "Template", ""].map((h, i) => (
+                            <th
+                              key={h || i}
+                              className="text-left text-[11px] font-medium text-gray-400 uppercase tracking-caps px-4 py-2"
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {team.subjects.map((s) => (
+                          <tr key={s.subjectId} className="hover:bg-gray-50">
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center gap-2">
+                                <Avatar name={s.name} size="sm" />
+                                <span className="text-[13px] font-medium text-gray-900">{s.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5 text-[12px] text-gray-500">
+                              {s.designationName ?? "—"}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Badge variant="outline">{s.role.charAt(0) + s.role.slice(1).toLowerCase()}</Badge>
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {s.templateName ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[13px] text-gray-900">{s.templateName}</span>
+                                  <Badge variant={s.source === "MANUAL" ? "info" : "outline"} className="text-[10px] px-1.5 py-0">
+                                    {s.source === "MANUAL" ? "Manual" : "Auto"}
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[12px] font-medium text-amber-600">
+                                  <AlertTriangle size={12} strokeWidth={1.5} />
+                                  No template
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-right">
+                              {cycle.status === "DRAFT" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditSubject({ teamId: team.teamId, teamName: team.teamName, subject: s });
+                                    setPickedTemplateId(s.templateId ?? "");
+                                    void ensureTemplateOptions();
+                                  }}
+                                >
+                                  <Pencil size={14} strokeWidth={1.5} className="mr-1" />
+                                  {s.covered ? "Change" : "Assign"}
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         {/* ─── Reports Tab ─── */}
@@ -1843,6 +2145,65 @@ export default function CycleDetailPage() {
                 </>
               )}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Change Template Dialog ─── */}
+      <Dialog open={!!editSubject} onOpenChange={(o) => !o && setEditSubject(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Template for {editSubject?.subject.name}</DialogTitle>
+            <DialogDescription>
+              {editSubject?.teamName} · choose the form this person is reviewed with in this team.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 my-4">
+            <div>
+              <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Person</label>
+              <Input value={editSubject?.subject.name ?? ""} disabled />
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Template</label>
+              <Select value={pickedTemplateId} onValueChange={setPickedTemplateId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a template…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>None — won&apos;t be reviewed</SelectItem>
+                  {templateOptions.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              variant="ghost"
+              onClick={handleResetTemplate}
+              disabled={savingTemplate || editSubject?.subject.source !== "MANUAL"}
+            >
+              Reset to automatic
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => setEditSubject(null)} disabled={savingTemplate}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveTemplate}
+                disabled={
+                  savingTemplate ||
+                  !pickedTemplateId ||
+                  (pickedTemplateId === NONE_VALUE ? null : pickedTemplateId) ===
+                    (editSubject?.subject.templateId ?? null)
+                }
+              >
+                {savingTemplate ? "Saving…" : "Save"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

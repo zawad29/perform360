@@ -7,9 +7,12 @@ import { DIRECTION_KEYS, isValidDirection } from "@/lib/directions";
 import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 import {
   computeCoverageGaps,
+  filterSectionsForDirection,
   resolveAssignmentForm,
+  resolveTemplateForSubject,
   type CoverageGap,
   type SectionShape,
+  type SubjectRole,
   type TemplateMeta,
 } from "@/lib/template-routing";
 export type { CoverageGap, SectionShape, TemplateMeta };
@@ -53,11 +56,19 @@ export interface TeamTemplatesPair {
  *  - EXTERNAL: External users review all members and managers (one-way)
  *  - Impersonators take over the directions listed in their impersonatorDirections.
  *  - Deduplication across teams by (subjectId, reviewerId, templateId, direction).
+ *
+ * When `subjectTemplateMap` (keyed `"subjectId:teamId"`) is supplied it is the
+ * authoritative source of each subject's form — the cycle's mapping table. A
+ * missing/null entry means that subject has no form in that team, so no reviews
+ * are generated for them there. Section→direction filtering still applies. When
+ * omitted, forms are resolved live from team designation routing (legacy path,
+ * kept for existing tests).
  */
 export function generateAssignmentsFromTeams(
   cycleId: string,
   teams: TeamWithMembers[],
-  teamTemplatesMap: Map<string, TemplateMeta[]>
+  teamTemplatesMap: Map<string, TemplateMeta[]>,
+  subjectTemplateMap?: Map<string, TemplateMeta | null>
 ): GeneratedAssignment[] {
   const seen = new Set<string>();
   const assignments: GeneratedAssignment[] = [];
@@ -86,7 +97,28 @@ export function generateAssignmentsFromTeams(
 
   for (const team of teams) {
     const templates = teamTemplatesMap.get(team.id) ?? [];
-    if (templates.length === 0) continue;
+    // With a mapping, a team may have members but no attached templates (all
+    // forms set manually), so only skip on the legacy routing path.
+    if (!subjectTemplateMap && templates.length === 0) continue;
+
+    // Resolve a subject's form for a direction. Mapping wins when present
+    // (missing/empty entry ⇒ no review); otherwise fall back to live routing.
+    const formFor = (
+      userId: string,
+      designationId: string | null,
+      role: SubjectRole,
+      direction: Direction
+    ): string | null => {
+      if (subjectTemplateMap) {
+        const meta = subjectTemplateMap.get(`${userId}:${team.id}`) ?? null;
+        if (!meta) return null;
+        return filterSectionsForDirection(meta.sections ?? [], direction).length > 0
+          ? meta.id
+          : null;
+      }
+      const resolved = resolveAssignmentForm(templates, designationId, direction, role);
+      return resolved?.templateId ?? null;
+    };
 
     const managers = team.members.filter((m) => m.role === "MANAGER");
     const members = team.members.filter((m) => m.role === "MEMBER");
@@ -127,10 +159,9 @@ export function generateAssignmentsFromTeams(
         }
         for (const subject of subjects) {
           // Impersonator subjects are drawn from members/managers, so role is
-          // always a cycle-subject role — narrow it for role-aware routing.
-          const subjectRole = isCycleSubjectRole(subject.role) ? subject.role : undefined;
-          const resolved = resolveAssignmentForm(templates, subject.designationId, direction, subjectRole);
-          if (resolved) addAssignment(subject.userId, imp.userId, direction, resolved.templateId);
+          // always a cycle-subject role.
+          const tid = formFor(subject.userId, subject.designationId, subject.role as SubjectRole, direction);
+          if (tid) addAssignment(subject.userId, imp.userId, direction, tid);
         }
       }
     }
@@ -139,8 +170,8 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("SELF")) {
       for (const m of team.members) {
         if (m.role === "EXTERNAL" || m.role === "IMPERSONATOR") continue;
-        const resolved = resolveAssignmentForm(templates, m.designationId, "SELF", m.role);
-        if (resolved) selfEvalPairs.add(`${m.userId}:${resolved.templateId}`);
+        const tid = formFor(m.userId, m.designationId, m.role as SubjectRole, "SELF");
+        if (tid) selfEvalPairs.add(`${m.userId}:${tid}`);
       }
     }
 
@@ -148,8 +179,8 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("DOWNWARD")) {
       for (const mgr of managers) {
         for (const member of members) {
-          const resolved = resolveAssignmentForm(templates, member.designationId, "DOWNWARD", "MEMBER");
-          if (resolved) addAssignment(member.userId, mgr.userId, "DOWNWARD", resolved.templateId);
+          const tid = formFor(member.userId, member.designationId, "MEMBER", "DOWNWARD");
+          if (tid) addAssignment(member.userId, mgr.userId, "DOWNWARD", tid);
         }
       }
     }
@@ -158,8 +189,8 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("UPWARD")) {
       for (const member of members) {
         for (const mgr of managers) {
-          const resolved = resolveAssignmentForm(templates, mgr.designationId, "UPWARD", "MANAGER");
-          if (resolved) addAssignment(mgr.userId, member.userId, "UPWARD", resolved.templateId);
+          const tid = formFor(mgr.userId, mgr.designationId, "MANAGER", "UPWARD");
+          if (tid) addAssignment(mgr.userId, member.userId, "UPWARD", tid);
         }
       }
     }
@@ -169,15 +200,15 @@ export function generateAssignmentsFromTeams(
       for (const reviewer of members) {
         for (const subject of members) {
           if (reviewer.userId === subject.userId) continue;
-          const resolved = resolveAssignmentForm(templates, subject.designationId, "LATERAL", "MEMBER");
-          if (resolved) addAssignment(subject.userId, reviewer.userId, "LATERAL", resolved.templateId);
+          const tid = formFor(subject.userId, subject.designationId, "MEMBER", "LATERAL");
+          if (tid) addAssignment(subject.userId, reviewer.userId, "LATERAL", tid);
         }
       }
       for (const reviewer of managers) {
         for (const subject of managers) {
           if (reviewer.userId === subject.userId) continue;
-          const resolved = resolveAssignmentForm(templates, subject.designationId, "LATERAL", "MANAGER");
-          if (resolved) addAssignment(subject.userId, reviewer.userId, "LATERAL", resolved.templateId);
+          const tid = formFor(subject.userId, subject.designationId, "MANAGER", "LATERAL");
+          if (tid) addAssignment(subject.userId, reviewer.userId, "LATERAL", tid);
         }
       }
     }
@@ -186,12 +217,12 @@ export function generateAssignmentsFromTeams(
     if (!handledDirections.has("EXTERNAL")) {
       for (const ext of externals) {
         for (const member of members) {
-          const resolved = resolveAssignmentForm(templates, member.designationId, "EXTERNAL", "MEMBER");
-          if (resolved) addAssignment(member.userId, ext.userId, "EXTERNAL", resolved.templateId);
+          const tid = formFor(member.userId, member.designationId, "MEMBER", "EXTERNAL");
+          if (tid) addAssignment(member.userId, ext.userId, "EXTERNAL", tid);
         }
         for (const mgr of managers) {
-          const resolved = resolveAssignmentForm(templates, mgr.designationId, "EXTERNAL", "MANAGER");
-          if (resolved) addAssignment(mgr.userId, ext.userId, "EXTERNAL", resolved.templateId);
+          const tid = formFor(mgr.userId, mgr.designationId, "MANAGER", "EXTERNAL");
+          if (tid) addAssignment(mgr.userId, ext.userId, "EXTERNAL", tid);
         }
       }
     }
@@ -378,40 +409,106 @@ export async function applyTeamTemplates(
   }
 }
 
-/**
- * Fetch teams + templates and persist the generated assignments in a transaction.
- */
-export async function createAssignmentsForCycle(
-  cycleId: string,
-  companyId: string,
-  teamTemplatesPairs: TeamTemplatesPair[]
-): Promise<{ count: number; reviewerEmails: ReviewerInfo[] }> {
-  const teamIds = teamTemplatesPairs.map((p) => p.teamId);
-
-  const teams = await prisma.team.findMany({
-    where: { id: { in: teamIds }, companyId },
-    include: {
-      members: {
+/** Load a cycle's teams (with members) from its CycleTeam rows. */
+async function loadCycleTeams(cycleId: string, companyId: string): Promise<TeamWithMembers[]> {
+  const cycleTeams = await prisma.cycleTeam.findMany({
+    where: { cycleId },
+    select: {
+      team: {
         select: {
-          userId: true,
-          role: true,
-          designationId: true,
-          impersonatorDirections: true,
+          id: true,
+          companyId: true,
+          members: {
+            select: {
+              userId: true,
+              role: true,
+              designationId: true,
+              impersonatorDirections: true,
+            },
+          },
         },
       },
     },
   });
+  return cycleTeams
+    .map((ct) => ct.team)
+    .filter((t) => t.companyId === companyId)
+    .map((t) => ({ id: t.id, members: t.members }));
+}
 
+/**
+ * Build the `"subjectId:teamId" → TemplateMeta | null` map from a cycle's
+ * CycleSubjectTemplate rows, loading the referenced templates' metadata (which
+ * may be company/global templates not attached to any team).
+ */
+async function loadSubjectTemplateMap(
+  cycleId: string
+): Promise<Map<string, TemplateMeta | null>> {
+  const rows = await prisma.cycleSubjectTemplate.findMany({
+    where: { cycleId },
+    select: { subjectId: true, teamId: true, templateId: true },
+  });
+  const templateIds = Array.from(
+    new Set(rows.map((r) => r.templateId).filter((id): id is string => Boolean(id)))
+  );
+  const templates = templateIds.length
+    ? await prisma.evaluationTemplate.findMany({
+        where: { id: { in: templateIds } },
+        select: { id: true, designationIds: true, appliesToRole: true, sections: true },
+      })
+    : [];
+  const metaById = new Map<string, TemplateMeta>(
+    templates.map((t) => [
+      t.id,
+      {
+        id: t.id,
+        designationIds: t.designationIds,
+        appliesToRole: t.appliesToRole,
+        sections: t.sections as unknown as SectionShape[],
+      },
+    ])
+  );
+  const map = new Map<string, TemplateMeta | null>();
+  for (const r of rows) {
+    map.set(`${r.subjectId}:${r.teamId}`, r.templateId ? metaById.get(r.templateId) ?? null : null);
+  }
+  return map;
+}
+
+/**
+ * Regenerate a cycle's assignments from its subject-template mapping: wipe the
+ * existing assignments and recreate them. Reused by Edit Setup and the Templates
+ * tab. DRAFT-only callers must enforce that guard.
+ */
+export async function regenerateCycleAssignments(
+  cycleId: string,
+  companyId: string
+): Promise<{ count: number; reviewerEmails: ReviewerInfo[] }> {
+  await prisma.evaluationAssignment.deleteMany({ where: { cycleId } });
+  return createAssignmentsForCycle(cycleId, companyId);
+}
+
+/**
+ * Generate + persist a cycle's assignments from its subject-template mapping.
+ * The mapping must already be synced (see `syncSubjectTemplateMap`).
+ */
+export async function createAssignmentsForCycle(
+  cycleId: string,
+  companyId: string
+): Promise<{ count: number; reviewerEmails: ReviewerInfo[] }> {
+  const teams = await loadCycleTeams(cycleId, companyId);
   if (teams.length === 0) {
     return { count: 0, reviewerEmails: [] };
   }
 
-  const teamTemplatesMap = new Map<string, TemplateMeta[]>();
-  for (const pair of teamTemplatesPairs) {
-    teamTemplatesMap.set(pair.teamId, pair.templates);
-  }
+  const subjectTemplateMap = await loadSubjectTemplateMap(cycleId);
 
-  const assignments = generateAssignmentsFromTeams(cycleId, teams, teamTemplatesMap);
+  const assignments = generateAssignmentsFromTeams(
+    cycleId,
+    teams,
+    new Map(),
+    subjectTemplateMap
+  );
   if (assignments.length === 0) return { count: 0, reviewerEmails: [] };
 
   const created = await prisma.evaluationAssignment.createMany({
@@ -451,6 +548,54 @@ export async function createAssignmentsForCycle(
     count: created.count,
     reviewerEmails: Array.from(reviewerInfoMap.values()),
   };
+}
+
+/**
+ * Fill/refresh a cycle's CycleSubjectTemplate rows from team routing. For each
+ * (subject, team) in the cycle, upsert an AUTO row with the routed template (or
+ * null when nothing matches). MANUAL rows are preserved; rows for (subject, team)
+ * pairs no longer in the cycle are removed. Runs after applyTeamTemplates and
+ * before any assignment (re)generation.
+ */
+export async function syncSubjectTemplateMap(
+  cycleId: string,
+  companyId: string,
+  teamTemplatesMap: Map<string, TemplateMeta[]>
+): Promise<void> {
+  const teams = await loadCycleTeams(cycleId, companyId);
+  const existing = await prisma.cycleSubjectTemplate.findMany({ where: { cycleId } });
+  const existingByKey = new Map(existing.map((r) => [`${r.subjectId}:${r.teamId}`, r]));
+  const validKeys = new Set<string>();
+
+  for (const team of teams) {
+    const templates = teamTemplatesMap.get(team.id) ?? [];
+    for (const m of team.members) {
+      if (!isCycleSubjectRole(m.role)) continue;
+      const key = `${m.userId}:${team.id}`;
+      validKeys.add(key);
+      const row = existingByKey.get(key);
+      if (row?.source === "MANUAL") continue; // admin choice wins
+      const resolved = resolveTemplateForSubject(templates, m.designationId, m.role);
+      const templateId = resolved?.template.id ?? null;
+      if (!row) {
+        await prisma.cycleSubjectTemplate.create({
+          data: { cycleId, teamId: team.id, subjectId: m.userId, templateId, source: "AUTO" },
+        });
+      } else if (row.templateId !== templateId) {
+        await prisma.cycleSubjectTemplate.update({
+          where: { id: row.id },
+          data: { templateId },
+        });
+      }
+    }
+  }
+
+  const staleIds = existing
+    .filter((r) => !validKeys.has(`${r.subjectId}:${r.teamId}`))
+    .map((r) => r.id);
+  if (staleIds.length) {
+    await prisma.cycleSubjectTemplate.deleteMany({ where: { id: { in: staleIds } } });
+  }
 }
 
 export interface ReviewerInfo {
