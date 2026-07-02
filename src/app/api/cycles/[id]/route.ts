@@ -9,6 +9,7 @@ import {
   validateTeamTemplateCoverage,
   type TeamTemplatesPair,
 } from "@/lib/assignments";
+import { computeCoverageGaps, type CoverageGap } from "@/lib/template-routing";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
 import { errorResponse, zodErrorResponse, internalErrorResponse } from "@/lib/api-responses";
@@ -145,11 +146,27 @@ export async function GET(
     })),
   }));
 
+  // Recompute coverage gaps on read so the detail page always reflects current
+  // team membership / template routing (no stored snapshot to drift).
+  const coverageGaps = computeCoverageGaps(
+    teamTemplates.map((tt) => ({
+      teamId: tt.teamId,
+      teamName: tt.teamName,
+      members: tt.members,
+      templates: tt.templates.map((t) => ({
+        id: t.id,
+        designationIds: t.designationIds,
+        appliesToRole: t.appliesToRole,
+      })),
+    }))
+  );
+
   return NextResponse.json({
     success: true,
     data: {
       ...cycle,
       teamTemplates,
+      coverageGaps,
       stats: {
         totalAssignments,
         submittedAssignments,
@@ -226,6 +243,7 @@ export async function PATCH(
     }
 
     let pairs: TeamTemplatesPair[] = [];
+    let coverageGaps: CoverageGap[] = [];
 
     if (validated.teamTemplates) {
       const teamIds = validated.teamTemplates.map((tt) => tt.teamId);
@@ -240,14 +258,9 @@ export async function PATCH(
       if (!validation.ok) {
         return errorResponse(validation.error, validation.code, 404);
       }
-      if (validation.data.gaps.length > 0) {
-        return errorResponse(
-          "Some members are not covered by any assigned template.",
-          "COVERAGE_GAP",
-          400,
-          { gaps: validation.data.gaps }
-        );
-      }
+      // Gaps no longer block — surfaced as a soft warning and persisted (recomputed)
+      // on the detail page. Uncovered subjects just get no regenerated assignments.
+      coverageGaps = validation.data.gaps;
       pairs = validation.data.pairs;
     }
 
@@ -295,8 +308,11 @@ export async function PATCH(
       success: true,
       data: cycleWithRelations,
       warnings:
-        directionWarnings.length > 0
-          ? { directionCoverage: directionWarnings }
+        directionWarnings.length > 0 || coverageGaps.length > 0
+          ? {
+              directionCoverage: directionWarnings.length > 0 ? directionWarnings : undefined,
+              coverageGaps: coverageGaps.length > 0 ? coverageGaps : undefined,
+            }
           : undefined,
     });
   } catch (error) {

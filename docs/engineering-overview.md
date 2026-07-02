@@ -289,6 +289,15 @@ Assignments are deduplicated on `(cycleId, subjectId, reviewerId, templateId, di
 2. Within that, prefer a template whose `designationIds` includes the subject's designation over one with an empty (wildcard) list.
 3. Section-level filtering: each section can restrict itself to a subset of directions; an empty `directions` array means "visible to all directions."
 
+**Coverage gaps (non-blocking).** A cycle subject (a `MANAGER`/`MEMBER`) is *covered* only when some assigned template matches **both** their team role and designation. If none does, that subject has a coverage gap and **no assignments are generated for them** — they are silently never reviewed and are excluded from reports/stats. `computeCoverageGaps()` in `src/lib/template-routing.ts` is the single shared detector, used by the create/edit wizard preview (`step-teams.tsx`), server validation (`validateTeamTemplateCoverage` in `assignments.ts`), and the `GET /api/cycles/[id]` response.
+
+Gaps do **not** block cycle creation or activation — they surface as a soft warning:
+- persistent banner on the cycle detail **Overview** tab (recomputed on each read, so it reflects current team membership — no stored snapshot to drift);
+- non-blocking panel in the create/edit wizard Step 2;
+- soft-confirm block in the **Activate** dialog.
+
+**Risk & resolution.** Activating a cycle with an unresolved gap makes it permanent: after `DRAFT → ACTIVE`, teams/templates become read-only. **While DRAFT**, fix it by editing the cycle (`PATCH /api/cycles/[id]` deletes and regenerates all assignments) and adding a template whose `designationIds` covers the member — or a wildcard/`ANY`-role template — then confirm the Overview banner clears. **After ACTIVE**, the gap cannot be fixed for that cycle; the uncovered members must wait for the next cycle.
+
 ### 7.4 Scoring & weights
 
 - `WeightPreset` enum: `equal`, `supervisor_focus`, `peer_focus`, `custom`. Templates can define separate weight profiles for member-subjects vs manager-subjects (`weightsMember`/`weightsManager`).

@@ -115,16 +115,10 @@ export async function POST(request: NextRequest) {
     if (!validation.ok) {
       return errorResponse(validation.error, validation.code, 404);
     }
+    // Coverage gaps no longer block creation — uncovered subjects simply get no
+    // assignments. The gap is surfaced as a soft warning and persisted (recomputed)
+    // on the cycle detail page so an admin can resolve it while the cycle is DRAFT.
     const { pairs, gaps } = validation.data;
-
-    if (gaps.length > 0) {
-      return errorResponse(
-        "Some members are not covered by any assigned template. Add a template that includes their designation, or use a template with no designation filter.",
-        "COVERAGE_GAP",
-        400,
-        { gaps }
-      );
-    }
 
     const cycle = await prisma.$transaction(async (tx) => {
       const created = await tx.evaluationCycle.create({
@@ -172,8 +166,11 @@ export async function POST(request: NextRequest) {
         success: true,
         data: { ...cycleWithRelations, assignmentsCreated: count },
         warnings:
-          directionWarnings.length > 0
-            ? { directionCoverage: directionWarnings }
+          directionWarnings.length > 0 || gaps.length > 0
+            ? {
+                directionCoverage: directionWarnings.length > 0 ? directionWarnings : undefined,
+                coverageGaps: gaps.length > 0 ? gaps : undefined,
+              }
             : undefined,
       },
       { status: 201 }

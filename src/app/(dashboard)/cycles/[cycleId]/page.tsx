@@ -103,11 +103,18 @@ interface TeamTemplate {
   templates: CycleTeamTemplateEntry[];
 }
 
+interface CoverageGapEntry {
+  teamId: string;
+  teamName: string;
+  members: { userId: string; name: string; designationName: string | null }[];
+}
+
 interface CycleApiData {
   id: string;
   name: string;
   status: "DRAFT" | "ACTIVE" | "CLOSED" | "ARCHIVED";
   teamTemplates: TeamTemplate[];
+  coverageGaps?: CoverageGapEntry[];
   startDate: string;
   endDate: string;
   stats: {
@@ -948,6 +955,60 @@ export default function CycleDetailPage() {
 
         {/* ─── Overview Tab ─── */}
         <TabsContent value="overview">
+          {/* Coverage-gap banner — persistent reminder that some subjects have no
+              matching template and won't be reviewed. Fixable only while DRAFT. */}
+          {cycle.coverageGaps && cycle.coverageGaps.length > 0 && (
+            <div className="mb-6 border border-gray-900 bg-white p-4">
+              <div className="flex items-start gap-2 mb-2">
+                <AlertTriangle
+                  size={16}
+                  strokeWidth={1.5}
+                  className="text-gray-900 mt-0.5 shrink-0"
+                />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-gray-900">
+                    Coverage gap — {cycle.coverageGaps.reduce((n, g) => n + g.members.length, 0)} member
+                    {cycle.coverageGaps.reduce((n, g) => n + g.members.length, 0) !== 1 ? "s" : ""} not covered
+                  </p>
+                  <p className="text-[12px] text-gray-500 mt-0.5">
+                    {cycle.status === "DRAFT" ? (
+                      <>
+                        These members have no matching template and will not be reviewed in this
+                        cycle. Add a template that covers their designation before activating —{" "}
+                        <button
+                          onClick={() => router.push(`/cycles/${cycle.id}/edit`)}
+                          className="text-gray-900 underline font-medium"
+                        >
+                          Edit Setup
+                        </button>
+                        .
+                      </>
+                    ) : (
+                      <>These members had no matching template and were not reviewed in this cycle. This can no longer be changed.</>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-3 pl-6">
+                {cycle.coverageGaps.map((gap) => (
+                  <div key={gap.teamId}>
+                    <p className="text-[12px] font-medium text-gray-700">{gap.teamName}</p>
+                    <ul className="mt-1 space-y-0.5">
+                      {gap.members.map((member) => (
+                        <li key={member.userId} className="text-[12px] text-gray-600">
+                          • {member.name}{" "}
+                          <span className="text-gray-400">
+                            ({member.designationName ?? "no designation"})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Completion Donut + Status Breakdown */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <Card padding="md">
@@ -1735,6 +1796,19 @@ export default function CycleDetailPage() {
               {cycle.teamTemplates.length} team
               {cycle.teamTemplates.length !== 1 ? "s" : ""} will be activated.
             </p>
+            {cycle.coverageGaps && cycle.coverageGaps.length > 0 && (
+              <div className="border border-gray-900 bg-gray-50 px-4 py-3">
+                <p className="text-[13px] font-semibold text-gray-900">
+                  {cycle.coverageGaps.reduce((n, g) => n + g.members.length, 0)} member
+                  {cycle.coverageGaps.reduce((n, g) => n + g.members.length, 0) !== 1 ? "s" : ""} have no
+                  matching template
+                </p>
+                <p className="text-[12px] text-gray-600 mt-0.5">
+                  They will not be reviewed in this cycle, and this cannot be changed after
+                  activation. Cancel and Edit Setup if you want to cover them first.
+                </p>
+              </div>
+            )}
             <Input
               id="activate-passphrase"
               label="Encryption Passphrase"

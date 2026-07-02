@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 import { useDebouncedSearch } from "./use-debounced-search";
 import { StepBasics } from "./step-basics";
 import { StepTeams } from "./step-teams";
@@ -18,18 +17,6 @@ const STEPS = [
   { label: "Basics", description: "Name & dates" },
   { label: "Teams", description: "Assign templates" },
 ] as const;
-
-interface CoverageGapMember {
-  userId: string;
-  name: string;
-  designationName: string | null;
-}
-
-interface CoverageGap {
-  teamId: string;
-  teamName: string;
-  members: CoverageGapMember[];
-}
 
 interface EditCycleTeamTemplate {
   teamId: string;
@@ -136,7 +123,6 @@ export function CycleEditor({ mode, cycleId }: CycleEditorProps) {
   const [isLoading, setIsLoading] = useState(mode === "edit");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [coverageGaps, setCoverageGaps] = useState<CoverageGap[]>([]);
   const [cycleStatus, setCycleStatus] = useState<EditCycleData["status"] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -246,34 +232,14 @@ export function CycleEditor({ mode, cycleId }: CycleEditorProps) {
 
   const isStep1Valid = !!(name.trim() && startDate && endDate);
 
-  const hasClientCoverageGap = useMemo(() => {
-    if (teams.length === 0 || templates.length === 0) return false;
-    for (const group of groups) {
-      if (group.teamIds.length === 0 || group.templateIds.length === 0) continue;
-      const groupTemplates = templates.filter((template) => group.templateIds.includes(template.id));
-      const hasWildcard = groupTemplates.some((template) => template.designationIds.length === 0);
-      if (hasWildcard) continue;
-      const coveredDesignationIds = new Set(groupTemplates.flatMap((template) => template.designationIds));
-      for (const teamId of group.teamIds) {
-        const team = teams.find((item) => item.id === teamId);
-        if (!team) continue;
-        const hasGap = team.members.some(
-          (member) =>
-            isCycleSubjectRole(member.role) &&
-            (member.designationId === null || !coveredDesignationIds.has(member.designationId))
-        );
-        if (hasGap) return true;
-      }
-    }
-    return false;
-  }, [groups, teams, templates]);
-
+  // Coverage gaps no longer block submission — they're shown as a non-blocking
+  // warning in Step 2 and persisted on the cycle detail page. Only require that
+  // every group has at least one team and one template.
   const isStep2Valid = useMemo(
     () =>
       groups.length > 0 &&
-      groups.every((group) => group.teamIds.length > 0 && group.templateIds.length > 0) &&
-      !hasClientCoverageGap,
-    [groups, hasClientCoverageGap]
+      groups.every((group) => group.teamIds.length > 0 && group.templateIds.length > 0),
+    [groups]
   );
 
   const canProceed = [isStep1Valid, isStep2Valid][step];
@@ -283,7 +249,6 @@ export function CycleEditor({ mode, cycleId }: CycleEditorProps) {
 
     setIsSubmitting(true);
     setSubmitError(null);
-    setCoverageGaps([]);
 
     try {
       const teamTemplates = groups.flatMap((group) =>
@@ -303,11 +268,9 @@ export function CycleEditor({ mode, cycleId }: CycleEditorProps) {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        // Coverage gaps (if any) are persisted on the detail page — navigate through.
         const targetId = mode === "edit" ? cycleId : data.data.id;
         router.push(`/cycles/${targetId}`);
-      } else if (data.code === "COVERAGE_GAP") {
-        setCoverageGaps(data.gaps ?? []);
-        setSubmitError("Some members are not covered by any assigned template.");
       } else {
         setSubmitError(
           data.error ?? (mode === "edit" ? "Failed to update cycle" : "Failed to create cycle")
@@ -432,41 +395,7 @@ export function CycleEditor({ mode, cycleId }: CycleEditorProps) {
             )}
           </div>
 
-          {coverageGaps.length > 0 && (
-            <div className="mt-4 border border-gray-900 bg-white p-4">
-              <p className="text-[13px] font-semibold text-gray-900 mb-2">
-                Coverage gap — these members have no matching template
-              </p>
-              <p className="text-[12px] text-gray-500 mb-3">
-                Add a template that covers their designation, or use a template with no
-                designation filter.
-              </p>
-              <div className="space-y-3">
-                {coverageGaps.map((gap) => (
-                  <div key={gap.teamId}>
-                    <p className="text-[12px] font-medium text-gray-700">
-                      {gap.teamName}
-                    </p>
-                    <ul className="mt-1 space-y-0.5">
-                      {gap.members.map((member) => (
-                        <li
-                          key={member.userId}
-                          className="text-[12px] text-gray-600"
-                        >
-                          • {member.name}{" "}
-                          <span className="text-gray-400">
-                            ({member.designationName ?? "no designation"})
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {submitError && coverageGaps.length === 0 && (
+          {submitError && (
             <div className="mt-4 border border-gray-900 bg-white p-3 text-[13px] text-gray-900">
               {submitError}
             </div>

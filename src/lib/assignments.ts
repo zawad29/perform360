@@ -6,12 +6,13 @@ import { Direction } from "@prisma/client";
 import { DIRECTION_KEYS, isValidDirection } from "@/lib/directions";
 import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 import {
+  computeCoverageGaps,
   resolveAssignmentForm,
-  resolveTemplateForSubject,
+  type CoverageGap,
   type SectionShape,
   type TemplateMeta,
 } from "@/lib/template-routing";
-export type { SectionShape, TemplateMeta };
+export type { CoverageGap, SectionShape, TemplateMeta };
 
 type TxClient = Prisma.TransactionClient;
 
@@ -204,12 +205,6 @@ export function generateAssignmentsFromTeams(
   return assignments;
 }
 
-export interface CoverageGap {
-  teamId: string;
-  teamName: string;
-  members: { userId: string; name: string; designationName: string | null }[];
-}
-
 export interface ValidatedTeamTemplates {
   pairs: TeamTemplatesPair[];
   templateMap: Map<string, TemplateMeta>;
@@ -226,8 +221,8 @@ export interface ValidatedTeamTemplates {
  *
  * Returns a discriminated result:
  *   - `{ ok: false, error, code? }` when teams/templates aren't found
- *   - `{ ok: true, data }` otherwise; if `data.gaps` is non-empty, the caller
- *     should return 400 COVERAGE_GAP without proceeding.
+ *   - `{ ok: true, data }` otherwise. `data.gaps` lists uncovered subjects — a
+ *     soft warning (surfaced on the cycle detail page), not a blocker.
  */
 export async function validateTeamTemplateCoverage(
   companyId: string,
@@ -286,33 +281,37 @@ export async function validateTeamTemplateCoverage(
   );
   const teamMap = new Map(teams.map((t) => [t.id, t]));
 
-  const gaps: CoverageGap[] = [];
-  for (const tt of teamTemplates) {
-    const team = teamMap.get(tt.teamId);
-    if (!team) continue;
-    const assigned = tt.templateIds
-      .map((id) => templateMap.get(id))
-      .filter((x): x is TemplateMeta => Boolean(x));
-
-    // A subject is covered only if a template matches BOTH their team-role and
-    // designation. (A wildcard MEMBER template doesn't cover a MANAGER, so the
-    // old "any wildcard → fully covered" short-circuit no longer applies.)
-    const missing: CoverageGap["members"] = [];
-    for (const m of team.members) {
-      if (!isCycleSubjectRole(m.role)) continue;
-      const resolved = resolveTemplateForSubject(assigned, m.designationId, m.role);
-      if (!resolved) {
-        missing.push({
-          userId: m.userId,
-          name: m.user?.name ?? "Unknown",
-          designationName: m.designation?.name ?? null,
-        });
-      }
-    }
-    if (missing.length > 0) {
-      gaps.push({ teamId: team.id, teamName: team.name, members: missing });
-    }
-  }
+  // A subject is covered only if a template matches BOTH their team-role and
+  // designation. (A wildcard MEMBER template doesn't cover a MANAGER, so the
+  // old "any wildcard → fully covered" short-circuit no longer applies.)
+  // Shared with the wizard preview + detail page via computeCoverageGaps.
+  const gaps: CoverageGap[] = computeCoverageGaps(
+    teamTemplates
+      .map((tt) => {
+        const team = teamMap.get(tt.teamId);
+        if (!team) return null;
+        const assigned = tt.templateIds
+          .map((id) => templateMap.get(id))
+          .filter((x): x is TemplateMeta => Boolean(x));
+        return {
+          teamId: team.id,
+          teamName: team.name,
+          members: team.members.map((m) => ({
+            userId: m.userId,
+            name: m.user?.name ?? "Unknown",
+            role: m.role,
+            designationId: m.designationId,
+            designationName: m.designation?.name ?? null,
+          })),
+          templates: assigned.map((t) => ({
+            id: t.id,
+            designationIds: t.designationIds,
+            appliesToRole: t.appliesToRole,
+          })),
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x))
+  );
 
   const pairs: TeamTemplatesPair[] = teamTemplates.map((tt) => ({
     teamId: tt.teamId,
