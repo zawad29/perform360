@@ -83,6 +83,7 @@ enum WeightPreset {
   supervisor_focus
   peer_focus
   custom
+  default
 }
 
 // Which team-role a template is written for. Routing prefers a template whose
@@ -299,12 +300,39 @@ model EvaluationCycle {
   // allows submission route to encrypt reviewer answers without the passphrase.
   cachedDataKeyEncrypted String?
 
-  assignments   EvaluationAssignment[]
-  cycleTeams    CycleTeam[]
-  reviewerLinks CycleReviewerLink[]
-  calibrations  CalibrationAdjustment[]
+  assignments      EvaluationAssignment[]
+  cycleTeams       CycleTeam[]
+  reviewerLinks    CycleReviewerLink[]
+  calibrations     CalibrationAdjustment[]
+  subjectTemplates CycleSubjectTemplate[]
 
   @@index([companyId, status])
+}
+
+// Source of a per-subject template row: filled from team routing (AUTO) or
+// chosen by an admin in the Templates tab (MANUAL, preserved across re-syncs).
+enum TemplateAssignmentSource {
+  AUTO
+  MANUAL
+}
+
+// Which template each person is reviewed with, per team, in a cycle. One row per
+// (cycle, subject, team). `templateId` null = no matching template (coverage gap).
+// Source of truth for assignment generation + coverage on an existing cycle.
+model CycleSubjectTemplate {
+  id         String                   @id @default(cuid())
+  cycleId    String
+  cycle      EvaluationCycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  teamId     String
+  subjectId  String
+  templateId String?
+  source     TemplateAssignmentSource @default(AUTO)
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+
+  @@unique([cycleId, subjectId, teamId])
+  @@index([cycleId])
+  @@index([cycleId, teamId])
 }
 
 model CycleTeam {

@@ -25,7 +25,7 @@ import { resolveTemplateForSubject, type TemplateMeta, type SubjectRole } from "
 
 const roleEnum = z.enum(["ADMIN", "HR", "MEMBER", "EXTERNAL"]);
 const teamRoleEnum = z.enum(["MANAGER", "MEMBER", "EXTERNAL"]);
-const weightPresetEnum = z.enum(["equal", "supervisor_focus", "peer_focus", "custom"]);
+const weightPresetEnum = z.enum(["equal", "supervisor_focus", "peer_focus", "custom", "default"]);
 
 export const importUserSchema = z.object({
   email: z.string().email(),

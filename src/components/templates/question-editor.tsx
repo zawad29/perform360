@@ -7,6 +7,12 @@ import { Trash2, Plus, X, Settings2 } from "lucide-react";
 import { DragHandle } from "./drag-handle";
 import { QuestionTypeSelector, type QuestionType } from "./question-type-selector";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 interface QuestionData {
   id: string;
@@ -28,13 +34,6 @@ interface QuestionEditorProps {
 }
 
 export function QuestionEditor({ question, sectionId, onUpdate, onRemove }: QuestionEditorProps) {
-  const [showSettings, setShowSettings] = useState(false);
-  const hasCustomScale = question.type === "rating_scale" && (
-    (question.scaleMin != null && question.scaleMin !== 1) ||
-    (question.scaleMax != null && question.scaleMax !== 5) ||
-    question.scaleLabels?.some((l) => l)
-  );
-
   const {
     attributes,
     listeners,
@@ -52,6 +51,13 @@ export function QuestionEditor({ question, sectionId, onUpdate, onRemove }: Ques
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+
+  const [showSettings, setShowSettings] = useState(false);
+  const hasCustomScale = question.type === "rating_scale" && (
+    (question.scaleMin != null && question.scaleMin !== 1) ||
+    (question.scaleMax != null && question.scaleMax !== 5) ||
+    question.scaleLabels?.some((l) => l)
+  );
 
   const scaleMin = question.scaleMin ?? 1;
   const scaleMax = question.scaleMax ?? 5;
@@ -106,24 +112,30 @@ export function QuestionEditor({ question, sectionId, onUpdate, onRemove }: Ques
             Required
           </label>
 
-          {/* Compact scale summary for rating questions */}
           {question.type === "rating_scale" && (
-            <button
-              type="button"
-              onClick={() => setShowSettings(!showSettings)}
-              className={`inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 transition-colors ${
-                showSettings || hasCustomScale
-                  ? "text-brand-600 bg-brand-50"
-                  : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              <Settings2 size={12} strokeWidth={2} />
-              {scaleMin}–{scaleMax}
-            </button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setShowSettings(!showSettings)}
+                    className={`inline-flex items-center gap-1.5 text-[12px] font-medium px-2 py-1 transition-colors ${
+                      showSettings || hasCustomScale
+                        ? "text-brand-600 bg-brand-50"
+                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    <Settings2 size={12} strokeWidth={2} />
+                    {scaleMin}–{scaleMax}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Scale range & labels</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
 
-        <label className="flex items-center gap-1.5 text-[13px] text-gray-500 cursor-pointer select-none">
+        <label className="inline-flex w-fit items-center gap-1.5 text-[13px] text-gray-500 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={guidelineEnabled}
@@ -133,7 +145,7 @@ export function QuestionEditor({ question, sectionId, onUpdate, onRemove }: Ques
           Reviewer guideline
         </label>
 
-        {/* Expandable settings */}
+        {/* Rating scale settings */}
         {question.type === "rating_scale" && showSettings && (
           <RatingScaleSettings
             scaleMin={scaleMin}
@@ -231,16 +243,16 @@ function RatingScaleSettings({
       </div>
       <div className="space-y-1">
         <label className="text-[12px] text-gray-500">Scale labels (optional):</label>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {Array.from({ length: count }, (_, i) => (
             <div key={i} className="flex items-center gap-1">
-              <span className="text-[11px] text-gray-400 w-4 text-center">{scaleMin + i}</span>
+              <span className="text-[11px] text-gray-400 w-4 text-center shrink-0">{scaleMin + i}</span>
               <input
                 type="text"
                 value={scaleLabels?.[i] ?? ""}
                 onChange={(e) => handleLabelChange(i, e.target.value)}
                 placeholder={i === 0 ? "Low" : i === count - 1 ? "High" : ""}
-                className="w-24 h-7 px-2 text-[12px] border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
+                className="flex-1 min-w-0 h-7 px-2 text-[12px] border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
               />
             </div>
           ))}

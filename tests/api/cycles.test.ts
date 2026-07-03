@@ -7,6 +7,7 @@ const { GET, POST } = await import("@/app/api/cycles/route");
 vi.mock("@/lib/assignments", () => ({
   generateAssignmentsFromTeams: vi.fn(),
   createAssignmentsForCycle: vi.fn().mockResolvedValue({ count: 5, reviewerEmails: [] }),
+  syncSubjectTemplateMap: vi.fn().mockResolvedValue(undefined),
   applyTeamTemplates: vi.fn().mockResolvedValue(undefined),
   computeDirectionCoverageWarnings: vi.fn().mockReturnValue([]),
   validateTeamTemplateCoverage: vi.fn(async (_companyId, teamTemplates) => ({

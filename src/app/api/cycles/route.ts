@@ -6,6 +6,7 @@ import {
   applyTeamTemplates,
   createAssignmentsForCycle,
   computeDirectionCoverageWarnings,
+  syncSubjectTemplateMap,
   validateTeamTemplateCoverage,
 } from "@/lib/assignments";
 import { applyRateLimit } from "@/lib/rate-limit";
@@ -115,16 +116,10 @@ export async function POST(request: NextRequest) {
     if (!validation.ok) {
       return errorResponse(validation.error, validation.code, 404);
     }
+    // Coverage gaps no longer block creation — uncovered subjects simply get no
+    // assignments. The gap is surfaced as a soft warning and persisted (recomputed)
+    // on the cycle detail page so an admin can resolve it while the cycle is DRAFT.
     const { pairs, gaps } = validation.data;
-
-    if (gaps.length > 0) {
-      return errorResponse(
-        "Some members are not covered by any assigned template. Add a template that includes their designation, or use a template with no designation filter.",
-        "COVERAGE_GAP",
-        400,
-        { gaps }
-      );
-    }
 
     const cycle = await prisma.$transaction(async (tx) => {
       const created = await tx.evaluationCycle.create({
@@ -142,15 +137,12 @@ export async function POST(request: NextRequest) {
       return created;
     });
 
-    const directionWarnings = computeDirectionCoverageWarnings(
-      new Map(pairs.map((p) => [p.teamId, p.templates]))
-    );
+    const teamTemplatesMap = new Map(pairs.map((p) => [p.teamId, p.templates]));
+    const directionWarnings = computeDirectionCoverageWarnings(teamTemplatesMap);
 
-    const { count } = await createAssignmentsForCycle(
-      cycle.id,
-      authResult.companyId,
-      pairs
-    );
+    // Fill the subject→template mapping (source of truth), then generate reviews from it.
+    await syncSubjectTemplateMap(cycle.id, authResult.companyId, teamTemplatesMap);
+    const { count } = await createAssignmentsForCycle(cycle.id, authResult.companyId);
 
     const cycleWithRelations = await prisma.evaluationCycle.findUniqueOrThrow({
       where: { id: cycle.id },
@@ -172,8 +164,11 @@ export async function POST(request: NextRequest) {
         success: true,
         data: { ...cycleWithRelations, assignmentsCreated: count },
         warnings:
-          directionWarnings.length > 0
-            ? { directionCoverage: directionWarnings }
+          directionWarnings.length > 0 || gaps.length > 0
+            ? {
+                directionCoverage: directionWarnings.length > 0 ? directionWarnings : undefined,
+                coverageGaps: gaps.length > 0 ? gaps : undefined,
+              }
             : undefined,
       },
       { status: 201 }

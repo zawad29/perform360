@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { MultiCombobox } from "@/components/ui/multi-combobox";
 import type { MultiComboboxOption } from "@/components/ui/multi-combobox";
 import { Plus, X, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { isCycleSubjectRole } from "@/lib/cycle-subjects";
-import { resolveTemplateForSubject, type TemplateMeta } from "@/lib/template-routing";
+import { computeCoverageGaps } from "@/lib/template-routing";
 import type {
   AssignmentGroup,
   CoverageGapTeam,
@@ -61,35 +60,30 @@ function computeGroupGaps(
 ): CoverageGapTeam[] {
   if (group.teamIds.length === 0 || group.templateIds.length === 0) return [];
 
-  // Build routing metadata for the group's templates so coverage mirrors the live
-  // engine: a subject is covered only when a template matches BOTH role and designation.
+  // Delegate to the shared engine so coverage mirrors the server exactly: a
+  // subject is covered only when a template matches BOTH role and designation.
   const groupTemplates = templates.filter((t) => group.templateIds.includes(t.id));
-  const metas: TemplateMeta[] = groupTemplates.map((t) => ({
-    id: t.id,
-    designationIds: t.designationIds,
-    appliesToRole: t.appliesToRole,
-    sections: [],
-  }));
-
-  const gaps: CoverageGapTeam[] = [];
-  for (const teamId of group.teamIds) {
-    const team = teams.find((t) => t.id === teamId);
-    if (!team) continue;
-
-    const uncovered = team.members
-      .filter((m) => isCycleSubjectRole(m.role))
-      .filter((m) => !resolveTemplateForSubject(metas, m.designationId, m.role as "MANAGER" | "MEMBER"))
-      .map((m) => ({
+  const inputs = group.teamIds
+    .map((teamId) => teams.find((t) => t.id === teamId))
+    .filter((team): team is TeamOption => Boolean(team))
+    .map((team) => ({
+      teamId: team.id,
+      teamName: team.name,
+      members: team.members.map((m) => ({
         userId: m.userId,
         name: m.user.name,
+        role: m.role,
+        designationId: m.designationId,
         designationName: m.designation?.name ?? null,
-      }));
+      })),
+      templates: groupTemplates.map((t) => ({
+        id: t.id,
+        designationIds: t.designationIds,
+        appliesToRole: t.appliesToRole,
+      })),
+    }));
 
-    if (uncovered.length > 0) {
-      gaps.push({ teamId: team.id, teamName: team.name, members: uncovered });
-    }
-  }
-  return gaps;
+  return computeCoverageGaps(inputs);
 }
 
 export function StepTeams({
@@ -289,7 +283,7 @@ export function StepTeams({
                         Coverage gap
                       </p>
                       <p className="text-[11px] text-gray-500 mt-0.5">
-                        These members do not have a matching template yet.
+                        These members have no matching template and won&apos;t be reviewed in this cycle. You can still continue and add a covering template later while the cycle is a draft.
                       </p>
                     </div>
                   </div>

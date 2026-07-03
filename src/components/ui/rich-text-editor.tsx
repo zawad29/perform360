@@ -70,7 +70,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "min-h-[160px] px-3 py-3 text-[13px] leading-relaxed text-gray-800 focus:outline-none prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5",
+          "min-h-[calc(3lh+1.5rem)] px-3 py-3 text-[13px] leading-relaxed text-gray-800 focus:outline-none prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 [&_p:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0",
       },
     },
     onUpdate: ({ editor }) => {

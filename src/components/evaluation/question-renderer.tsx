@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Info } from "lucide-react";
+import { Check } from "lucide-react";
 import type { TemplateQuestion } from "@/types/evaluation";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import {
@@ -10,7 +10,6 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface QuestionRendererProps {
   question: TemplateQuestion;
@@ -106,11 +105,9 @@ export function QuestionRenderer({
   showWordCount = true,
   indentClass = "pl-0 sm:pl-10",
 }: QuestionRendererProps) {
-  const [showGuidelineDialog, setShowGuidelineDialog] = useState(false);
   const isAnswered = answer !== undefined && answer !== "";
 
   return (
-    <>
     <div className={`relative ${hasError ? "rounded-sm ring-1 ring-red-400 ring-offset-4" : ""}`}>
       {/* Question header */}
       <div className="flex items-start gap-3 mb-4">
@@ -135,15 +132,11 @@ export function QuestionRenderer({
             <p className="text-[12px] text-red-500 font-medium mt-0.5">Required — please answer before continuing</p>
           )}
           {q.guideline && (
-            <div className="mt-2">
-              <button
-                type="button"
-                onClick={() => setShowGuidelineDialog(true)}
-                className="inline-flex items-center gap-1.5 text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <Info size={12} strokeWidth={1.75} />
-                <span>View instructions</span>
-              </button>
+            <div className="mt-2 border border-gray-200 bg-gray-50 px-3 py-2">
+              <RichTextContent
+                html={q.guideline}
+                className="prose prose-sm max-w-none text-[12px] leading-relaxed text-gray-600 prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-strong:text-gray-900"
+              />
             </div>
           )}
         </div>
@@ -220,30 +213,5 @@ export function QuestionRenderer({
         </div>
       )}
     </div>
-
-      <Dialog open={showGuidelineDialog} onOpenChange={(o) => !o && setShowGuidelineDialog(false)}>
-        <DialogContent className="max-w-xl max-h-[70vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[14px] font-semibold uppercase tracking-caps">
-              <Info size={14} strokeWidth={1.75} />
-              View instructions
-            </DialogTitle>
-          </DialogHeader>
-          <RichTextContent
-            html={q.guideline ?? ""}
-            className="prose prose-sm max-w-none text-[13px] leading-relaxed text-gray-600 prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-strong:text-gray-900"
-          />
-          <div className="flex justify-end pt-2">
-            <button
-              type="button"
-              onClick={() => setShowGuidelineDialog(false)}
-              className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }

@@ -11,6 +11,7 @@ vi.mock("@/lib/prisma", () => {
     evaluationTemplate: { findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), deleteMany: vi.fn() },
     evaluationResponse: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn(), deleteMany: vi.fn() },
     cycleTeam: { findMany: vi.fn(), createMany: vi.fn(), count: vi.fn(), deleteMany: vi.fn(), update: vi.fn() },
+    cycleSubjectTemplate: { findMany: vi.fn(() => Promise.resolve([])), findFirst: vi.fn(), create: vi.fn(), createMany: vi.fn(), update: vi.fn(), upsert: vi.fn(), delete: vi.fn(), deleteMany: vi.fn() },
     calibrationAdjustment: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), upsert: vi.fn(), delete: vi.fn(), deleteMany: vi.fn() },
     auditLog: { create: vi.fn(), findMany: vi.fn(), count: vi.fn(), deleteMany: vi.fn() },
     jobQueue: { create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },

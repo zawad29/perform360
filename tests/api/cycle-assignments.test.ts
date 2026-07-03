@@ -101,4 +101,55 @@ describe("GET /api/cycles/[id]/assignments", () => {
     });
     expect(body.data[0].reviewers[1].assignments).toHaveLength(1);
   });
+
+  it("resolves team via the subject-template mapping for a manually-assigned template not attached to the team", async () => {
+    vi.mocked(prisma.evaluationCycle.findFirst).mockResolvedValue({
+      id: cycleId,
+      cycleTeams: [
+        {
+          teamId: "team-1",
+          team: { id: "team-1", name: "Engineering" },
+          templates: [{ template: { id: "tpl-1" } }],
+        },
+      ],
+    } as any);
+
+    // Assignment uses a template NOT in the team's attached templates.
+    vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
+      {
+        id: "a1",
+        token: "tok-1",
+        templateId: "tpl-manual",
+        subjectId: "s1",
+        reviewerId: "r1",
+        direction: "SELF",
+        status: "PENDING",
+      },
+    ] as any);
+
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: "s1", name: "Alice" },
+      { id: "r1", name: "Reviewer One" },
+    ] as any);
+
+    vi.mocked(prisma.teamMember.findMany).mockResolvedValue([
+      { userId: "s1", teamId: "team-1", role: "MEMBER" },
+      { userId: "r1", teamId: "team-1", role: "MEMBER" },
+    ] as any);
+
+    vi.mocked(prisma.cycleReviewerLink.findMany).mockResolvedValue([] as any);
+
+    // Mapping row places (s1, tpl-manual) in team-1.
+    vi.mocked(prisma.cycleSubjectTemplate.findMany).mockResolvedValue([
+      { subjectId: "s1", teamId: "team-1", templateId: "tpl-manual" },
+    ] as any);
+
+    const req = createMockRequest(`http://localhost:3000/api/cycles/${cycleId}/assignments`);
+    const res = await GET(req as any, { params: Promise.resolve({ id: cycleId }) });
+    const { status, body } = await parseResponse(res);
+
+    expect(status).toBe(200);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]).toMatchObject({ teamId: "team-1", teamName: "Engineering" });
+  });
 });

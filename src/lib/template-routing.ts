@@ -2,6 +2,7 @@
 // assignment generation (lib/assignments.ts) and client-side routing UI.
 
 import type { Direction } from "@/lib/directions";
+import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 
 export interface SectionShape {
   id: string;
@@ -89,6 +90,71 @@ export function filterSectionsForDirection<T extends { directions?: Direction[] 
     const dirs = s.directions ?? [];
     return dirs.length === 0 || dirs.includes(direction);
   });
+}
+
+// ─── Coverage gaps ───
+// Shared detection of subjects who have no matching template. Used by the
+// create/edit wizard preview, the server GET /api/cycles/[id] response, and
+// server-side validation — all resolve coverage with the same rule so the
+// client preview and server truth never diverge.
+
+export interface CoverageGapMemberInput {
+  userId: string;
+  name: string;
+  role: string;
+  designationId: string | null;
+  designationName: string | null;
+}
+
+export interface CoverageGapTemplateInput {
+  id: string;
+  designationIds: string[];
+  appliesToRole: TemplateApplicableRole;
+}
+
+export interface CoverageGapTeamInput {
+  teamId: string;
+  teamName: string;
+  members: CoverageGapMemberInput[];
+  templates: CoverageGapTemplateInput[];
+}
+
+export interface CoverageGap {
+  teamId: string;
+  teamName: string;
+  members: { userId: string; name: string; designationName: string | null }[];
+}
+
+/**
+ * For each team, collect the cycle subjects (MANAGER/MEMBER) that no assigned
+ * template covers for BOTH their role and designation. Teams fully covered are
+ * omitted. Pure — safe on both client and server.
+ */
+export function computeCoverageGaps(teams: CoverageGapTeamInput[]): CoverageGap[] {
+  const gaps: CoverageGap[] = [];
+  for (const team of teams) {
+    if (team.templates.length === 0) continue;
+    const metas: TemplateMeta[] = team.templates.map((t) => ({
+      id: t.id,
+      designationIds: t.designationIds,
+      appliesToRole: t.appliesToRole,
+      sections: [],
+    }));
+
+    const missing = team.members
+      .filter((m) => isCycleSubjectRole(m.role))
+      .filter((m) => !resolveTemplateForSubject(metas, m.designationId, m.role as SubjectRole))
+      .map((m) => ({
+        userId: m.userId,
+        name: m.name,
+        designationName: m.designationName,
+      }));
+
+    if (missing.length > 0) {
+      gaps.push({ teamId: team.teamId, teamName: team.teamName, members: missing });
+    }
+  }
+  return gaps;
 }
 
 /**

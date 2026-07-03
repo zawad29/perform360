@@ -6,9 +6,12 @@ import {
   applyTeamTemplates,
   createAssignmentsForCycle,
   computeDirectionCoverageWarnings,
+  syncSubjectTemplateMap,
   validateTeamTemplateCoverage,
   type TeamTemplatesPair,
 } from "@/lib/assignments";
+import { computeCoverageGaps, type CoverageGap } from "@/lib/template-routing";
+import { isCycleSubjectRole } from "@/lib/cycle-subjects";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { validateCuidParam } from "@/lib/validation";
 import { errorResponse, zodErrorResponse, internalErrorResponse } from "@/lib/api-responses";
@@ -145,11 +148,81 @@ export async function GET(
     })),
   }));
 
+  // Coverage from the subject→template mapping (source of truth): a gap is a row
+  // with no template. Legacy cycles without rows fall back to live routing.
+  const subjectTemplateRows = await prisma.cycleSubjectTemplate.findMany({
+    where: { cycleId: id },
+    select: { subjectId: true, teamId: true, templateId: true },
+  });
+
+  const teamNameById = new Map(teamTemplates.map((t) => [t.teamId, t.teamName]));
+  const memberInfo = new Map<string, { name: string; designationName: string | null }>();
+  for (const tt of teamTemplates) {
+    for (const m of tt.members) {
+      memberInfo.set(`${tt.teamId}:${m.userId}`, {
+        name: m.name,
+        designationName: m.designationName,
+      });
+    }
+  }
+
+  let coverageGaps: CoverageGap[];
+  if (subjectTemplateRows.length > 0) {
+    const gapsByTeam = new Map<string, CoverageGap>();
+    for (const r of subjectTemplateRows) {
+      if (r.templateId) continue;
+      const info = memberInfo.get(`${r.teamId}:${r.subjectId}`);
+      let g = gapsByTeam.get(r.teamId);
+      if (!g) {
+        g = { teamId: r.teamId, teamName: teamNameById.get(r.teamId) ?? "Unknown", members: [] };
+        gapsByTeam.set(r.teamId, g);
+      }
+      g.members.push({
+        userId: r.subjectId,
+        name: info?.name ?? "Unknown",
+        designationName: info?.designationName ?? null,
+      });
+    }
+    coverageGaps = Array.from(gapsByTeam.values());
+  } else {
+    coverageGaps = computeCoverageGaps(
+      teamTemplates.map((tt) => ({
+        teamId: tt.teamId,
+        teamName: tt.teamName,
+        members: tt.members,
+        templates: tt.templates.map((t) => ({
+          id: t.id,
+          designationIds: t.designationIds,
+          appliesToRole: t.appliesToRole,
+        })),
+      }))
+    );
+  }
+
+  // Drift: team membership changed after setup (DRAFT only). Read-only signal;
+  // the admin re-syncs from the UI. True when a current subject has no mapping
+  // row, or a mapping row's member has left the team.
+  let membershipOutOfDate = false;
+  if (cycle.status === "DRAFT" && subjectTemplateRows.length > 0) {
+    const rowKeys = new Set(subjectTemplateRows.map((r) => `${r.subjectId}:${r.teamId}`));
+    const currentKeys = new Set<string>();
+    for (const tt of teamTemplates) {
+      for (const m of tt.members) {
+        if (isCycleSubjectRole(m.role)) currentKeys.add(`${m.userId}:${tt.teamId}`);
+      }
+    }
+    membershipOutOfDate =
+      [...currentKeys].some((k) => !rowKeys.has(k)) ||
+      [...rowKeys].some((k) => !currentKeys.has(k));
+  }
+
   return NextResponse.json({
     success: true,
     data: {
       ...cycle,
       teamTemplates,
+      coverageGaps,
+      membershipOutOfDate,
       stats: {
         totalAssignments,
         submittedAssignments,
@@ -226,6 +299,7 @@ export async function PATCH(
     }
 
     let pairs: TeamTemplatesPair[] = [];
+    let coverageGaps: CoverageGap[] = [];
 
     if (validated.teamTemplates) {
       const teamIds = validated.teamTemplates.map((tt) => tt.teamId);
@@ -240,14 +314,9 @@ export async function PATCH(
       if (!validation.ok) {
         return errorResponse(validation.error, validation.code, 404);
       }
-      if (validation.data.gaps.length > 0) {
-        return errorResponse(
-          "Some members are not covered by any assigned template.",
-          "COVERAGE_GAP",
-          400,
-          { gaps: validation.data.gaps }
-        );
-      }
+      // Gaps no longer block — surfaced as a soft warning and persisted (recomputed)
+      // on the detail page. Uncovered subjects just get no regenerated assignments.
+      coverageGaps = validation.data.gaps;
       pairs = validation.data.pairs;
     }
 
@@ -270,10 +339,12 @@ export async function PATCH(
 
     let directionWarnings: { teamId: string; missingDirections: string[] }[] = [];
     if (validated.teamTemplates && pairs.length > 0) {
-      directionWarnings = computeDirectionCoverageWarnings(
-        new Map(pairs.map((p) => [p.teamId, p.templates]))
-      );
-      await createAssignmentsForCycle(id, authResult.companyId, pairs);
+      const teamTemplatesMap = new Map(pairs.map((p) => [p.teamId, p.templates]));
+      directionWarnings = computeDirectionCoverageWarnings(teamTemplatesMap);
+      // Refresh the subject→template mapping (AUTO rows; MANUAL choices kept),
+      // then regenerate reviews from it. The tx above already cleared assignments.
+      await syncSubjectTemplateMap(id, authResult.companyId, teamTemplatesMap);
+      await createAssignmentsForCycle(id, authResult.companyId);
     }
 
     const cycleWithRelations = await prisma.evaluationCycle.findUniqueOrThrow({
@@ -295,8 +366,11 @@ export async function PATCH(
       success: true,
       data: cycleWithRelations,
       warnings:
-        directionWarnings.length > 0
-          ? { directionCoverage: directionWarnings }
+        directionWarnings.length > 0 || coverageGaps.length > 0
+          ? {
+              directionCoverage: directionWarnings.length > 0 ? directionWarnings : undefined,
+              coverageGaps: coverageGaps.length > 0 ? coverageGaps : undefined,
+            }
           : undefined,
     });
   } catch (error) {

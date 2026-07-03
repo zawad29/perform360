@@ -79,7 +79,7 @@ export async function GET(
 
   const teamIds = cycle.cycleTeams.map((ct) => ct.team.id);
 
-  const [users, memberships, reviewerLinks] = await Promise.all([
+  const [users, memberships, reviewerLinks, subjectTemplates] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: Array.from(userIds) } },
       select: { id: true, name: true },
@@ -92,13 +92,29 @@ export async function GET(
       where: { cycleId },
       select: { reviewerId: true, token: true },
     }),
+    prisma.cycleSubjectTemplate.findMany({
+      where: { cycleId },
+      select: { subjectId: true, teamId: true, templateId: true },
+    }),
   ]);
 
   const reviewerLinkMap = new Map(reviewerLinks.map((rl) => [rl.reviewerId, rl.token]));
 
   const nameMap = new Map(users.map((u) => [u.id, u.name]));
 
-  // Build templateId -> team mapping
+  const teamNameById = new Map(cycle.cycleTeams.map((ct) => [ct.team.id, ct.team.name]));
+
+  // Authoritative (subject, template) -> teamId from the cycle's template mapping.
+  // Needed because a manually-assigned template isn't attached to the team, so it
+  // can't be resolved via templateToTeams below.
+  const subjectTemplateTeam = new Map<string, string>();
+  for (const r of subjectTemplates) {
+    if (!r.templateId) continue;
+    const key = `${r.subjectId}:${r.templateId}`;
+    if (!subjectTemplateTeam.has(key)) subjectTemplateTeam.set(key, r.teamId);
+  }
+
+  // Build templateId -> team mapping (fallback for legacy cycles w/o mapping rows).
   const templateToTeams = new Map<string, { teamId: string; teamName: string }[]>();
   for (const ct of cycle.cycleTeams) {
     for (const ctt of ct.templates) {
@@ -127,12 +143,25 @@ export async function GET(
   );
 
   const assignmentsWithNames: AssignmentRow[] = assignments.map((a) => {
-    const teams = templateToTeams.get(a.templateId) ?? [];
-    let team = teams[0] ?? { teamId: "", teamName: "Unknown" };
-    if (teams.length > 1 && userTeamMap) {
-      const subjectTeams = userTeamMap.get(a.subjectId);
-      const match = teams.find((t) => subjectTeams?.has(t.teamId));
-      if (match) team = match;
+    // Prefer the authoritative (subject, template) -> team from the mapping. This
+    // is the only way to place a manually-assigned template (not attached to the
+    // team) — otherwise it falls through to "Unknown".
+    // TODO: team is inferred from (subjectId, templateId) because assignments
+    // don't store a teamId. This is ambiguous when a subject has the SAME template
+    // in multiple teams. Proper fix: persist teamId on EvaluationAssignment at
+    // generation time (schema + generateAssignmentsFromTeams change).
+    let team: { teamId: string; teamName: string };
+    const mappedTeamId = subjectTemplateTeam.get(`${a.subjectId}:${a.templateId}`);
+    if (mappedTeamId) {
+      team = { teamId: mappedTeamId, teamName: teamNameById.get(mappedTeamId) ?? "Unknown" };
+    } else {
+      const teams = templateToTeams.get(a.templateId) ?? [];
+      team = teams[0] ?? { teamId: "", teamName: "Unknown" };
+      if (teams.length > 1 && userTeamMap) {
+        const subjectTeams = userTeamMap.get(a.subjectId);
+        const match = teams.find((t) => subjectTeams?.has(t.teamId));
+        if (match) team = match;
+      }
     }
     return {
       ...a,
