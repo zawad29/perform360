@@ -5,7 +5,7 @@ import type { Direction } from "@/lib/directions";
 const HEADER_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FF0071E3" },
+  fgColor: { argb: "FF1F2937" },
 };
 
 const HEADER_FONT: Partial<ExcelJS.Font> = {
@@ -17,7 +17,7 @@ const HEADER_FONT: Partial<ExcelJS.Font> = {
 const BANNER_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FFEAF3FE" },
+  fgColor: { argb: "FF111827" },
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -69,7 +69,7 @@ export async function renderAssignmentsToExcel(
     ws.mergeCells(banner.number, 1, banner.number, COLUMNS.length);
     const bannerCell = banner.getCell(1);
     bannerCell.value = team.teamName;
-    bannerCell.font = { bold: true, size: 12, color: { argb: "FF0071E3" } };
+    bannerCell.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
     bannerCell.fill = BANNER_FILL;
     bannerCell.alignment = { vertical: "middle", horizontal: "left" };
     banner.height = 22;
