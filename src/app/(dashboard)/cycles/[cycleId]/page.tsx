@@ -398,6 +398,7 @@ export default function CycleDetailPage() {
   const [reopening, setReopening] = useState(false);
   const [reopenEndDate, setReopenEndDate] = useState("");
   const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportingAssignments, setExportingAssignments] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // Templates tab
   const [subjectTemplates, setSubjectTemplates] = useState<SubjectTemplatesData | null>(null);
@@ -829,6 +830,38 @@ export default function CycleDetailPage() {
       );
     } finally {
       setExportingExcel(false);
+    }
+  }
+
+  async function handleExportAssignments() {
+    if (filteredAssignmentTeams.length === 0) return;
+    setExportingAssignments(true);
+    try {
+      const res = await fetch(`/api/cycles/${cycleId}/assignments/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teams: filteredAssignmentTeams }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error || "Failed to export assignments");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${cycle?.name ?? "cycle"}-assignments.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      addToast(
+        err instanceof Error ? err.message : "Failed to export assignments",
+        "error"
+      );
+    } finally {
+      setExportingAssignments(false);
     }
   }
 
@@ -1342,6 +1375,17 @@ export default function CycleDetailPage() {
               {filteredAssignmentTeams.length > 0 &&
                 ` across ${filteredAssignmentTeams.length} team${filteredAssignmentTeams.length !== 1 ? "s" : ""}`}
             </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExportAssignments}
+              disabled={
+                exportingAssignments || filteredAssignmentTeams.length === 0
+              }
+            >
+              <FileSpreadsheet size={14} strokeWidth={1.5} className="mr-1.5" />
+              {exportingAssignments ? "Exporting…" : "Export Excel"}
+            </Button>
           </div>
 
           {/* Grouped Assignments Table */}
