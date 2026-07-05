@@ -117,11 +117,11 @@ export async function renderAssignmentsToExcel(
 
 function autoWidth(ws: ExcelJS.Worksheet): void {
   ws.columns.forEach((col) => {
-    let max = 12;
+    let max = 18;
     col.eachCell?.({ includeEmpty: false }, (cell) => {
-      const len = String(cell.value ?? "").length + 2;
+      const len = String(cell.value ?? "").length + 4;
       if (len > max) max = len;
     });
-    col.width = Math.min(max, 40);
+    col.width = Math.min(max, 60);
   });
 }
