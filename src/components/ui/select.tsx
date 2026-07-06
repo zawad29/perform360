@@ -44,7 +44,7 @@ export function SelectContent({
         sideOffset={4}
         {...props}
       >
-        <SelectPrimitive.Viewport className="p-1">
+        <SelectPrimitive.Viewport className="max-h-[280px] overflow-y-auto p-1">
           {children}
         </SelectPrimitive.Viewport>
       </SelectPrimitive.Content>
