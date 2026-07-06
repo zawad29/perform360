@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { Check, Info } from "lucide-react";
 import type { TemplateQuestion } from "@/types/evaluation";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import {
@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface QuestionRendererProps {
   question: TemplateQuestion;
@@ -40,7 +41,7 @@ function RatingScale({
 
   return (
     <div className="space-y-3">
-      <TooltipProvider>
+      <TooltipProvider delayDuration={250}>
         <div className="relative flex items-center justify-between gap-1">
           {/* Track */}
           <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-[2px] bg-gray-100" />
@@ -94,6 +95,70 @@ function RatingScale({
   );
 }
 
+const GUIDELINE_PROSE_CLASSES =
+  "prose prose-sm max-w-none leading-relaxed text-gray-600 prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-strong:text-gray-900";
+
+function GuidelineBox({ guideline }: { guideline: string }) {
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    setIsOverflowing(el.scrollHeight > el.clientHeight + 2);
+  }, [guideline]);
+
+  return (
+    <>
+      <div className="mt-2 border border-gray-200 bg-gray-50 px-3 py-2">
+        <div ref={contentRef} className="relative max-h-[72px] overflow-hidden">
+          <RichTextContent
+            html={guideline}
+            className={`${GUIDELINE_PROSE_CLASSES} text-[12px]`}
+          />
+          {isOverflowing && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-gray-50 to-transparent" />
+          )}
+        </div>
+        {isOverflowing && (
+          <button
+            type="button"
+            onClick={() => setShowDialog(true)}
+            className="mt-1 text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            See more
+          </button>
+        )}
+      </div>
+
+      <Dialog open={showDialog} onOpenChange={(o) => !o && setShowDialog(false)}>
+        <DialogContent className="max-w-xl max-h-[70vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[14px] font-semibold uppercase tracking-caps">
+              <Info size={14} strokeWidth={1.75} />
+              Reviewer guideline
+            </DialogTitle>
+          </DialogHeader>
+          <RichTextContent
+            html={guideline}
+            className={`${GUIDELINE_PROSE_CLASSES} text-[13px]`}
+          />
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setShowDialog(false)}
+              className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export function QuestionRenderer({
   question: q,
   questionNumber,
@@ -131,14 +196,7 @@ export function QuestionRenderer({
           {hasError && (
             <p className="text-[12px] text-red-500 font-medium mt-0.5">Required — please answer before continuing</p>
           )}
-          {q.guideline && (
-            <div className="mt-2 border border-gray-200 bg-gray-50 px-3 py-2">
-              <RichTextContent
-                html={q.guideline}
-                className="prose prose-sm max-w-none text-[12px] leading-relaxed text-gray-600 prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-strong:text-gray-900"
-              />
-            </div>
-          )}
+          {q.guideline && <GuidelineBox guideline={q.guideline} />}
         </div>
       </div>
 

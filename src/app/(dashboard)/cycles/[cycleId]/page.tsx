@@ -2153,16 +2153,12 @@ export default function CycleDetailPage() {
       <Dialog open={!!editSubject} onOpenChange={(o) => !o && setEditSubject(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Template for {editSubject?.subject.name}</DialogTitle>
+            <DialogTitle>Template for <strong>{editSubject?.subject.name}</strong></DialogTitle>
             <DialogDescription>
               {editSubject?.teamName} · choose the form this person is reviewed with in this team.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 my-4">
-            <div>
-              <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Person</label>
-              <Input value={editSubject?.subject.name ?? ""} disabled />
-            </div>
             <div>
               <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Template</label>
               <Select value={pickedTemplateId} onValueChange={setPickedTemplateId}>
