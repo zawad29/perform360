@@ -9,6 +9,8 @@ import { getCycleCompletionEmail } from "@/lib/email";
 import type { EmailSendPayload } from "@/types/job";
 import { writeAuditLog } from "@/lib/audit";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { isAnswerMissing } from "@/lib/evaluation-form";
+import type { AnswerMap } from "@/types/evaluation";
 
 type ApiResponse<T> =
   | { success: true; data: T }
@@ -142,7 +144,7 @@ export async function POST(
 
     // Parse and validate answers
     const body = await request.json();
-    const { answers } = body as { answers: Record<string, string | number | boolean> };
+    const { answers } = body as { answers: AnswerMap };
 
     if (!answers || typeof answers !== "object") {
       return NextResponse.json<ApiResponse<never>>(
@@ -179,9 +181,7 @@ export async function POST(
     );
     const requiredQuestions = allQuestions.filter((q) => q.required);
 
-    const missing = requiredQuestions.filter(
-      (q) => answers[q.id] === undefined || answers[q.id] === ""
-    );
+    const missing = requiredQuestions.filter((q) => isAnswerMissing(answers[q.id]));
     if (missing.length > 0) {
       const missingLabels = missing
         .slice(0, 5)

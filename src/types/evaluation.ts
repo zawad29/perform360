@@ -27,6 +27,8 @@ export interface TemplateSection {
   questions: TemplateQuestion[];
 }
 
+export type AnswerMap = Record<string, string | number | boolean>;
+
 export interface EvaluationFormData {
-  answers: Record<string, string | number | boolean>;
+  answers: AnswerMap;
 }

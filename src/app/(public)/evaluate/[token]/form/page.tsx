@@ -9,8 +9,9 @@ import {
 } from "lucide-react";
 import { QuestionRenderer } from "@/components/evaluation/question-renderer";
 
-import type { TemplateSection } from "@/types/evaluation";
+import type { AnswerMap, TemplateSection } from "@/types/evaluation";
 import { DIRECTION_LABELS, type Direction } from "@/lib/directions";
+import { requiredUnanswered, firstBlockedSection } from "@/lib/evaluation-form";
 
 interface FormData {
   subjectName: string;
@@ -27,7 +28,7 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
   const [isLoadingForm, setIsLoadingForm] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [currentSection, setCurrentSection] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
+  const [answers, setAnswers] = useState<AnswerMap>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -129,20 +130,19 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
     }
   }
 
-  function validateSection(sectionIndex: number): boolean {
-    const s = sections[sectionIndex];
-    const unanswered = s.questions
-      .filter((q) => q.required && (answers[q.id] === undefined || answers[q.id] === ""))
-      .map((q) => q.id);
-
-    if (unanswered.length > 0) {
-      setSectionErrors(new Set(unanswered));
-      setShowValidation(true);
-      return false;
+  function goToSection(target: number) {
+    if (target > currentSection) {
+      const blocked = firstBlockedSection(sections, answers, currentSection, target);
+      if (blocked !== -1) {
+        setSectionErrors(new Set(requiredUnanswered(sections[blocked], answers)));
+        setShowValidation(true);
+        setCurrentSection(blocked);
+        return;
+      }
     }
     setSectionErrors(new Set());
     setShowValidation(false);
-    return true;
+    setCurrentSection(target);
   }
 
   function validateAllSections(): { valid: boolean; firstInvalidSection: number } {
@@ -150,21 +150,13 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
     let firstInvalid = -1;
 
     for (let i = 0; i < sections.length; i++) {
-      const s = sections[i];
-      const unanswered = s.questions
-        .filter((q) => q.required && (answers[q.id] === undefined || answers[q.id] === ""))
-        .map((q) => q.id);
+      const unanswered = requiredUnanswered(sections[i], answers);
       if (unanswered.length > 0 && firstInvalid === -1) firstInvalid = i;
       allMissing.push(...unanswered);
     }
 
     if (allMissing.length > 0) {
-      const sectionQuestionIds = new Set(
-        sections[firstInvalid].questions
-          .filter((q) => q.required && (answers[q.id] === undefined || answers[q.id] === ""))
-          .map((q) => q.id)
-      );
-      setSectionErrors(sectionQuestionIds);
+      setSectionErrors(new Set(requiredUnanswered(sections[firstInvalid], answers)));
       setShowValidation(true);
       return { valid: false, firstInvalidSection: firstInvalid };
     }
@@ -324,7 +316,7 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
                         )}
                         <button
                           type="button"
-                          onClick={() => { setSectionErrors(new Set()); setShowValidation(false); setCurrentSection(i); }}
+                          onClick={() => goToSection(i)}
                           title={`${s.title} (${answered}/${s.questions.length})`}
                           className={`
                             relative flex items-center justify-center transition-all
@@ -405,7 +397,7 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { setSectionErrors(new Set()); setShowValidation(false); setCurrentSection(Math.max(0, currentSection - 1)); }}
+                onClick={() => goToSection(Math.max(0, currentSection - 1))}
                 disabled={currentSection === 0}
                 className="text-gray-500"
               >
@@ -420,9 +412,7 @@ export default function EvaluationFormPage({ params: paramsPromise }: { params: 
               {!isLastSection ? (
                 <Button
                   size="sm"
-                  onClick={() => {
-                    if (validateSection(currentSection)) setCurrentSection(currentSection + 1);
-                  }}
+                  onClick={() => goToSection(currentSection + 1)}
                 >
                   Next
                   <ChevronRight size={15} strokeWidth={1.5} className="ml-1" />
