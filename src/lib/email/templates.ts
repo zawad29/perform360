@@ -176,7 +176,6 @@ export function getSummaryInviteEmail(
     <p style="margin: 0 0 16px; font-size: 16px; color: #555555; line-height: 1.7; font-family: Georgia, 'Times New Roman', serif;">You have <strong>${count}</strong> evaluation${count === 1 ? "" : "s"} to complete for the <strong>${escapeHtml(cycleName)}</strong> cycle:</p>
     <ul style="margin: 0 0 24px; padding-left: 20px;">${assignmentListHtml}</ul>
     ${ctaButton(summaryUrl, "View All Evaluations")}
-    <p style="margin: 24px 0 0; font-size: 12px; color: #888888; line-height: 1.5; font-family: 'Helvetica Neue', 'Arial Narrow', Arial, sans-serif;">You'll verify your identity once, then have 4 hours to complete all evaluations.</p>
     `
   );
 
@@ -184,7 +183,7 @@ export function getSummaryInviteEmail(
     .map((a) => `  - ${a.subjectName} (${a.direction})`)
     .join("\n");
 
-  const text = `Hi ${recipientName},\n\nYou have ${count} evaluation${count === 1 ? "" : "s"} to complete for the ${cycleName} cycle:\n\n${assignmentListText}\n\nView all evaluations: ${summaryUrl}\n\nYou'll verify your identity once, then have 4 hours to complete all evaluations.`;
+  const text = `Hi ${recipientName},\n\nYou have ${count} evaluation${count === 1 ? "" : "s"} to complete for the ${cycleName} cycle:\n\n${assignmentListText}\n\nView all evaluations: ${summaryUrl}`;
 
   return { html, text };
 }
@@ -214,7 +213,6 @@ export function getSummaryReminderEmail(
     <ul style="margin: 0 0 16px; padding-left: 20px;">${assignmentListHtml}</ul>
     <p style="margin: 0 0 24px; font-size: 16px; color: #555555; line-height: 1.7; font-family: Georgia, 'Times New Roman', serif;">The deadline is <strong>${escapeHtml(deadline)}</strong>. Please complete them before then.</p>
     ${ctaButton(summaryUrl, "View All Evaluations")}
-    <p style="margin: 24px 0 0; font-size: 12px; color: #888888; line-height: 1.5; font-family: 'Helvetica Neue', 'Arial Narrow', Arial, sans-serif;">You'll verify your identity once, then have 4 hours to complete all evaluations.</p>
     `
   );
 
@@ -222,7 +220,7 @@ export function getSummaryReminderEmail(
     .map((a) => `  - ${a.subjectName} (${a.direction})`)
     .join("\n");
 
-  const text = `Hi ${recipientName},\n\nYou still have ${count} pending evaluation${count === 1 ? "" : "s"} for the ${cycleName} cycle:\n\n${assignmentListText}\n\nThe deadline is ${deadline}. Please complete them before then.\n\nView all evaluations: ${summaryUrl}\n\nYou'll verify your identity once, then have 4 hours to complete all evaluations.`;
+  const text = `Hi ${recipientName},\n\nYou still have ${count} pending evaluation${count === 1 ? "" : "s"} for the ${cycleName} cycle:\n\n${assignmentListText}\n\nThe deadline is ${deadline}. Please complete them before then.\n\nView all evaluations: ${summaryUrl}`;
 
   return { html, text };
 }
