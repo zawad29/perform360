@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { validateSummarySession } from "@/lib/session-validation";
 import type { Direction } from "@/lib/directions";
 
 type ApiResponse<T> =
@@ -27,32 +28,18 @@ export async function GET(
       );
     }
 
-    const otpSession = await prisma.otpSession.findUnique({
-      where: { sessionToken },
-      include: {
-        reviewerLink: {
-          include: {
-            cycle: { select: { name: true, status: true, id: true, endDate: true } },
-          },
-        },
-      },
-    });
-
-    if (!otpSession || !otpSession.sessionExpiry || otpSession.sessionExpiry < new Date()) {
+    // Identity is bound by email: any of the reviewer's verified sessions
+    // (summary or direct, any cycle) unlocks this link, but only for the
+    // reviewer whose email matches. See validateSummarySession.
+    const result = await validateSummarySession(sessionToken, token);
+    if (!result.ok) {
       return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "Session expired. Please verify again.", code: "SESSION_EXPIRED" },
-        { status: 401 }
+        { success: false, error: result.error, code: result.code },
+        { status: result.status }
       );
     }
 
-    if (!otpSession.reviewerLink || otpSession.reviewerLink.token !== token) {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "Session does not match this review link", code: "SESSION_MISMATCH" },
-        { status: 403 }
-      );
-    }
-
-    const { reviewerLink } = otpSession;
+    const { reviewerLink } = result;
 
     if (reviewerLink.cycle.status !== "ACTIVE") {
       return NextResponse.json<ApiResponse<never>>(

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { validateSummarySession } from "@/lib/session-validation";
 import { parseResponse } from "../helpers";
 
 const { GET: listAssignments } = await import(
@@ -42,12 +43,28 @@ describe("Review: Assignments list (GET /api/review/[token]/assignments)", () =>
     expect(body.code).toBe("NO_SESSION");
   });
 
+  // The route delegates identity/email checks to validateSummarySession
+  // (unit-tested separately). Here we mock its result and test route behavior.
+  function mockValidLink(status: string = "ACTIVE") {
+    vi.mocked(validateSummarySession).mockResolvedValue({
+      ok: true,
+      reviewerLink: {
+        id: "rl-1",
+        token: SUMMARY_TOKEN,
+        cycleId: "c1",
+        reviewerId: "r1",
+        cycle: { id: "c1", name: "Q1 2026", status, endDate: new Date("2026-04-01") },
+      },
+    } as any);
+  }
+
   it("returns 401 for expired session", async () => {
     const sessionToken = "expired-session";
-    vi.mocked(prisma.otpSession.findUnique).mockResolvedValue({
-      sessionToken,
-      sessionExpiry: new Date(Date.now() - 60_000), // expired
-      reviewerLink: null,
+    vi.mocked(validateSummarySession).mockResolvedValue({
+      ok: false,
+      status: 401,
+      error: "Session expired. Please verify again.",
+      code: "SESSION_EXPIRED",
     } as any);
 
     const req = makeRequest(
@@ -61,17 +78,13 @@ describe("Review: Assignments list (GET /api/review/[token]/assignments)", () =>
     expect(body.code).toBe("SESSION_EXPIRED");
   });
 
-  it("returns 403 for session-token mismatch", async () => {
+  it("returns 403 when the session email does not match the link's reviewer", async () => {
     const sessionToken = "valid-session";
-    vi.mocked(prisma.otpSession.findUnique).mockResolvedValue({
-      sessionToken,
-      sessionExpiry: new Date(Date.now() + 3600_000),
-      reviewerLink: {
-        token: "different-summary-token", // mismatch
-        cycleId: "c1",
-        reviewerId: "r1",
-        cycle: { name: "Q1", status: "ACTIVE", id: "c1", endDate: new Date(Date.now() + 86400000) },
-      },
+    vi.mocked(validateSummarySession).mockResolvedValue({
+      ok: false,
+      status: 403,
+      error: "Session does not match this review link",
+      code: "SESSION_MISMATCH",
     } as any);
 
     const req = makeRequest(
@@ -87,21 +100,7 @@ describe("Review: Assignments list (GET /api/review/[token]/assignments)", () =>
 
   it("returns assignments list for valid session", async () => {
     const sessionToken = "valid-session";
-    vi.mocked(prisma.otpSession.findUnique).mockResolvedValue({
-      sessionToken,
-      sessionExpiry: new Date(Date.now() + 3600_000),
-      reviewerLink: {
-        token: SUMMARY_TOKEN,
-        cycleId: "c1",
-        reviewerId: "r1",
-        cycle: {
-          name: "Q1 2026",
-          status: "ACTIVE",
-          id: "c1",
-          endDate: new Date("2026-04-01"),
-        },
-      },
-    } as any);
+    mockValidLink();
 
     vi.mocked(prisma.evaluationAssignment.findMany).mockResolvedValue([
       { id: "a1", token: "tok1", subjectId: "s1", direction: "LATERAL", status: "PENDING" },
@@ -142,21 +141,7 @@ describe("Review: Assignments list (GET /api/review/[token]/assignments)", () =>
 
   it("returns 410 for inactive cycle", async () => {
     const sessionToken = "valid-session";
-    vi.mocked(prisma.otpSession.findUnique).mockResolvedValue({
-      sessionToken,
-      sessionExpiry: new Date(Date.now() + 3600_000),
-      reviewerLink: {
-        token: SUMMARY_TOKEN,
-        cycleId: "c1",
-        reviewerId: "r1",
-        cycle: {
-          name: "Q1 2026",
-          status: "CLOSED",
-          id: "c1",
-          endDate: new Date("2026-04-01"),
-        },
-      },
-    } as any);
+    mockValidLink("CLOSED");
 
     const req = makeRequest(
       `http://localhost:3000/api/review/${SUMMARY_TOKEN}/assignments`,

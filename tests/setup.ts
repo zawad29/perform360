@@ -85,4 +85,5 @@ vi.mock("@/lib/audit", () => ({
 // Mock session validation
 vi.mock("@/lib/session-validation", () => ({
   validateEvaluationSession: vi.fn(),
+  validateSummarySession: vi.fn(),
 }));
