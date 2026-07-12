@@ -42,7 +42,7 @@ function RatingScale({
   return (
     <div className="space-y-3">
       <TooltipProvider delayDuration={250}>
-        <div className="relative flex items-center justify-between gap-1">
+        <div className="relative isolate flex items-center justify-between gap-1">
           {/* Track */}
           <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-[2px] bg-gray-100" />
           {/* Filled track */}
