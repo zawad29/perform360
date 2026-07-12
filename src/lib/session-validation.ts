@@ -113,10 +113,15 @@ export async function validateEvaluationSession(
       };
     }
 
-    if (
-      assignment.cycleId !== otpSession.reviewerLink.cycleId ||
-      assignment.reviewerId !== otpSession.reviewerLink.reviewerId
-    ) {
+    // One OTP covers all of a reviewer's evaluations: accept the session if it
+    // belongs to the same reviewer (by email), regardless of which cycle/link it
+    // was originally verified against. Mirrors the direct-session branch above.
+    const reviewer = await prisma.user.findFirst({
+      where: { id: assignment.reviewerId },
+      select: { email: true },
+    });
+
+    if (!reviewer || reviewer.email !== otpSession.email) {
       return {
         ok: false,
         status: 403,
@@ -141,4 +146,66 @@ export async function validateEvaluationSession(
     error: "Invalid session",
     code: "INVALID_SESSION",
   };
+}
+
+type ReviewLinkWithCycle = CycleReviewerLink & {
+  cycle: Pick<EvaluationCycle, "id" | "name" | "status" | "endDate">;
+};
+
+type SummaryLinkValidationResult =
+  | { ok: true; reviewerLink: ReviewLinkWithCycle }
+  | { ok: false; status: number; error: string; code: string };
+
+/**
+ * Validate a session cookie against a review (summary) link token.
+ *
+ * Access requires two gates: possession of the unguessable link token (in the
+ * URL) and an email-identity match — the verified session's email must equal the
+ * link's reviewer email. This lets one OTP cover all of a reviewer's cycles
+ * while never granting access to another reviewer's evaluations.
+ */
+export async function validateSummarySession(
+  sessionToken: string,
+  reviewLinkToken: string
+): Promise<SummaryLinkValidationResult> {
+  const reviewerLink = await prisma.cycleReviewerLink.findUnique({
+    where: { token: reviewLinkToken },
+    include: {
+      cycle: { select: { id: true, name: true, status: true, endDate: true } },
+    },
+  });
+
+  if (!reviewerLink) {
+    return { ok: false, status: 404, error: "Invalid review link", code: "INVALID_TOKEN" };
+  }
+
+  const otpSession = await prisma.otpSession.findUnique({
+    where: { sessionToken },
+    select: { email: true, sessionExpiry: true },
+  });
+
+  if (!otpSession || !otpSession.sessionExpiry || otpSession.sessionExpiry < new Date()) {
+    return {
+      ok: false,
+      status: 401,
+      error: "Session expired. Please verify again.",
+      code: "SESSION_EXPIRED",
+    };
+  }
+
+  const reviewer = await prisma.user.findFirst({
+    where: { id: reviewerLink.reviewerId },
+    select: { email: true },
+  });
+
+  if (!reviewer || reviewer.email !== otpSession.email) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Session does not match this review link",
+      code: "SESSION_MISMATCH",
+    };
+  }
+
+  return { ok: true, reviewerLink };
 }
